@@ -212,7 +212,7 @@ export interface BacktestResult {
   endDate: number
 }
 
-export type DataSource = "oanda"
+export type DataSource = "oanda" | "synthetic"
 
 export interface MarketSession {
   name: "Asian" | "London" | "NewYork"
