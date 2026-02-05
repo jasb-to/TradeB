@@ -32,6 +32,7 @@ You will now receive:
 ⏰ *Time:* ${new Date().toISOString()}
 ━━━━━━━━━━━━━━━━━━━━`;
 
+    console.log("[v0] TelegramNotifier - Sending test message")
     await this.sendMessage(message);
   }
 
@@ -399,6 +400,9 @@ This is an informational status update only.
 
     try {
       console.log(`[v0] TELEGRAM: Attempting to send message to chat ${this.chatId}`);
+      console.log(`[v0] TELEGRAM: API URL: ${url}`)
+      console.log(`[v0] TELEGRAM: Message length: ${message.length} characters`)
+      
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -409,6 +413,8 @@ This is an informational status update only.
         }),
       });
 
+      console.log(`[v0] TELEGRAM: API Response status: ${response.status}`)
+      
       if (!response.ok) {
         const error = await response.json();
         console.error(`[v0] TELEGRAM ERROR: ${response.status}`, error);
@@ -425,7 +431,7 @@ This is an informational status update only.
       console.log(`[v0] TELEGRAM MESSAGE SENT: messageId=${result.result.message_id}`);
     } catch (error) {
       console.error("[v0] TELEGRAM SEND FAILED:", error);
-      throw error;
+      throw error
     }
   }
 }

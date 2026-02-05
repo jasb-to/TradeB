@@ -6,10 +6,12 @@ export const dynamic = "force-dynamic"
 const DASHBOARD_URL = "https://tradeb.vercel.app"
 
 export async function GET() {
+  console.log("[v0] Test Telegram GET request received")
   return handleTest()
 }
 
 export async function POST() {
+  console.log("[v0] Test Telegram POST request received")
   return handleTest()
 }
 
