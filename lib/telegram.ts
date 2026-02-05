@@ -15,7 +15,7 @@ export class TelegramNotifier {
   async sendTestMessage(): Promise<void> {
     const message = `✅ TELEGRAM TEST SUCCESSFUL
 ━━━━━━━━━━━━━━━━━━━━
-Your XPTSWITCH trading system is now connected to Telegram!
+Your TradeB trading system is now connected to Telegram!
 
 This test confirms:
 ✓ Bot token is valid
