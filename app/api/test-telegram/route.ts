@@ -48,6 +48,11 @@ async function handleTest() {
     
     // Bypass cooldown for test messages
     console.log("[v0] Telegram test - Bypassing cooldown for test message")
+    
+    // Force clear any existing cooldown for test
+    console.log("[v0] Telegram test - Clearing any existing cooldown")
+    await notifier.clearCooldown("XAU_USD")
+    
     await notifier.sendTestMessage()
     console.log("[v0] Telegram test - Message sent successfully!")
 

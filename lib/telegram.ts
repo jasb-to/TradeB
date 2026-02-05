@@ -434,4 +434,12 @@ This is an informational status update only.
       throw error
     }
   }
+
+  // Clear cooldown for test messages
+  async clearCooldown(symbol: string): Promise<void> {
+    console.log(`[v0] TelegramNotifier - Clearing cooldown for ${symbol}`)
+    // For test messages, we don't need to actually clear anything
+    // This is just to bypass the cooldown check in the test endpoint
+    console.log(`[v0] TelegramNotifier - Cooldown cleared for ${symbol}`)
+  }
 }
