@@ -3,7 +3,7 @@ import { TelegramNotifier } from "@/lib/telegram"
 
 export const dynamic = "force-dynamic"
 
-const DASHBOARD_URL = "https://xptswitch.vercel.app"
+const DASHBOARD_URL = "https://tradeb.vercel.app"
 
 export async function GET() {
   return handleTest()
