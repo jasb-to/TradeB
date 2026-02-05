@@ -38,6 +38,12 @@ async function handleTest() {
   try {
     console.log("[v0] Telegram test - Sending test message...")
     const notifier = new TelegramNotifier(telegramBotToken, telegramChatId, DASHBOARD_URL)
+    
+    // Add debugging to see what's happening
+    console.log("[v0] Telegram test - Bot token:", telegramBotToken)
+    console.log("[v0] Telegram test - Chat ID:", telegramChatId)
+    console.log("[v0] Telegram test - Dashboard URL:", DASHBOARD_URL)
+    
     await notifier.sendTestMessage()
     console.log("[v0] Telegram test - Message sent successfully!")
 
@@ -48,6 +54,7 @@ async function handleTest() {
     })
   } catch (error) {
     console.error("[v0] Telegram test failed:", error)
+    console.error("[v0] Telegram test - Error details:", error instanceof Error ? error.message : "Unknown error")
 
     return NextResponse.json(
       {
