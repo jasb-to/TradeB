@@ -1,8 +1,5 @@
-# XPTSwitch - Platinum Swing Trading System (A+ ONLY)
+# Trading System (A+ ONLY)
 
-A weekly swing trading assistant for XPTUSD (Platinum) with strict multi-timeframe A+ only entry conditions.
-
-## Features
 
 - **A+ ONLY Strategy**: 6/6 timeframe alignment + ADX >= 23 required
 - **Maximum Edge**: 100% win rate in backtests with zero false signals
