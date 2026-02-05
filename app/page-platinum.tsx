@@ -13,10 +13,9 @@ import { IndicatorCards } from "@/components/indicator-cards"
 import { EntryChecklist } from "@/components/entry-checklist"
 import { GoldPriceDisplay } from "@/components/gold-price-display"
 
-export default function GoldTradingDashboard() {
+export default function SilverTradingDashboard() {
   const { toast } = useToast()
-  const [signalXAU, setSignalXAU] = useState<Signal | null>(null)
-  const [signalXAG, setSignalXAG] = useState<Signal | null>(null)
+  const [signal, setSignal] = useState<Signal | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const [secondsAgo, setSecondsAgo] = useState(0)
@@ -27,37 +26,39 @@ export default function GoldTradingDashboard() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
-  // XAU is always the main display, XAG runs in background
-  const signal = signalXAU
-
-  const fetchSignals = async () => {
-    setLoading(true)
+  const fetchSignal = async () => {
+    setRefreshing(true)
     try {
-      const [xauResponse, xagResponse] = await Promise.all([
-        fetch("/api/signal/xau"),
-        fetch("/api/signal/xag"),
-      ])
-
-      if (!xauResponse.ok || !xagResponse.ok) {
-        throw new Error("Signal API returned error")
+      const response = await fetch("/api/signal/xag")
+      
+      if (!response.ok) {
+        throw new Error(`Signal API returned ${response.status}`)
       }
 
-      const xauData = await xauResponse.json()
-      const xagData = await xagResponse.json()
+      const data = await response.json()
 
-      if (xauData.success && xauData.signal) {
-        setSignalXAU(xauData.signal)
+      // Handle market closed state - preserve Friday close data
+      if (data.marketClosed) {
+        setMarketClosed(true)
+        setMarketMessage(data.marketStatus || "Market closed for weekend")
+        // Still update signal if cached data returned (Friday close snapshot)
+        if (data.signal) {
+          setSignal(data.signal)
+        }
+      } else {
+        setMarketClosed(false)
+        setMarketMessage(null)
+        if (data.success && data.signal) {
+          setSignal(data.signal)
+        }
       }
-      if (xagData.success && xagData.signal) {
-        setSignalXAG(xagData.signal)
-      }
-
+      
       setLastUpdate(new Date())
       setSecondsAgo(0)
     } catch (error) {
       console.error("[v0] Polling error:", error)
     } finally {
-      setLoading(false)
+      setRefreshing(false)
     }
   }
 
@@ -94,62 +95,8 @@ export default function GoldTradingDashboard() {
     }
   }
 
-  const fetchXAU = async () => {
-    setRefreshing(true)
-    try {
-      const response = await fetch("/api/signal/xau")
-      
-      if (!response.ok) {
-        throw new Error(`Signal API returned ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      // Handle market closed state - preserve Friday close data
-      if (data.marketClosed) {
-        setMarketClosed(true)
-        setMarketMessage(data.marketStatus || "Market closed for weekend")
-        // Still update signal if cached data returned (Friday close snapshot)
-        if (data.signal) {
-          setSignalXAU(data.signal)
-        }
-      } else {
-        setMarketClosed(false)
-        setMarketMessage(null)
-        if (data.success && data.signal) {
-          setSignalXAU(data.signal)
-        }
-      }
-      
-      setLastUpdate(new Date())
-      setSecondsAgo(0)
-    } catch (error) {
-      console.error("[v0] XAU polling error:", error)
-    } finally {
-      setRefreshing(false)
-    }
-  }
-
-  const fetchXAG = async () => {
-    try {
-      const response = await fetch("/api/signal/xag")
-      
-      if (!response.ok) {
-        throw new Error(`XAG Signal API returned ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      if (data.success && data.signal) {
-        setSignalXAG(data.signal)
-      }
-    } catch (error) {
-      console.error("[v0] XAG polling error:", error)
-    }
-  }
-
   useEffect(() => {
-    fetchXAU()
+    fetchSignal()
     
     // Determine polling interval based on market status
     // Market open: poll every 30 seconds for live data
@@ -158,21 +105,20 @@ export default function GoldTradingDashboard() {
     
     intervalRef.current = setInterval(async () => {
       try {
-        // Poll XAU (main display)
-        const xauResponse = await fetch("/api/signal/xau")
+        const response = await fetch("/api/signal/xag")
         
-        if (!xauResponse.ok) {
-          throw new Error(`XAU Signal API returned ${xauResponse.status}`)
+        if (!response.ok) {
+          throw new Error(`Signal API returned ${response.status}`)
         }
 
-        const xauData = await xauResponse.json()
+        const data = await response.json()
 
         // Check if market status changed
-        if (xauData.marketClosed) {
+        if (data.marketClosed) {
           setMarketClosed(true)
-          setMarketMessage(xauData.marketStatus || "Market closed")
-          if (xauData.signal) {
-            setSignalXAU(xauData.signal)
+          setMarketMessage(data.marketStatus || "Market closed")
+          if (data.signal) {
+            setSignal(data.signal)
           }
           return
         }
@@ -181,14 +127,11 @@ export default function GoldTradingDashboard() {
         setMarketClosed(false)
         setMarketMessage(null)
         
-        if (xauData.success && xauData.signal) {
-          setSignalXAU(xauData.signal)
+        if (data.success && data.signal) {
+          setSignal(data.signal)
           setLastUpdate(new Date())
           setSecondsAgo(0)
         }
-
-        // Poll XAG in background (every cycle)
-        fetchXAG()
       } catch (error) {
         console.error("[v0] Polling error:", error)
       }
@@ -217,12 +160,12 @@ export default function GoldTradingDashboard() {
         {/* Header */}
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-3xl font-bold text-white">TradeB - Gold Trading Dashboard</h1>
-            <p className="text-slate-400 text-sm mt-1">Production-Ready XAU/USD Strategy Execution</p>
+            <h1 className="text-3xl font-bold text-white">TradeB - Silver Trading Dashboard</h1>
+            <p className="text-slate-400 text-sm mt-1">Production-Ready XAG/USD Strategy Execution</p>
           </div>
           <div className="flex gap-2">
             <Button
-              onClick={fetchXAU}
+              onClick={fetchSignal}
               disabled={loading || refreshing}
               variant="outline"
               size="sm"
@@ -267,7 +210,7 @@ export default function GoldTradingDashboard() {
 
         {/* Main Content Grid */}
         <div className="space-y-6">
-          {/* 0. Gold Price Display */}
+          {/* 0. Platinum Price Display */}
           <GoldPriceDisplay signal={signal} marketClosed={marketClosed} />
 
           {/* 1. Signal Status Panel */}
@@ -310,7 +253,7 @@ export default function GoldTradingDashboard() {
             {marketClosed 
               ? "Market closed - polling paused. Will resume when market reopens."
               : "Data refreshes automatically every 30 seconds. Strategy: Multi-TF aligned entries with strict risk gates. DO NOT trade against the higher timeframe bias."
-            } Silver runs as background system with Telegram-only alerts.
+            }
           </p>
         </div>
       </div>

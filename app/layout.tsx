@@ -8,7 +8,7 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "MetalsTrader - Gold & Silver Trading Signals",
+  title: "TradeB - Gold & Silver Trading Signals",
   description:
     "Professional XAU_USD & XAG_USD trading signals with multi-timeframe analysis, session filtering, and intelligent risk management",
   generator: "v0.app",

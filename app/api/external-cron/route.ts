@@ -100,10 +100,10 @@ export async function GET(request: NextRequest) {
           const entryDecision = TradingStrategies.prototype.buildEntryDecision(signal)
           if (!entryDecision.allowed) {
             const indicatorsSnapshot = {
-              adx: signal.adx,
-              atr: signal.atr,
-              rsi: signal.rsi,
-              vwap: signal.vwap,
+              adx: signal.indicators?.adx || 0,
+              atr: signal.indicators?.atr || 0,
+              rsi: signal.indicators?.rsi || 0,
+              vwap: signal.indicators?.vwap || 0,
             }
             NearMissTracker.recordNearMiss(signal, entryDecision, 6.0, indicatorsSnapshot)
             console.log(`[v0] CRON-JOB: Near-miss recorded for ${symbol}`)
@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
               const notifier = new TelegramNotifier(
                 process.env.TELEGRAM_BOT_TOKEN,
                 process.env.TELEGRAM_CHAT_ID,
-                "https://xptswitch.vercel.app",
+                "https://tradeb.vercel.app",
               )
               await notifier.sendSignalAlert(signalWithSymbol)
               SignalCache.recordAlert(signalWithSymbol, symbol)
