@@ -78,6 +78,37 @@ export const SilverCache = {
     return `ALLOWED: Inside trading session (${utcHour}:00 UTC)`
   },
 
+  // MODERATE: Extended session filter (05:00-19:00 UTC)
+  isSessionAllowedExtended: (): boolean => {
+    const now = new Date()
+    const utcHours = now.getUTCHours()
+    const utcMinutes = now.getUTCMinutes()
+    
+    const timeInMinutes = utcHours * 60 + utcMinutes
+    const startMinutes = 5 * 60 // 05:00 UTC
+    const endMinutes = 19 * 60 // 19:00 UTC
+    
+    return timeInMinutes >= startMinutes && timeInMinutes < endMinutes
+  },
+
+  getSessionStatusExtended: (): string => {
+    const now = new Date()
+    const utcHours = now.getUTCHours()
+    const utcMinutes = now.getUTCMinutes()
+    
+    const timeInMinutes = utcHours * 60 + utcMinutes
+    const startMinutes = 5 * 60 // 05:00 UTC
+    const endMinutes = 19 * 60 // 19:00 UTC
+    
+    if (timeInMinutes < startMinutes) {
+      return `Extended session opens in ${Math.ceil((startMinutes - timeInMinutes) / 60)} hours`
+    } else if (timeInMinutes >= endMinutes) {
+      return `Extended session closed. Next opens in ${Math.ceil((24 * 60 - timeInMinutes + startMinutes) / 60)} hours`
+    } else {
+      return "Extended session active"
+    }
+  },
+
   // ONE TRADE RULE: Check if direction is already locked
   isDirectionLocked: (direction: "LONG" | "SHORT"): boolean => {
     if (!alertState.currentTradeState) return false

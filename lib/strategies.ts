@@ -61,6 +61,7 @@ export class TradingStrategies {
     const indicators5m = data5m.length > 0 ? await this.calculateIndicators(data5m, "5m") : ({} as TechnicalIndicators)
 
     const currentPrice = data1h[data1h.length - 1]?.close || 0
+    this._currentPrice = currentPrice // Store current price for Silver detection
     const adx1h = indicators1h.adx || 0
 
     const marketRegime = adx1h >= 25 ? "HIGH_TREND" : adx1h >= 20 ? "TREND" : "WEAK"
@@ -222,6 +223,7 @@ export class TradingStrategies {
     let confidence = 0
     if (adx1h >= 25) confidence = setupTier === "A+" ? 95 : 85
     else if (adx1h >= 20) confidence = setupTier === "A+" ? 75 : 70
+    else if (setupTier === "B") confidence = 65 // Changed from 45 to 65-75 range
     else confidence = setupTier === "A+" ? 50 : 45
 
     const ltfConfirm = direction !== "NEUTRAL" ? this.checkLTFConfirmation(data5m, data15m, indicators5m, indicators15m, direction) : false
@@ -432,18 +434,49 @@ export class TradingStrategies {
   ): "A+" | "A" | "B" | null {
     const allAligned = dailyBias === h4Bias && h4Bias === h1Bias && dailyBias !== "NEUTRAL"
 
-    // A+ Setup: Perfect alignment + strong ADX (loosened by 1%)
-    if (score >= 7.5 && adx >= 23.5 && allAligned) return "A+"
+    // Check if this is Silver (more volatile) vs Gold
+    const isSilver = this.isSilverSymbol()
 
-    // A Setup: Good alignment + moderate ADX (loosened by 1%)
-    if (score >= 5.5 && adx >= 19 && allAligned) return "A"
+    // Silver-specific thresholds (more lenient due to higher volatility)
+    if (isSilver) {
+      // A+ Setup: Perfect alignment + strong ADX (Silver: lower thresholds)
+      if (score >= 7.5 && adx >= 21 && allAligned) return "A+"
 
-    // B Setup: 1H momentum + minimum ADX (NO HTF alignment required)
-    // Daily/4H can be neutral or mixed - 1H drives the trade
-    if (score >= 4 && adx >= 18 && h1Bias !== "NEUTRAL") return "B"
+      // A Setup: Good alignment + moderate ADX (Silver: lower thresholds)
+      if (score >= 5.5 && adx >= 17 && allAligned) return "A"
+
+      // B Setup: 1H momentum + minimum ADX (Silver: lower ADX requirement)
+      if (score >= 4 && adx >= 16 && h1Bias !== "NEUTRAL") return "B"
+    } else {
+      // Gold-specific thresholds (original stricter requirements)
+      // A+ Setup: Perfect alignment + strong ADX (loosened by 1%)
+      if (score >= 7.5 && adx >= 23.5 && allAligned) return "A+"
+
+      // A Setup: Good alignment + moderate ADX (loosened by 1%)
+      if (score >= 5.5 && adx >= 19 && allAligned) return "A"
+
+      // B Setup: 1H momentum + minimum ADX (NO HTF alignment required)
+      // Daily/4H can be neutral or mixed - 1H drives the trade
+      if (score >= 4 && adx >= 18 && h1Bias !== "NEUTRAL") return "B"
+    }
 
     return null
   }
+
+  private isSilverSymbol(): boolean {
+    // Check if we're trading Silver based on current price range or symbol
+    // Silver typically trades around $20-30, Gold around $2000+
+    const currentPrice = this.getCurrentPrice()
+    return currentPrice < 1000 // If price < $1000, assume Silver
+  }
+
+  private getCurrentPrice(): number {
+    // This would need to be passed in or stored from the main evaluation
+    // For now, we'll use a placeholder that gets set during evaluation
+    return this._currentPrice || 0
+  }
+
+  private _currentPrice: number = 0
 
   private checkLTFConfirmation(
     data5m: Candle[],
