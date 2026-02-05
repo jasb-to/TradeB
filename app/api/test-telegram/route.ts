@@ -44,6 +44,8 @@ async function handleTest() {
     console.log("[v0] Telegram test - Chat ID:", telegramChatId)
     console.log("[v0] Telegram test - Dashboard URL:", DASHBOARD_URL)
     
+    // Bypass cooldown for test messages
+    console.log("[v0] Telegram test - Bypassing cooldown for test message")
     await notifier.sendTestMessage()
     console.log("[v0] Telegram test - Message sent successfully!")
 
