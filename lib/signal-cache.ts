@@ -1,7 +1,7 @@
 import type { Signal } from "@/types/trading"
 
-// Trade State Machine: IDLE → IN_TRADE → COOLDOWN → IDLE
-type TradeState = "IDLE" | "IN_TRADE" | "COOLDOWN"
+// Trade State Machine: IDLE → IN_TRADE → IDLE
+type TradeState = "IDLE" | "IN_TRADE"
 
 interface CachedSignal {
   signal: Signal
@@ -18,20 +18,17 @@ interface TradeStateData {
   failedSetupHashes: Set<string> // Setups that resulted in losses
   entryWindowStart: number | null
   entryWindowExpiry: number | null
-  cooldownExpiry: number | null
   lastAlertedSetupHash: string | null
 }
 
 const CACHE_DURATION = 30000 // 30 second cache
-const GOLD_COOLDOWN_MS = 90 * 60 * 1000 // 90 minutes after stop loss
-const SILVER_COOLDOWN_MS = 60 * 60 * 1000 // 60 minutes after stop loss
 const GOLD_ENTRY_WINDOW = 15 * 60 * 1000 // 15 minute validity window
 const SILVER_ENTRY_WINDOW = 20 * 60 * 1000 // 20 minute validity window
 
 // Symbol-based cache
 let cachedSignals: Map<string, CachedSignal> = new Map()
 
-// HARDENED: Symbol-based trade state machine (replaces old alert states)
+// Simplified trade state machine (removed cooldown)
 let tradeStates: Map<string, TradeStateData> = new Map()
 
 function generateSetupHash(signal: Signal, symbol: string): string {
@@ -65,15 +62,10 @@ function getTradeState(symbol: string): TradeStateData {
       failedSetupHashes: new Set(),
       entryWindowStart: null,
       entryWindowExpiry: null,
-      cooldownExpiry: null,
       lastAlertedSetupHash: null,
     })
   }
   return tradeStates.get(symbol)!
-}
-
-function getCooldownDuration(symbol: string): number {
-  return symbol.includes("XAU") ? GOLD_COOLDOWN_MS : SILVER_COOLDOWN_MS
 }
 
 function getEntryWindowDuration(symbol: string): number {
@@ -161,14 +153,6 @@ export const SignalCache = {
     const setupHash = generateSetupHash(signal, symbol)
     const state = getTradeState(symbol)
 
-    // Auto-expire cooldown if time has passed
-    if (state.state === "COOLDOWN" && state.cooldownExpiry && Date.now() > state.cooldownExpiry) {
-      console.log(`[v0] ${symbol} COOLDOWN EXPIRED - Returning to IDLE`)
-      state.state = "IDLE"
-      state.stateChangeTime = Date.now()
-      state.cooldownExpiry = null
-    }
-
     // Auto-expire entry window if exceeded
     if (state.entryWindowExpiry && Date.now() > state.entryWindowExpiry) {
       console.log(`[v0] ${symbol} ENTRY WINDOW EXPIRED - Setup is now stale`)
@@ -180,9 +164,8 @@ export const SignalCache = {
 
     if (signal.type === "NO_TRADE" || signal.type === "EXIT") {
       // Exit state - clear trade state
-      state.state = "COOLDOWN"
+      state.state = "IDLE"
       state.stateChangeTime = Date.now()
-      state.cooldownExpiry = Date.now() + (symbol === "XAU_USD" ? GOLD_COOLDOWN_MS : SILVER_COOLDOWN_MS)
     }
 
     cachedSignals.set(symbol, {
@@ -204,10 +187,7 @@ export const SignalCache = {
     state.state = newState
     state.stateChangeTime = Date.now()
 
-    if (newState === "COOLDOWN") {
-      state.cooldownExpiry = Date.now() + getCooldownDuration(symbol)
-      console.log(`[v0] ${symbol} → COOLDOWN (${Math.round(getCooldownDuration(symbol) / 60000)}min) | Reason: ${reason}`)
-    } else if (newState === "IN_TRADE") {
+    if (newState === "IN_TRADE") {
       state.entryWindowStart = Date.now()
       state.entryWindowExpiry = Date.now() + getEntryWindowDuration(symbol)
       console.log(`[v0] ${symbol} → IN_TRADE | Entry window valid for ${Math.round(getEntryWindowDuration(symbol) / 60000)}min`)
@@ -223,11 +203,6 @@ export const SignalCache = {
 
     if (state.state === "IN_TRADE") {
       return { allowed: false, reason: `BLOCKED: Trade already active for ${symbol}` }
-    }
-
-    if (state.state === "COOLDOWN") {
-      const timeLeft = Math.ceil((state.cooldownExpiry! - now) / 60000)
-      return { allowed: false, reason: `BLOCKED: Cooldown active for ${symbol} (${timeLeft}min remaining)` }
     }
 
     if (state.lastAlertedSetupHash === setupHash) {
@@ -413,9 +388,9 @@ export const SignalCache = {
     }
   },
 
-  // NEW: Reset cooldown for a specific symbol (for immediate fixes)
-  resetCooldown: (symbol: string): void => {
-    console.log(`[v0] RESET_COOLDOWN CALLED for ${symbol}`)
+  // NEW: Reset state for a specific symbol (for immediate fixes)
+  resetState: (symbol: string): void => {
+    console.log(`[v0] RESET_STATE CALLED for ${symbol}`)
     
     // Check if state exists
     if (!tradeStates.has(symbol)) {
@@ -426,10 +401,9 @@ export const SignalCache = {
     const state = getTradeState(symbol)
     console.log(`[v0] Current state before reset:`, JSON.stringify(state, null, 2))
     
-    // Clear all cooldown-related properties
+    // Clear all state-related properties
     state.state = "IDLE"
     state.stateChangeTime = Date.now()
-    state.cooldownExpiry = null
     state.lastTradedSetupHash = null
     state.entryWindowStart = null
     state.entryWindowExpiry = null
@@ -448,7 +422,7 @@ export const SignalCache = {
     
     console.log(`[v0] State after reset:`, JSON.stringify(state, null, 2))
     console.log(`[v0] Alert state after reset:`, JSON.stringify(alertState, null, 2))
-    console.log(`[v0] COOLDOWN RESET for ${symbol} - State cleared and ready for new trades`)
+    console.log(`[v0] STATE RESET for ${symbol} - State cleared and ready for new trades`)
     
     // Force update the tradeStates map
     tradeStates.set(symbol, state)
@@ -464,8 +438,6 @@ export const SignalCache = {
       symbol,
       tradeState: state.state,
       stateChangeTime: new Date(state.stateChangeTime).toISOString(),
-      cooldownExpiry: state.cooldownExpiry ? new Date(state.cooldownExpiry).toISOString() : null,
-      timeUntilCooldownEnd: state.cooldownExpiry ? Math.max(0, state.cooldownExpiry - Date.now()) : 0,
       lastTradedSetupHash: state.lastTradedSetupHash,
       failedSetupHashes: Array.from(state.failedSetupHashes),
       entryWindowStart: state.entryWindowStart ? new Date(state.entryWindowStart).toISOString() : null,
