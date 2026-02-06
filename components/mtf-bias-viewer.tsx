@@ -12,6 +12,13 @@ export function MTFBiasViewer({ signal }: MTFBiasViewerProps) {
   // Get market state from signal.marketState
   const marketState = signal?.marketState
   
+  console.log("[v0] MTFBiasViewer - signal:", { 
+    hasSignal: !!signal, 
+    hasMarketState: !!marketState,
+    hasTimeframeAlignment: !!signal?.timeframeAlignment,
+    alignment: signal?.timeframeAlignment 
+  })
+  
   // Determine trend direction from market state
   const getTrendLabel = () => {
     if (!marketState) return "ANALYZING..."

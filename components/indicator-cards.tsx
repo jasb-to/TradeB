@@ -31,6 +31,8 @@ export function IndicatorCards({ signal }: IndicatorCardsProps) {
   const stochRsiData = typeof stochRsiRaw === "object" && stochRsiRaw !== null
     ? stochRsiRaw as { value: number | null; state: string }
     : { value: typeof stochRsiRaw === "number" ? stochRsiRaw : null, state: "CALCULATING" }
+  
+  console.log("[v0] IndicatorCards - stochRSI data:", { stochRsiRaw, stochRsiData })
 
   // Only critical indicators (ADX, ATR) must be non-zero. StochRSI can be null during calculation.
   const hasErrors = adx === 0 || atr === 0

@@ -12,7 +12,7 @@ import { GoldSignalPanel } from "@/components/gold-signal-panel"
 import { IndicatorCards } from "@/components/indicator-cards"
 import { EntryChecklist } from "@/components/entry-checklist"
 import { GoldPriceDisplay } from "@/components/gold-price-display"
-import { ActiveTrades } from "@/components/active-trades"
+
 
 export default function GoldTradingDashboard() {
   const { toast } = useToast()
@@ -25,8 +25,6 @@ export default function GoldTradingDashboard() {
   const [marketMessage, setMarketMessage] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [testingTelegram, setTestingTelegram] = useState(false)
-  const [activeTrades, setActiveTrades] = useState<any[]>([])
-  const [currentPrice, setCurrentPrice] = useState<number | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -105,6 +103,7 @@ export default function GoldTradingDashboard() {
     }
     
     setRefreshing(true)
+    console.log("[v0] Starting XAU fetch...")
     try {
       const response = await fetch("/api/signal/current?symbol=XAU_USD", {
         signal: AbortSignal.timeout(15000) // 15 second timeout
@@ -115,6 +114,14 @@ export default function GoldTradingDashboard() {
       }
 
       const data = await response.json()
+      console.log("[v0] XAU data received:", { 
+        hasSignal: !!data.signal, 
+        marketClosed: data.marketClosed,
+        hasTimeframeAlignment: !!data.signal?.timeframeAlignment,
+        hasIndicators: !!data.signal?.indicators,
+        hasEntryDecision: !!data.signal?.entryDecision,
+        stochRSI: data.signal?.indicators?.stochRSI
+      })
 
       // Handle market closed state - preserve Friday close data
       if (data.marketClosed) {
@@ -134,13 +141,16 @@ export default function GoldTradingDashboard() {
       
       setLastUpdate(new Date())
       setSecondsAgo(0)
+      setLoading(false) // Clear initial loading state
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         console.error("[v0] XAU fetch timeout (15s)")
       } else {
         console.error("[v0] XAU polling error:", error)
       }
+      setLoading(false) // Clear loading even on error
     } finally {
+      console.log("[v0] XAU fetch complete, clearing refresh state")
       setRefreshing(false)
     }
   }
@@ -163,31 +173,7 @@ export default function GoldTradingDashboard() {
     }
   }
 
-  const fetchActiveTrades = async () => {
-    try {
-      const response = await fetch("/api/active-trades?symbol=XAU_USD")
-      if (response.ok) {
-        const data = await response.json()
-        setActiveTrades(data.activeTrades || [])
-      }
-    } catch (error) {
-      console.error("[v0] Error fetching active trades:", error)
-    }
-  }
 
-  const fetchCurrentPrice = async () => {
-    try {
-      const response = await fetch("/api/signal/current?symbol=XAU_USD")
-      if (response.ok) {
-        const data = await response.json()
-        if (data.signal && data.signal.currentPrice) {
-          setCurrentPrice(data.signal.currentPrice)
-        }
-      }
-    } catch (error) {
-      console.error("[v0] Error fetching current price:", error)
-    }
-  }
 
   useEffect(() => {
     fetchXAU()
@@ -252,25 +238,7 @@ export default function GoldTradingDashboard() {
     }
   }, [lastUpdate])
 
-  // Fetch active trades and current price when signal updates
-  useEffect(() => {
-    if (signal) {
-      fetchActiveTrades()
-      fetchCurrentPrice()
-    }
-  }, [signal])
 
-  // Poll active trades every 10 seconds when market is open
-  useEffect(() => {
-    if (!marketClosed) {
-      const tradeInterval = setInterval(() => {
-        fetchActiveTrades()
-        fetchCurrentPrice()
-      }, 10000) // Every 10 seconds
-
-      return () => clearInterval(tradeInterval)
-    }
-  }, [marketClosed])
 
   return (
     <div className="min-h-screen bg-slate-950 p-4 md:p-8">
@@ -351,33 +319,6 @@ export default function GoldTradingDashboard() {
 
           {/* 4. Entry Checklist */}
           <EntryChecklist signal={signal} />
-
-          {/* 5. Active Trades */}
-          <ActiveTrades
-            trades={activeTrades}
-            currentPrice={currentPrice}
-            onCloseTrade={(tradeId) => {
-              // Remove trade from state
-              setActiveTrades(prev => prev.filter(trade => trade.id !== tradeId))
-              // Clear from backend
-              fetch(`/api/active-trades?tradeId=${tradeId}`, { method: "DELETE" })
-            }}
-            onAddTrade={(trade) => {
-              // Add trade to backend
-              fetch("/api/active-trades", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ symbol: "XAU_USD", trade, signal }),
-              }).then(() => {
-                // Refresh trades
-                fetchActiveTrades()
-              })
-            }}
-            onEditTrade={(tradeId, trade) => {
-              // Update trade in backend (simplified - would need PUT endpoint)
-              fetchActiveTrades()
-            }}
-          />
 
           {/* Error State */}
           {!loading && !signal && (
