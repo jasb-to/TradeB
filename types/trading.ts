@@ -1,4 +1,4 @@
-export interface Candle {
+the api export interface Candle {
   timestamp: number
   open: number
   high: number
@@ -153,6 +153,14 @@ export interface Signal {
   htfPolarityState?: HTFPolarityState
   counterTrendBlocked?: boolean
   getReadyState?: GetReadyState
+  lastCandle?: {
+    close: number
+    atr?: number
+    adx?: number
+    stochRSI?: number
+    vwap?: number
+    timestamp?: number
+  }
 }
 
 // GET_READY State - INFORMATIONAL ONLY, never triggers trades

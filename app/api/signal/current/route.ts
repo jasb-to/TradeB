@@ -167,14 +167,16 @@ export async function GET(request: Request) {
       takeProfit1: signal.direction ? takeProfit1 : undefined,
       takeProfit2: signal.direction ? takeProfit2 : undefined,
       riskReward: signal.direction ? Number(((takeProfit2 - entryPrice) / Math.abs(entryPrice - stopLoss)).toFixed(2)) : undefined,
-      lastCandle: {
-        close: last1hCandle?.close || undefined,
-        atr: signal.indicators?.atr || undefined,
-        adx: signal.indicators?.adx || undefined,
-        stochRSI: signal.indicators?.stochRSI || undefined,
-        vwap: signal.indicators?.vwap || undefined,
-        timestamp: last1hCandle?.timestamp || undefined,
-      },
+      lastCandle: last1hCandle
+        ? {
+            close: last1hCandle.close,
+            atr: signal.indicators?.atr,
+            adx: signal.indicators?.adx,
+            stochRSI: signal.indicators?.stochRSI,
+            vwap: signal.indicators?.vwap,
+            timestamp: last1hCandle.timestamp,
+          }
+        : undefined,
     }
 
     SignalCache.set(enhancedSignal, symbol)

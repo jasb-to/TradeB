@@ -11,14 +11,14 @@ interface GoldPriceDisplayProps {
 }
 
 export function GoldPriceDisplay({ signal, marketClosed = false }: GoldPriceDisplayProps) {
-  const currentPrice = signal?.currentPrice || 0
+  const currentPrice = signal?.lastCandle?.close ?? 0
   
   // Use actual market status from API, not just presence of data
   const isMarketOpen = !marketClosed
   
   // Data source - always OANDA for this trading system
   const dataSource = "OANDA"
-  const dataTimestamp = signal?.lastCandle?.time ? new Date(signal.lastCandle.time).toLocaleTimeString() : "—"
+  const dataTimestamp = signal?.lastCandle?.timestamp ? new Date(signal.lastCandle.timestamp).toLocaleTimeString() : "—"
 
   if (!currentPrice) {
     return (
