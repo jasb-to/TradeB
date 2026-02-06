@@ -415,14 +415,45 @@ export const SignalCache = {
 
   // NEW: Reset cooldown for a specific symbol (for immediate fixes)
   resetCooldown: (symbol: string): void => {
+    console.log(`[v0] RESET_COOLDOWN CALLED for ${symbol}`)
+    
+    // Check if state exists
+    if (!tradeStates.has(symbol)) {
+      console.log(`[v0] WARNING: No state found for ${symbol}, creating new state`)
+      getTradeState(symbol)
+    }
+    
     const state = getTradeState(symbol)
+    console.log(`[v0] Current state before reset:`, JSON.stringify(state, null, 2))
+    
+    // Clear all cooldown-related properties
     state.state = "IDLE"
     state.stateChangeTime = Date.now()
     state.cooldownExpiry = null
     state.lastTradedSetupHash = null
     state.entryWindowStart = null
     state.entryWindowExpiry = null
+    
+    // Also clear alert state
+    const alertState = getAlertState(symbol)
+    alertState.lastAlertTime = 0
+    alertState.lastAlertType = null
+    alertState.lastAlertDirection = null
+    alertState.lastAlertLevel = 0
+    alertState.consecutiveNoTrades = 0
+    alertState.lastSignalHash = null
+    alertState.lastSentHash = null
+    alertState.activeTrade = null
+    alertState.activeTradeTime = 0
+    
+    console.log(`[v0] State after reset:`, JSON.stringify(state, null, 2))
+    console.log(`[v0] Alert state after reset:`, JSON.stringify(alertState, null, 2))
     console.log(`[v0] COOLDOWN RESET for ${symbol} - State cleared and ready for new trades`)
+    
+    // Force update the tradeStates map
+    tradeStates.set(symbol, state)
+    alertStates.set(symbol, alertState)
+    console.log(`[v0] Updated tradeStates and alertStates maps for ${symbol}`)
   },
 
   // NEW: Get detailed state information for debugging

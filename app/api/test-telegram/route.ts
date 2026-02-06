@@ -59,7 +59,16 @@ async function handleTest() {
     
     // Force clear any existing cooldown for test
     console.log("[v0] Telegram test - Clearing any existing cooldown")
+    
+    // Debug: Check current state before reset
+    const currentState = SignalCache.getDetailedState("XAU_USD")
+    console.log("[v0] Current state before reset:", JSON.stringify(currentState, null, 2))
+    
     SignalCache.resetCooldown("XAU_USD")
+    
+    // Debug: Check state after reset
+    const newState = SignalCache.getDetailedState("XAU_USD")
+    console.log("[v0] State after reset:", JSON.stringify(newState, null, 2))
     
     await notifier.sendTestMessage()
     console.log("[v0] Telegram test - Message sent successfully!")
@@ -108,8 +117,17 @@ async function handleCallback(callbackQuery: any) {
     
     if (action === "reset_gold_cooldown") {
       console.log("[v0] Resetting Gold cooldown via button")
+      
+      // Debug: Check current state before reset
+      const currentState = SignalCache.getDetailedState("XAU_USD")
+      console.log("[v0] Current state before reset:", JSON.stringify(currentState, null, 2))
+      
       // Actually reset the cooldown using SignalCache
       SignalCache.resetCooldown("XAU_USD")
+      
+      // Debug: Check state after reset
+      const newState = SignalCache.getDetailedState("XAU_USD")
+      console.log("[v0] State after reset:", JSON.stringify(newState, null, 2))
       
       // Send confirmation message
       await notifier.sendTestMessage()
@@ -118,6 +136,8 @@ async function handleCallback(callbackQuery: any) {
         success: true,
         message: "Gold cooldown reset",
         action: "reset_cooldown",
+        stateBefore: currentState,
+        stateAfter: newState,
       })
     } else if (action === "test_silver") {
       console.log("[v0] Testing Silver signal via button")
