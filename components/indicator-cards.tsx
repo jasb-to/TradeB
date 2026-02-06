@@ -147,15 +147,17 @@ export function IndicatorCards({ signal }: IndicatorCardsProps) {
           <div className="flex justify-between items-baseline">
             {stochStatus.isCalculating ? (
               <span className="text-2xl font-bold text-gray-500" title="Waiting for sufficient candles">—</span>
+            ) : stochRsiData.value !== null && stochRsiData.value !== undefined ? (
+              <span className="text-2xl font-bold">{stochRsiData.value.toFixed(1)}</span>
             ) : (
-              <span className="text-2xl font-bold">{stochRsiData.value?.toFixed(1) ?? "—"}</span>
+              <span className="text-2xl font-bold text-gray-500">—</span>
             )}
             <span className={`text-xs font-mono ${stochStatus.color}`}>{stochStatus.label}</span>
           </div>
           <div className="w-full bg-slate-800 rounded h-2">
             <div
               className={`${stochStatus.color.includes("green") ? "bg-green-600" : stochStatus.color.includes("red") ? "bg-red-600" : stochStatus.color.includes("yellow") ? "bg-yellow-600" : "bg-gray-600"} rounded h-2 transition-all`}
-              style={{ width: stochStatus.isCalculating ? "0%" : `${Math.min(100, stochRsiData.value ?? 0)}%` }}
+              style={{ width: stochStatus.isCalculating ? "0%" : `${Math.min(100, Math.max(0, stochRsiData.value ?? 0))}%` }}
             />
           </div>
           <p className="text-xs text-slate-400">

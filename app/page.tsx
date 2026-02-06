@@ -98,9 +98,17 @@ export default function GoldTradingDashboard() {
   }
 
   const fetchXAU = async () => {
+    // Prevent double-clicks/rapid clicks by checking state before starting
+    if (refreshing) {
+      console.log("[v0] Refresh already in progress, ignoring duplicate request")
+      return
+    }
+    
     setRefreshing(true)
     try {
-      const response = await fetch("/api/signal/current?symbol=XAU_USD")
+      const response = await fetch("/api/signal/current?symbol=XAU_USD", {
+        signal: AbortSignal.timeout(15000) // 15 second timeout
+      })
       
       if (!response.ok) {
         throw new Error(`Signal API returned ${response.status}`)
@@ -127,7 +135,11 @@ export default function GoldTradingDashboard() {
       setLastUpdate(new Date())
       setSecondsAgo(0)
     } catch (error) {
-      console.error("[v0] XAU polling error:", error)
+      if (error instanceof Error && error.name === "AbortError") {
+        console.error("[v0] XAU fetch timeout (15s)")
+      } else {
+        console.error("[v0] XAU polling error:", error)
+      }
     } finally {
       setRefreshing(false)
     }
@@ -264,18 +276,19 @@ export default function GoldTradingDashboard() {
     <div className="min-h-screen bg-slate-950 p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-start">
+        <div className="flex flex-col md:flex-row justify-between items-start gap-3 md:gap-2">
           <div>
             <h1 className="text-3xl font-bold text-white">TradeB - Gold Trading Dashboard</h1>
             <p className="text-slate-400 text-sm mt-1">Production-Ready XAU/USD Strategy Execution</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap md:flex-nowrap">
             <Button
               onClick={fetchXAU}
               disabled={loading || refreshing}
               variant="outline"
               size="sm"
               className="gap-2 bg-transparent"
+              title="Fetch latest XAU signal data"
             >
               <RefreshCw className={`w-4 h-4 ${loading || refreshing ? "animate-spin" : ""}`} />
               {refreshing ? "Refreshing..." : "Refresh"}
@@ -285,10 +298,12 @@ export default function GoldTradingDashboard() {
               disabled={loading || testingTelegram}
               variant="outline"
               size="sm"
-              className="gap-2 bg-transparent"
+              className="gap-2 bg-transparent whitespace-nowrap"
+              title="Send test message to Telegram chat"
             >
               <Send className={`w-4 h-4 ${testingTelegram ? "animate-spin" : ""}`} />
-              {testingTelegram ? "Testing..." : "Test Telegram"}
+              <span className="hidden sm:inline">{testingTelegram ? "Testing..." : "Test Telegram"}</span>
+              <span className="sm:hidden">{testingTelegram ? "Test..." : "TG"}</span>
             </Button>
             {lastUpdate && (
               <Badge variant="outline" className="gap-1 text-xs">
