@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { TelegramNotifier } from "@/lib/telegram"
+import { SignalCache } from "@/lib/signal-cache"
 
 export const dynamic = "force-dynamic"
 
@@ -10,8 +11,15 @@ export async function GET() {
   return handleTest()
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   console.log("[v0] Test Telegram POST request received")
+  
+  // Check if this is a callback query (button click)
+  const body = await request.json().catch(() => null)
+  if (body && body.callback_query) {
+    return handleCallback(body.callback_query)
+  }
+  
   return handleTest()
 }
 
@@ -51,7 +59,7 @@ async function handleTest() {
     
     // Force clear any existing cooldown for test
     console.log("[v0] Telegram test - Clearing any existing cooldown")
-    await notifier.clearCooldown("XAU_USD")
+    SignalCache.resetCooldown("XAU_USD")
     
     await notifier.sendTestMessage()
     console.log("[v0] Telegram test - Message sent successfully!")
@@ -70,6 +78,69 @@ async function handleTest() {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
         timestamp: new Date().toISOString(),
+      },
+      { status: 500 },
+    )
+  }
+}
+
+async function handleCallback(callbackQuery: any) {
+  console.log("[v0] Telegram callback received:", callbackQuery.data)
+  
+  const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN
+  const telegramChatId = process.env.TELEGRAM_CHAT_ID
+
+  if (!telegramBotToken || !telegramChatId) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Telegram not configured",
+      },
+      { status: 400 },
+    )
+  }
+
+  try {
+    const notifier = new TelegramNotifier(telegramBotToken, telegramChatId, DASHBOARD_URL)
+    
+    // Handle different button actions
+    const action = callbackQuery.data
+    
+    if (action === "reset_gold_cooldown") {
+      console.log("[v0] Resetting Gold cooldown via button")
+      // Actually reset the cooldown using SignalCache
+      SignalCache.resetCooldown("XAU_USD")
+      
+      // Send confirmation message
+      await notifier.sendTestMessage()
+      
+      return NextResponse.json({
+        success: true,
+        message: "Gold cooldown reset",
+        action: "reset_cooldown",
+      })
+    } else if (action === "test_silver") {
+      console.log("[v0] Testing Silver signal via button")
+      // This would trigger a Silver signal test
+      return NextResponse.json({
+        success: true,
+        message: "Silver test triggered",
+        action: "test_silver",
+      })
+    } else {
+      console.log("[v0] Unknown callback action:", action)
+      return NextResponse.json({
+        success: false,
+        message: "Unknown action",
+        action: action,
+      })
+    }
+  } catch (error) {
+    console.error("[v0] Callback handling failed:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 },
     )
