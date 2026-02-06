@@ -171,6 +171,7 @@ export async function GET(request: Request) {
     // Enhance signal with last candle data and trade setup for client display
     const enhancedSignal = {
       ...signal,
+      indicators: signal.indicators, // CRITICAL: Include full indicators object
       mtfBias,
       entryPrice: signal.direction ? entryPrice : undefined,
       stopLoss: signal.direction ? stopLoss : undefined,

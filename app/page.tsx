@@ -98,12 +98,10 @@ export default function GoldTradingDashboard() {
   const fetchXAU = async () => {
     // Prevent double-clicks/rapid clicks by checking state before starting
     if (refreshing) {
-      console.log("[v0] Refresh already in progress, ignoring duplicate request")
       return
     }
     
     setRefreshing(true)
-    console.log("[v0] Starting XAU fetch...")
     try {
       const response = await fetch("/api/signal/current?symbol=XAU_USD", {
         signal: AbortSignal.timeout(15000) // 15 second timeout
@@ -114,14 +112,6 @@ export default function GoldTradingDashboard() {
       }
 
       const data = await response.json()
-      console.log("[v0] XAU data received:", { 
-        hasSignal: !!data.signal, 
-        marketClosed: data.marketClosed,
-        hasTimeframeAlignment: !!data.signal?.timeframeAlignment,
-        hasIndicators: !!data.signal?.indicators,
-        hasEntryDecision: !!data.signal?.entryDecision,
-        stochRSI: data.signal?.indicators?.stochRSI
-      })
 
       // Handle market closed state - preserve Friday close data
       if (data.marketClosed) {
@@ -150,7 +140,6 @@ export default function GoldTradingDashboard() {
       }
       setLoading(false) // Clear loading even on error
     } finally {
-      console.log("[v0] XAU fetch complete, clearing refresh state")
       setRefreshing(false)
     }
   }
