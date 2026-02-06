@@ -64,32 +64,37 @@ export async function GET(request: Request) {
     const last1hCandle = data1h.candles?.[data1h.candles.length - 1]
 
     // Build MTF bias from latest candle directions
-    const mtfBias: Record<string, any> = {
-      daily: lastDailyCandle?.close
+    const mtfBias = {
+      daily: (lastDailyCandle?.close
         ? lastDailyCandle.close > (dataDaily.candles?.[dataDaily.candles.length - 2]?.close || 0)
           ? "LONG"
           : "SHORT"
-        : "RANGING",
-      h4: data4h.candles?.length
+        : "NEUTRAL") as "LONG" | "SHORT" | "NEUTRAL",
+      "8h": (data8h.candles?.length
+        ? data8h.candles[data8h.candles.length - 1].close > (data8h.candles[data8h.candles.length - 2]?.close || 0)
+          ? "LONG"
+          : "SHORT"
+        : "NEUTRAL") as "LONG" | "SHORT" | "NEUTRAL",
+      "4h": (data4h.candles?.length
         ? data4h.candles[data4h.candles.length - 1].close > (data4h.candles[data4h.candles.length - 2]?.close || 0)
           ? "LONG"
           : "SHORT"
-        : "RANGING",
-      h1: last1hCandle?.close
+        : "NEUTRAL") as "LONG" | "SHORT" | "NEUTRAL",
+      "1h": (last1hCandle?.close
         ? last1hCandle.close > (data1h.candles?.[data1h.candles.length - 2]?.close || 0)
           ? "LONG"
           : "SHORT"
-        : "RANGING",
-      m15: data15m.candles?.length
+        : "NEUTRAL") as "LONG" | "SHORT" | "NEUTRAL",
+      "15m": (data15m.candles?.length
         ? data15m.candles[data15m.candles.length - 1].close > (data15m.candles[data15m.candles.length - 2]?.close || 0)
           ? "LONG"
           : "SHORT"
-        : "RANGING",
-      m5: data5m.candles?.length
+        : "NEUTRAL") as "LONG" | "SHORT" | "NEUTRAL",
+      "5m": (data5m.candles?.length
         ? data5m.candles[data5m.candles.length - 1].close > (data5m.candles[data5m.candles.length - 2]?.close || 0)
           ? "LONG"
           : "SHORT"
-        : "RANGING",
+        : "NEUTRAL") as "LONG" | "SHORT" | "NEUTRAL",
     }
 
     if (!marketStatus.isOpen) {
@@ -147,7 +152,7 @@ export async function GET(request: Request) {
     )
 
     // Calculate ATR-based trade setup for LONG/SHORT signals
-    const atr = signal.debugInfo?.atr || 1.0
+    const atr = signal.indicators?.atr || 1.0
     const entryPrice = last1hCandle?.close || 0
     const stopLoss = signal.direction === "LONG" ? entryPrice - atr * 1.5 : entryPrice + atr * 1.5
     const takeProfit1 = signal.direction === "LONG" ? entryPrice + atr * 1.5 : entryPrice - atr * 1.5
@@ -157,18 +162,18 @@ export async function GET(request: Request) {
     const enhancedSignal = {
       ...signal,
       mtfBias,
-      entryPrice: signal.direction ? entryPrice : null,
-      stopLoss: signal.direction ? stopLoss : null,
-      takeProfit1: signal.direction ? takeProfit1 : null,
-      takeProfit2: signal.direction ? takeProfit2 : null,
-      riskReward: signal.direction ? ((takeProfit2 - entryPrice) / Math.abs(entryPrice - stopLoss)).toFixed(2) : null,
+      entryPrice: signal.direction ? entryPrice : undefined,
+      stopLoss: signal.direction ? stopLoss : undefined,
+      takeProfit1: signal.direction ? takeProfit1 : undefined,
+      takeProfit2: signal.direction ? takeProfit2 : undefined,
+      riskReward: signal.direction ? Number(((takeProfit2 - entryPrice) / Math.abs(entryPrice - stopLoss)).toFixed(2)) : undefined,
       lastCandle: {
-        close: last1hCandle?.close || null,
-        atr: signal.debugInfo?.atr || null,
-        adx: signal.debugInfo?.adx || null,
-        stochRSI: signal.debugInfo?.stochRSI || null,
-        vwap: signal.debugInfo?.vwap || null,
-        timestamp: last1hCandle?.time || null,
+        close: last1hCandle?.close || undefined,
+        atr: signal.indicators?.atr || undefined,
+        adx: signal.indicators?.adx || undefined,
+        stochRSI: signal.indicators?.stochRSI || undefined,
+        vwap: signal.indicators?.vwap || undefined,
+        timestamp: last1hCandle?.timestamp || undefined,
       },
     }
 

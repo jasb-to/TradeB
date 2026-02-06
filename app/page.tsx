@@ -37,8 +37,8 @@ export default function GoldTradingDashboard() {
     setLoading(true)
     try {
       const [xauResponse, xagResponse] = await Promise.all([
-        fetch("/api/signal/xau"),
-        fetch("/api/signal/xag"),
+        fetch("/api/signal/current?symbol=XAU_USD"),
+        fetch("/api/signal/current?symbol=XAG_USD"),
       ])
 
       if (!xauResponse.ok || !xagResponse.ok) {
@@ -67,7 +67,7 @@ export default function GoldTradingDashboard() {
   const sendTestMessage = async () => {
     setTestingTelegram(true)
     try {
-      const response = await fetch("/api/test-telegram", {
+      const response = await fetch("/api/test-telegram-instant", {
         method: "GET",
       })
       const data = await response.json()
@@ -100,7 +100,7 @@ export default function GoldTradingDashboard() {
   const fetchXAU = async () => {
     setRefreshing(true)
     try {
-      const response = await fetch("/api/signal/xau")
+      const response = await fetch("/api/signal/current?symbol=XAU_USD")
       
       if (!response.ok) {
         throw new Error(`Signal API returned ${response.status}`)
@@ -135,7 +135,7 @@ export default function GoldTradingDashboard() {
 
   const fetchXAG = async () => {
     try {
-      const response = await fetch("/api/signal/xag")
+      const response = await fetch("/api/signal/current?symbol=XAG_USD")
       
       if (!response.ok) {
         throw new Error(`XAG Signal API returned ${response.status}`)
@@ -165,7 +165,7 @@ export default function GoldTradingDashboard() {
 
   const fetchCurrentPrice = async () => {
     try {
-      const response = await fetch("/api/signal/xau")
+      const response = await fetch("/api/signal/current?symbol=XAU_USD")
       if (response.ok) {
         const data = await response.json()
         if (data.signal && data.signal.currentPrice) {
@@ -188,7 +188,7 @@ export default function GoldTradingDashboard() {
     intervalRef.current = setInterval(async () => {
       try {
         // Poll XAU (main display)
-        const xauResponse = await fetch("/api/signal/xau")
+        const xauResponse = await fetch("/api/signal/current?symbol=XAU_USD")
         
         if (!xauResponse.ok) {
           throw new Error(`XAU Signal API returned ${xauResponse.status}`)

@@ -12,10 +12,10 @@ export async function POST(request: Request) {
       )
     }
 
-    console.log(`[v0] COOLDOWN RESET REQUEST: ${symbol}`)
+    console.log(`[v0] STATE RESET REQUEST: ${symbol}`)
     
-    // Reset the cooldown for the specified symbol
-    SignalCache.resetCooldown(symbol)
+    // Reset the state for the specified symbol
+    SignalCache.resetState(symbol)
     
     // Get the detailed state after reset
     const state = SignalCache.getDetailedState(symbol)
@@ -47,10 +47,10 @@ export async function GET(request: Request) {
       )
     }
 
-    console.log(`[v0] COOLDOWN RESET REQUEST: ${symbol}`)
+    console.log(`[v0] STATE RESET REQUEST: ${symbol}`)
     
-    // Reset the cooldown for the specified symbol
-    SignalCache.resetCooldown(symbol)
+    // Reset the state for the specified symbol
+    SignalCache.resetState(symbol)
     
     // Get the detailed state after reset
     const state = SignalCache.getDetailedState(symbol)

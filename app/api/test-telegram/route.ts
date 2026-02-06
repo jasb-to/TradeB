@@ -64,7 +64,7 @@ async function handleTest() {
     const currentState = SignalCache.getDetailedState("XAU_USD")
     console.log("[v0] Current state before reset:", JSON.stringify(currentState, null, 2))
     
-    SignalCache.resetCooldown("XAU_USD")
+    SignalCache.resetState("XAU_USD")
     
     // Debug: Check state after reset
     const newState = SignalCache.getDetailedState("XAU_USD")
@@ -122,8 +122,8 @@ async function handleCallback(callbackQuery: any) {
       const currentState = SignalCache.getDetailedState("XAU_USD")
       console.log("[v0] Current state before reset:", JSON.stringify(currentState, null, 2))
       
-      // Actually reset the cooldown using SignalCache
-      SignalCache.resetCooldown("XAU_USD")
+      // Actually reset the state using SignalCache
+      SignalCache.resetState("XAU_USD")
       
       // Debug: Check state after reset
       const newState = SignalCache.getDetailedState("XAU_USD")
