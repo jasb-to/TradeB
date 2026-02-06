@@ -430,14 +430,19 @@ export class TechnicalAnalysis {
   }
 
   private static filterValidOHLC(candles: Candle[], symbol: string = "XAU_USD"): Candle[] {
-    // Symbol-specific price ranges
-    const priceRanges: Record<string, [number, number]> = {
-      XAU_USD: [1000, 3000], // Gold typical range
-      XAG_USD: [10, 50], // Silver typical range
-      XPTUSD: [500, 1500], // Platinum typical range
-    }
+    // Dynamic price range based on actual candle data
+    // Get realistic price range from the candles themselves
+    if (!candles || candles.length === 0) return []
 
-    const [minPrice, maxPrice] = priceRanges[symbol] || [10, 10000]
+    // Calculate price range from the actual data
+    const allPrices = candles.flatMap(candle => [candle.open, candle.high, candle.low, candle.close])
+    const minPrice = Math.min(...allPrices)
+    const maxPrice = Math.max(...allPrices)
+    
+    // Add safety margins (10% below min, 10% above max) to handle outliers
+    const safetyMargin = (maxPrice - minPrice) * 0.1
+    const dynamicMinPrice = Math.max(0, minPrice - safetyMargin)
+    const dynamicMaxPrice = maxPrice + safetyMargin
 
     return candles.filter((candle) => {
       // Reject candles with invalid OHLC values
@@ -470,9 +475,9 @@ export class TechnicalAnalysis {
         return false
       }
 
-      // Symbol-specific price range validation
+      // Dynamic price range validation based on actual data
       const avgPrice = (candle.open + candle.high + candle.low + candle.close) / 4
-      if (avgPrice < minPrice || avgPrice > maxPrice) {
+      if (avgPrice < dynamicMinPrice || avgPrice > dynamicMaxPrice) {
         return false
       }
 

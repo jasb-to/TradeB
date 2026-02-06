@@ -43,8 +43,8 @@ function generateSetupHash(signal: Signal, symbol: string): string {
     signal.strategy || "unknown",
     Math.round((signal.entryPrice || 0) / 10) * 10, // Round entry to nearest $10 to group similar setups
     signal.mtfBias?.daily || "?",
-    signal.mtfBias?.h4 || "?",
-    signal.mtfBias?.h1 || "?",
+    signal.mtfBias?.["4h"] || "?",
+    signal.mtfBias?.["1h"] || "?",
   ].join("|")
 
   let hash = 0
@@ -410,6 +410,51 @@ export const SignalCache = {
       alertStates.delete(symbol)
     } else {
       alertStates.clear()
+    }
+  },
+
+  // NEW: Reset cooldown for a specific symbol (for immediate fixes)
+  resetCooldown: (symbol: string): void => {
+    const state = getTradeState(symbol)
+    state.state = "IDLE"
+    state.stateChangeTime = Date.now()
+    state.cooldownExpiry = null
+    state.lastTradedSetupHash = null
+    state.entryWindowStart = null
+    state.entryWindowExpiry = null
+    console.log(`[v0] COOLDOWN RESET for ${symbol} - State cleared and ready for new trades`)
+  },
+
+  // NEW: Get detailed state information for debugging
+  getDetailedState: (symbol: string): any => {
+    const state = getTradeState(symbol)
+    const alertState = getAlertState(symbol)
+    return {
+      symbol,
+      tradeState: state.state,
+      stateChangeTime: new Date(state.stateChangeTime).toISOString(),
+      cooldownExpiry: state.cooldownExpiry ? new Date(state.cooldownExpiry).toISOString() : null,
+      timeUntilCooldownEnd: state.cooldownExpiry ? Math.max(0, state.cooldownExpiry - Date.now()) : 0,
+      lastTradedSetupHash: state.lastTradedSetupHash,
+      failedSetupHashes: Array.from(state.failedSetupHashes),
+      entryWindowStart: state.entryWindowStart ? new Date(state.entryWindowStart).toISOString() : null,
+      entryWindowExpiry: state.entryWindowExpiry ? new Date(state.entryWindowExpiry).toISOString() : null,
+      timeUntilEntryWindowEnd: state.entryWindowExpiry ? Math.max(0, state.entryWindowExpiry - Date.now()) : 0,
+      alertState: {
+        lastAlertTime: new Date(alertState.lastAlertTime).toISOString(),
+        lastAlertType: alertState.lastAlertType,
+        lastAlertDirection: alertState.lastAlertDirection,
+        lastAlertLevel: alertState.lastAlertLevel,
+        consecutiveNoTrades: alertState.consecutiveNoTrades,
+        lastSignalHash: alertState.lastSignalHash,
+        lastSentHash: alertState.lastSentHash,
+        activeTrade: alertState.activeTrade ? {
+          type: alertState.activeTrade.type,
+          direction: alertState.activeTrade.direction,
+          entryPrice: alertState.activeTrade.entryPrice,
+          timestamp: new Date(alertState.activeTradeTime).toISOString()
+        } : null
+      }
     }
   },
 }

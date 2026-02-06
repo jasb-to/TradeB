@@ -40,6 +40,8 @@ export class SilverStrategy {
     data15m: Candle[] = [],
     data5m: Candle[] = [],
   ): SilverEvalResult {
+    console.log(`[v0] SILVER EVALUATION START: Daily=${dataDaily.length} 4H=${data4h.length} 1H=${data1h.length} 15M=${data15m.length} 5M=${data5m.length}`)
+    
     if (!data1h.length || !data4h.length) {
       console.log("[v0] SILVER: Insufficient 1H/4H data for evaluation")
       return {
@@ -181,8 +183,11 @@ export class SilverStrategy {
         indicators: { atr: atr1h, adx: adx1h },
         mtfBias: {
           daily: biasDaily,
+          "8h": "NEUTRAL", // Not used in Silver strategy
           "4h": bias4h,
           "1h": bias1h,
+          "15m": bias15m,
+          "5m": bias5m,
         },
         reasons: [
           `${setupQuality} Setup: MTF ${dailyPlusFourH ? "Daily+4H" : "4H+1H"} aligned`,
