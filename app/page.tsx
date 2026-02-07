@@ -45,9 +45,6 @@ export default function GoldTradingDashboard() {
       const xauData = await xauResponse.json()
       const xagData = await xagResponse.json()
 
-      console.log("[v0] Fetched XAU signal:", xauData)
-      console.log("[v0] XAU signal.entryDecision:", xauData.signal?.entryDecision)
-
       if (xauData.success && xauData.signal) {
         setSignalXAU(xauData.signal)
       }

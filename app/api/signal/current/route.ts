@@ -176,6 +176,10 @@ export async function GET(request: Request) {
         : undefined,
     }
 
+    // Build entry decision for checklist display
+    const entryDecision = strategies.buildEntryDecision(enhancedSignal)
+    enhancedSignal.entryDecision = entryDecision
+
     SignalCache.set(enhancedSignal, symbol)
 
     lastValidSignals[symbol] = enhancedSignal
