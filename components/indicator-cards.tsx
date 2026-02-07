@@ -9,9 +9,42 @@ interface IndicatorCardsProps {
 }
 
 export function IndicatorCards({ signal }: IndicatorCardsProps) {
-  // Handle null signal gracefully - parent will handle loading state
-  if (!signal?.indicators) {
-    return null
+  // Show error message instead of silently returning null
+  if (!signal) {
+    return (
+      <Card className="bg-red-950/30 border-red-700/50">
+        <CardContent className="pt-6">
+          <div className="flex gap-3 items-start">
+            <AlertCircle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="font-semibold text-red-200">DATA ERROR</h3>
+              <p className="text-sm text-red-300/80 mt-1">
+                No signal data available yet. Signal object is null.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Show detailed error if indicators missing
+  if (!signal.indicators) {
+    return (
+      <Card className="bg-red-950/30 border-red-700/50">
+        <CardContent className="pt-6">
+          <div className="flex gap-3 items-start">
+            <AlertCircle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="font-semibold text-red-200">DATA ERROR: Indicators missing from API response</h3>
+              <p className="text-sm text-red-300/80 mt-1">
+                Signal object exists but indicators is null/undefined. Check backend data flow.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   const adx = signal.indicators.adx ?? 0
@@ -24,26 +57,24 @@ export function IndicatorCards({ signal }: IndicatorCardsProps) {
     ? stochRsiRaw as { value: number | null; state: string }
     : { value: typeof stochRsiRaw === "number" ? stochRsiRaw : null, state: "CALCULATING" }
 
-  // DEBUG: Log stochRSI data structure for diagnosis
-  console.log("[v0] IndicatorCards - stochRSI Debug:", {
-    raw: stochRsiRaw,
-    parsed: stochRsiData,
-    type: typeof stochRsiRaw,
-    isObject: typeof stochRsiRaw === "object",
-  })
-
   // Only critical indicators (ADX, ATR) must be non-zero. StochRSI can be null during calculation.
   const hasErrors = adx === 0 || atr === 0
 
   if (hasErrors) {
-    console.log("[v0] IndicatorCards GUARD: Critical indicators failed.", { adx, atr })
     return (
-      <Alert className="bg-red-950/30 border-red-700/50">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription className="text-red-200">
-          DATA ERROR: Critical indicator calculation failed. ADX={adx.toFixed(1)}, ATR={atr.toFixed(2)}
-        </AlertDescription>
-      </Alert>
+      <Card className="bg-red-950/30 border-red-700/50">
+        <CardContent className="pt-6">
+          <div className="flex gap-3 items-start">
+            <AlertCircle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="font-semibold text-red-200">DATA ERROR: Critical indicator calculation failed</h3>
+              <p className="text-sm text-red-300/80 mt-1">
+                ADX={adx.toFixed(1)}, ATR={atr.toFixed(2)}. Indicators not ready yet or data issue.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 

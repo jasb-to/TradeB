@@ -203,22 +203,17 @@ export default function GoldTradingDashboard() {
   useEffect(() => {
     fetchXAU()
     
-    // Polling - 60 seconds when market is open, don't poll on weekends
+    // Polling strategy:
+    // Weekday (Mon-Fri): Poll every 60 seconds
+    // Weekend (Sat-Sun): Poll every hour to keep cached data fresh
+    const now = new Date()
+    const dayOfWeek = now.getDay()
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
+    const pollInterval = isWeekend ? 60 * 60 * 1000 : 60 * 1000 // 1 hour vs 60 seconds
+
     intervalRef.current = setInterval(() => {
-      const now = new Date()
-      const dayOfWeek = now.getDay()
-      const hour = now.getHours()
-      const minute = now.getMinutes()
-      
-      // Gold market hours: Sunday 5pm EST (22:00 UTC) to Friday 5pm EST (22:00 UTC)
-      // In UTC: Sunday 22:00 to Saturday 04:00 (continuous during week)
-      // For simplicity, skip polling on Saturday and Sunday
-      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
-      
-      if (!isWeekend) {
-        fetchXAU()
-      }
-    }, 60000) // Every 60 seconds
+      fetchXAU()
+    }, pollInterval)
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
