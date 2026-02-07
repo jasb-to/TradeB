@@ -1,7 +1,6 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
 import type { Signal } from "@/types/trading"
 
@@ -10,15 +9,41 @@ interface IndicatorCardsProps {
 }
 
 export function IndicatorCards({ signal }: IndicatorCardsProps) {
-  // HARD GUARD: Only read from signal.indicators
-  if (!signal?.indicators) {
+  // Show error message instead of silently returning null
+  if (!signal) {
     return (
-      <Alert className="bg-red-950/30 border-red-700/50">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription className="text-red-200">
-          DATA ERROR: Indicators missing from API response. Signal object exists but indicators is null/undefined.
-        </AlertDescription>
-      </Alert>
+      <Card className="bg-red-950/30 border-red-700/50">
+        <CardContent className="pt-6">
+          <div className="flex gap-3 items-start">
+            <AlertCircle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="font-semibold text-red-200">DATA ERROR</h3>
+              <p className="text-sm text-red-300/80 mt-1">
+                No signal data available yet. Signal object is null.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Show detailed error if indicators missing
+  if (!signal.indicators) {
+    return (
+      <Card className="bg-red-950/30 border-red-700/50">
+        <CardContent className="pt-6">
+          <div className="flex gap-3 items-start">
+            <AlertCircle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="font-semibold text-red-200">DATA ERROR: Indicators missing from API response</h3>
+              <p className="text-sm text-red-300/80 mt-1">
+                Signal object exists but indicators is null/undefined. Check backend data flow.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
@@ -37,12 +62,19 @@ export function IndicatorCards({ signal }: IndicatorCardsProps) {
 
   if (hasErrors) {
     return (
-      <Alert className="bg-red-950/30 border-red-700/50">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription className="text-red-200">
-          DATA ERROR: Critical indicator calculation failed. ADX={adx.toFixed(1)}, ATR={atr.toFixed(2)}
-        </AlertDescription>
-      </Alert>
+      <Card className="bg-red-950/30 border-red-700/50">
+        <CardContent className="pt-6">
+          <div className="flex gap-3 items-start">
+            <AlertCircle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="font-semibold text-red-200">DATA ERROR: Critical indicator calculation failed</h3>
+              <p className="text-sm text-red-300/80 mt-1">
+                ADX={adx.toFixed(1)}, ATR={atr.toFixed(2)}. Indicators not ready yet or data issue.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
@@ -147,15 +179,17 @@ export function IndicatorCards({ signal }: IndicatorCardsProps) {
           <div className="flex justify-between items-baseline">
             {stochStatus.isCalculating ? (
               <span className="text-2xl font-bold text-gray-500" title="Waiting for sufficient candles">—</span>
+            ) : stochRsiData.value !== null && stochRsiData.value !== undefined ? (
+              <span className="text-2xl font-bold">{stochRsiData.value.toFixed(1)}</span>
             ) : (
-              <span className="text-2xl font-bold">{stochRsiData.value?.toFixed(1) ?? "—"}</span>
+              <span className="text-2xl font-bold text-gray-500">—</span>
             )}
             <span className={`text-xs font-mono ${stochStatus.color}`}>{stochStatus.label}</span>
           </div>
           <div className="w-full bg-slate-800 rounded h-2">
             <div
               className={`${stochStatus.color.includes("green") ? "bg-green-600" : stochStatus.color.includes("red") ? "bg-red-600" : stochStatus.color.includes("yellow") ? "bg-yellow-600" : "bg-gray-600"} rounded h-2 transition-all`}
-              style={{ width: stochStatus.isCalculating ? "0%" : `${Math.min(100, stochRsiData.value ?? 0)}%` }}
+              style={{ width: stochStatus.isCalculating ? "0%" : `${Math.min(100, Math.max(0, stochRsiData.value ?? 0))}%` }}
             />
           </div>
           <p className="text-xs text-slate-400">

@@ -160,7 +160,7 @@ export class TradingStrategies {
             adx: indicators1h.adx || 0,
             atr: indicators1h.atr || 0,
             rsi: indicators1h.rsi || 50,
-            stochRSI: indicators1h.stochRSI || 50,
+            stochRSI: indicators1h.stochRSI, // FULL OBJECT: { value: number | null, state: string }
             vwap: indicators1h.vwap || 0,
             ema20: indicators1h.ema20 || 0,
             ema50: indicators1h.ema50 || 0,
@@ -268,7 +268,7 @@ export class TradingStrategies {
           adx: adx1h,
           atr: indicators1h.atr || 0,
           rsi: indicators1h.rsi || 50,
-          stochRSI: indicators1h.stochRSI || 50,
+          stochRSI: indicators1h.stochRSI, // FULL OBJECT: { value: number | null, state: string }
           vwap: indicators1h.vwap || 0,
           ema20: indicators1h.ema20 || 0,
           ema50: indicators1h.ema50 || 0,
@@ -293,37 +293,50 @@ export class TradingStrategies {
 
     console.log(`[v0] SIGNAL: ${direction} ${setupTier} @ ${currentPrice.toFixed(2)} | Conf ${confidence}% | HTF ${htfPolarity.trend}`)
 
-    return {
-      type: "ENTRY",
-      direction,
-      alertLevel: confidence >= 80 ? 3 : confidence >= 70 ? 2 : 1,
-      confidence,
-      entryPrice: currentPrice,
-      stopLoss,
-      takeProfit1: direction === "LONG" ? currentPrice + atr1h * 1.0 : currentPrice - atr1h * 1.0,
-      takeProfit2: direction === "LONG" ? currentPrice + atr1h * 2.0 : currentPrice - atr1h * 2.0,
-      takeProfit: direction === "LONG" ? currentPrice + atr1h * 2.0 : currentPrice - atr1h * 2.0,
-      riskReward,
-      setupQuality: setupTier || "STANDARD",
-      htfTrend: htfPolarity.trend,
-      strategy: "BREAKOUT_CHANDELIER",
-      reasons: [
-        `${setupTier || "STANDARD"} Setup: Score ${alignmentScore}/10 (Daily + 4H + 1H aligned)`,
-        `${marketRegime} market (ADX ${adx1h.toFixed(1)})`,
-        `HTF Polarity: ${htfPolarity.trend} (${htfPolarity.reason})`,
-        `Weighted MTF Score: ${alignmentScore}`,
-        `Risk:Reward ${riskReward.toFixed(2)}:1 (min 1.33:1)`,
-      ],
-      indicators: {
-        adx: adx1h,
-        rsi: indicators1h.rsi,
-        stochRSI: indicators1h.stochRSI,
-        atr: atr1h,
-      },
-      mtfBias: biases as any,
-      timeframeAlignment: timeframeAlignment,
-      timestamp: Date.now(),
-    }
+      return {
+        type: "ENTRY",
+        direction,
+        alertLevel: confidence >= 80 ? 3 : confidence >= 70 ? 2 : 1,
+        confidence,
+        entryPrice: currentPrice,
+        stopLoss,
+        takeProfit1: direction === "LONG" ? currentPrice + atr1h * 1.0 : currentPrice - atr1h * 1.0,
+        takeProfit2: direction === "LONG" ? currentPrice + atr1h * 2.0 : currentPrice - atr1h * 2.0,
+        takeProfit: direction === "LONG" ? currentPrice + atr1h * 2.0 : currentPrice - atr1h * 2.0,
+        riskReward,
+        setupQuality: setupTier || "STANDARD",
+        htfTrend: htfPolarity.trend,
+        strategy: "BREAKOUT_CHANDELIER",
+        reasons: [
+          `${setupTier || "STANDARD"} Setup: Score ${alignmentScore}/10 (Daily + 4H + 1H aligned)`,
+          `${marketRegime} market (ADX ${adx1h.toFixed(1)})`,
+          `HTF Polarity: ${htfPolarity.trend} (${htfPolarity.reason})`,
+          `Weighted MTF Score: ${alignmentScore}`,
+          `Risk:Reward ${riskReward.toFixed(2)}:1 (min 1.33:1)`,
+        ],
+        indicators: {
+          adx: adx1h,
+          rsi: indicators1h.rsi,
+          stochRSI: indicators1h.stochRSI, // FULL OBJECT: { value: number | null, state: string }
+          atr: atr1h,
+          vwap: indicators1h.vwap || 0,
+          ema20: indicators1h.ema20 || 0,
+          ema50: indicators1h.ema50 || 0,
+          ema200: indicators1h.ema200 || 0,
+          bollingerUpper: 0,
+          bollingerLower: 0,
+          chandelierStop: 0,
+          chandelierLongStop: 0,
+          chandelierShortStop: 0,
+          chandelierStop4H: 0,
+          macd: { macd: 0, signal: 0, histogram: 0 },
+          divergence: { bullish: false, bearish: false, strength: 0 },
+          volumeSpike: false,
+        },
+        mtfBias: biases as any,
+        timeframeAlignment: timeframeAlignment,
+        timestamp: Date.now(),
+      }
   }
 
   private detectHTFPolarity(

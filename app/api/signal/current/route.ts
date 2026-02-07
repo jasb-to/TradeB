@@ -23,6 +23,7 @@ export async function GET(request: Request) {
     const symbol = (searchParams.get("symbol") || "XAU_USD") as "XAU_USD" | "XAG_USD"
 
     const marketStatus = MarketHours.getMarketStatus()
+    console.log(`[v0] API Request for ${symbol} - Market Status:`, marketStatus)
 
     const dataFetcher = new DataFetcher(symbol)
     const strategies = new TradingStrategies(DEFAULT_TRADING_CONFIG)
@@ -99,6 +100,12 @@ export async function GET(request: Request) {
 
     if (!marketStatus.isOpen) {
       if (lastValidSignals[symbol] && lastValidTimestamps[symbol]) {
+        // Ensure cached signal has entryDecision when market is closed
+        if (!lastValidSignals[symbol].entryDecision) {
+          const strategies = new TradingStrategies(DEFAULT_TRADING_CONFIG)
+          lastValidSignals[symbol].entryDecision = strategies.buildEntryDecision(lastValidSignals[symbol])
+        }
+        console.log(`[v0] Market closed - returning cached signal for ${symbol}`)
         return NextResponse.json({
           success: true,
           signal: lastValidSignals[symbol],
@@ -106,15 +113,19 @@ export async function GET(request: Request) {
           marketClosed: true,
           marketStatus: marketStatus.message,
           mtfBias: mtfBias,
+          cached: true,
         })
       }
 
+      // Market closed but no cached signal - return 503 with clear message
+      console.warn(`[v0] Market closed and no cached signal available for ${symbol}`)
       return NextResponse.json(
         {
           success: false,
           error: marketStatus.message,
           marketClosed: true,
           nextOpen: marketStatus.nextOpen,
+          details: "No cached signal available. Wait for market to open or check backend logs.",
         },
         { status: 503 },
       )
@@ -122,6 +133,11 @@ export async function GET(request: Request) {
 
     const cached = SignalCache.get(symbol)
     if (cached) {
+      // Ensure cached signal has entryDecision when returned
+      if (!cached.entryDecision) {
+        const strategies = new TradingStrategies(DEFAULT_TRADING_CONFIG)
+        cached.entryDecision = strategies.buildEntryDecision(cached)
+      }
       return NextResponse.json({
         success: true,
         signal: cached,
@@ -161,6 +177,7 @@ export async function GET(request: Request) {
     // Enhance signal with last candle data and trade setup for client display
     const enhancedSignal = {
       ...signal,
+      indicators: signal.indicators, // CRITICAL: Include full indicators object
       mtfBias,
       entryPrice: signal.direction ? entryPrice : undefined,
       stopLoss: signal.direction ? stopLoss : undefined,
@@ -178,6 +195,10 @@ export async function GET(request: Request) {
           }
         : undefined,
     }
+
+    // Build entry decision (canonical source of truth for entry criteria)
+    const entryDecision = strategies.buildEntryDecision(enhancedSignal)
+    enhancedSignal.entryDecision = entryDecision
 
     SignalCache.set(enhancedSignal, symbol)
 
