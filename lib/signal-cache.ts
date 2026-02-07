@@ -85,6 +85,10 @@ interface AlertState {
   lastSentHash: string | null
   activeTrade: Signal | null // Track the active trade to prevent replacement
   activeTradeTime: number // When the active trade was created
+  tp1Level: number | null // TP1 price level for monitoring
+  tp2Level: number | null // TP2 price level for monitoring
+  tp1Reached: boolean // Has TP1 been hit yet
+  tp1AlertSent: boolean // Have we alerted about TP1
 }
 
 const ALERT_COOLDOWN_MS = 5 * 60 * 1000 // 5 minute cooldown between similar alerts
@@ -124,6 +128,10 @@ function getAlertState(symbol: string): AlertState {
       lastSentHash: null,
       activeTrade: null,
       activeTradeTime: 0,
+      tp1Level: null,
+      tp2Level: null,
+      tp1Reached: false,
+      tp1AlertSent: false,
     })
   }
   return alertStates.get(symbol)!
@@ -253,14 +261,74 @@ export const SignalCache = {
     }
   },
 
-  // Manually clear active trade (for manual exit button)
-  clearActiveTrade: (symbol: string): void => {
+  // NEW: Store TP1/TP2 levels when entry alert sent
+  storeTakeProfitLevels: (symbol: string, tp1: number, tp2: number): void => {
     const state = getAlertState(symbol)
-    if (state.activeTrade) {
-      console.log(`[v0] Manually cleared active trade for ${symbol}`)
-      state.activeTrade = null
-      state.activeTradeTime = 0
+    state.tp1Level = tp1
+    state.tp2Level = tp2
+    state.tp1Reached = false
+    state.tp1AlertSent = false
+    console.log(`[v0] ${symbol} TP levels stored: TP1=$${tp1.toFixed(2)}, TP2=$${tp2.toFixed(2)}`)
+  },
+
+  // NEW: Check if TP1 has been reached (price touched TP1 level)
+  checkTP1Reached: (symbol: string, currentPrice: number): boolean => {
+    const state = getAlertState(symbol)
+    if (!state.tp1Level) return false
+    
+    const direction = state.activeTrade?.direction
+    if (!direction) return false
+
+    // For LONG: price >= TP1
+    // For SHORT: price <= TP1
+    const reached = direction === "LONG" ? currentPrice >= state.tp1Level : currentPrice <= state.tp1Level
+    
+    if (reached && !state.tp1Reached) {
+      state.tp1Reached = true
+      console.log(`[v0] ${symbol} TP1 REACHED at $${currentPrice.toFixed(2)} (TP1=$${state.tp1Level.toFixed(2)})`)
     }
+    
+    return state.tp1Reached
+  },
+
+  // NEW: Check if TP2 has been reached
+  checkTP2Reached: (symbol: string, currentPrice: number): boolean => {
+    const state = getAlertState(symbol)
+    if (!state.tp2Level) return false
+    
+    const direction = state.activeTrade?.direction
+    if (!direction) return false
+
+    // For LONG: price >= TP2
+    // For SHORT: price <= TP2
+    return direction === "LONG" ? currentPrice >= state.tp2Level : currentPrice <= state.tp2Level
+  },
+
+  // NEW: Get TP level info for monitoring
+  getTPLevels: (symbol: string): { tp1: number | null; tp2: number | null; tp1Reached: boolean } => {
+    const state = getAlertState(symbol)
+    return {
+      tp1: state.tp1Level,
+      tp2: state.tp2Level,
+      tp1Reached: state.tp1Reached,
+    }
+  },
+
+  // NEW: Mark TP1 alert as sent
+  recordTP1Alert: (symbol: string): void => {
+    const state = getAlertState(symbol)
+    state.tp1AlertSent = true
+    console.log(`[v0] TP1 alert recorded for ${symbol}`)
+  },
+
+  // NEW: Clear TP levels when trade is closed
+  clearTPLevels: (symbol: string): void => {
+    const state = getAlertState(symbol)
+    state.tp1Level = null
+    state.tp2Level = null
+    state.tp1Reached = false
+    state.tp1AlertSent = false
+    console.log(`[v0] TP levels cleared for ${symbol}`)
   },
 
   // Alert management methods
@@ -419,6 +487,10 @@ export const SignalCache = {
     alertState.lastSentHash = null
     alertState.activeTrade = null
     alertState.activeTradeTime = 0
+    alertState.tp1Level = null
+    alertState.tp2Level = null
+    alertState.tp1Reached = false
+    alertState.tp1AlertSent = false
     
     console.log(`[v0] State after reset:`, JSON.stringify(state, null, 2))
     console.log(`[v0] Alert state after reset:`, JSON.stringify(alertState, null, 2))
