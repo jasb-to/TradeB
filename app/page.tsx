@@ -253,25 +253,15 @@ export default function GoldTradingDashboard() {
           </Card>
         )}
 
-        {/* Loading State */}
-        {loading && !signal && (
-          <Card className="bg-slate-900/40 border-slate-700/50 p-6">
-            <div className="flex gap-3 items-center justify-center min-h-[200px]">
-              <RefreshCw className="w-5 h-5 text-slate-400 animate-spin" />
-              <span className="text-slate-300">Loading signal data...</span>
-            </div>
-          </Card>
-        )}
-
-        {/* Main Content Grid */}
+        {/* Main Content Grid - Renders cached data on API failure */}
         <div className="space-y-6">
-          {signal && (
+          {signal ? (
             <>
               {/* 0. Gold Price Display */}
               <GoldPriceDisplay signal={signal} marketClosed={marketClosed} />
 
               {/* 1. Signal Status Panel */}
-              <GoldSignalPanel signal={signal} loading={!signal && loading} />
+              <GoldSignalPanel signal={signal} loading={loading} />
 
               {/* 2. Multi-Timeframe Bias Viewer */}
               <Card className="bg-slate-900/40 border-slate-700/50 p-6">
@@ -288,17 +278,21 @@ export default function GoldTradingDashboard() {
               {/* 4. Entry Checklist */}
               <EntryChecklist signal={signal} />
             </>
-          )}
-
-          {/* Error State */}
-          {!loading && !signal && (
+          ) : loading ? (
+            <Card className="bg-slate-900/40 border-slate-700/50 p-6">
+              <div className="flex gap-3 items-center justify-center min-h-[400px]">
+                <RefreshCw className="w-5 h-5 text-slate-400 animate-spin" />
+                <span className="text-slate-300">Loading market data...</span>
+              </div>
+            </Card>
+          ) : (
             <Card className="bg-red-950/20 border-red-700/30 p-6">
               <div className="flex gap-3 items-start">
                 <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
                 <div>
-                  <h3 className="font-semibold text-red-200">No Signal Available</h3>
+                  <h3 className="font-semibold text-red-200">No Signal Data Available</h3>
                   <p className="text-sm text-red-300/80 mt-1">
-                    The API returned no signal data. Check the console logs and verify the backend is running.
+                    API unavailable (503 Service Temporarily Unavailable). No cached data available. Please try again in a moment or check the backend status.
                   </p>
                 </div>
               </div>
