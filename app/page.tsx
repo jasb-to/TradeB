@@ -30,8 +30,8 @@ export default function GoldTradingDashboard() {
   // XAU is always the main display, XAG runs in background
   const signal = signalXAU
 
-  const fetchSignals = async () => {
-    setLoading(true)
+  const handleManualRefresh = async () => {
+    setRefreshing(true)
     try {
       const [xauResponse, xagResponse] = await Promise.all([
         fetch("/api/signal/current?symbol=XAU_USD"),
@@ -39,25 +39,38 @@ export default function GoldTradingDashboard() {
       ])
 
       if (!xauResponse.ok || !xagResponse.ok) {
-        throw new Error("Signal API returned error")
+        throw new Error("Failed to fetch signals")
       }
 
       const xauData = await xauResponse.json()
       const xagData = await xagResponse.json()
 
-      if (xauData.success && xauData.signal) {
+      if (xauData.signal) {
         setSignalXAU(xauData.signal)
+        setMarketClosed(xauData.marketClosed || false)
+        setMarketMessage(xauData.marketStatus || null)
       }
-      if (xagData.success && xagData.signal) {
+      if (xagData.signal) {
         setSignalXAG(xagData.signal)
       }
 
       setLastUpdate(new Date())
       setSecondsAgo(0)
+      
+      toast({
+        title: "Data Refreshed",
+        description: "Signals updated successfully",
+        variant: "default",
+      })
     } catch (error) {
-      console.error("[v0] Polling error:", error)
+      console.error("[v0] Manual refresh error:", error)
+      toast({
+        title: "Refresh Failed",
+        description: "Could not update signals",
+        variant: "destructive",
+      })
     } finally {
-      setLoading(false)
+      setRefreshing(false)
     }
   }
 
@@ -269,13 +282,13 @@ export default function GoldTradingDashboard() {
           </div>
           <div className="flex gap-2">
             <Button
-              onClick={fetchXAU}
-              disabled={loading || refreshing}
+              onClick={handleManualRefresh}
+              disabled={refreshing}
               variant="outline"
               size="sm"
               className="gap-2 bg-transparent"
             >
-              <RefreshCw className={`w-4 h-4 ${loading || refreshing ? "animate-spin" : ""}`} />
+              <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
               {refreshing ? "Refreshing..." : "Refresh"}
             </Button>
             <Button
