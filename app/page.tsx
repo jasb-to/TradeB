@@ -315,22 +315,6 @@ export default function GoldTradingDashboard() {
 
           {/* 4. Entry Checklist */}
           <EntryChecklist signal={signal} />
-            onAddTrade={(trade) => {
-              // Add trade to backend
-              fetch("/api/active-trades", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ symbol: "XAU_USD", trade, signal }),
-              }).then(() => {
-                // Refresh trades
-                fetchActiveTrades()
-              })
-            }}
-            onEditTrade={(tradeId, trade) => {
-              // Update trade in backend (simplified - would need PUT endpoint)
-              fetchActiveTrades()
-            }}
-          />
 
           {/* Error State */}
           {!loading && !signal && (
