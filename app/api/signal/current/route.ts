@@ -101,9 +101,14 @@ export async function GET(request: Request) {
       console.log(`[v0] Market is closed (${marketStatus.message}). Checking for cached signal...`)
       if (lastValidSignals[symbol] && lastValidTimestamps[symbol]) {
         console.log(`[v0] Returning cached signal for ${symbol}`)
+        // Ensure cached signal has entryDecision
+        const cachedSignal = lastValidSignals[symbol]
+        if (!cachedSignal.entryDecision) {
+          cachedSignal.entryDecision = strategies.buildEntryDecision(cachedSignal)
+        }
         return NextResponse.json({
           success: true,
-          signal: lastValidSignals[symbol],
+          signal: cachedSignal,
           timestamp: lastValidTimestamps[symbol],
           marketClosed: true,
           marketStatus: marketStatus.message,
@@ -119,6 +124,10 @@ export async function GET(request: Request) {
 
     const cached = SignalCache.get(symbol)
     if (cached) {
+      // Ensure cached signal has entryDecision
+      if (!cached.entryDecision) {
+        cached.entryDecision = strategies.buildEntryDecision(cached)
+      }
       return NextResponse.json({
         success: true,
         signal: cached,
