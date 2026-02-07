@@ -98,10 +98,17 @@ export async function GET(request: Request) {
     }
 
     if (!marketStatus.isOpen) {
+      console.log(`[v0] Market is closed (${marketStatus.message}). Checking for cached signal...`)
       if (lastValidSignals[symbol] && lastValidTimestamps[symbol]) {
+        console.log(`[v0] Returning cached signal for ${symbol}`)
+        // Ensure cached signal has entryDecision
+        const cachedSignal = lastValidSignals[symbol]
+        if (!cachedSignal.entryDecision) {
+          cachedSignal.entryDecision = strategies.buildEntryDecision(cachedSignal)
+        }
         return NextResponse.json({
           success: true,
-          signal: lastValidSignals[symbol],
+          signal: cachedSignal,
           timestamp: lastValidTimestamps[symbol],
           marketClosed: true,
           marketStatus: marketStatus.message,
@@ -109,19 +116,18 @@ export async function GET(request: Request) {
         })
       }
 
-      return NextResponse.json(
-        {
-          success: false,
-          error: marketStatus.message,
-          marketClosed: true,
-          nextOpen: marketStatus.nextOpen,
-        },
-        { status: 503 },
-      )
+      // Even if market is closed, try to provide fresh data if we have it
+      // This allows the system to continue functioning over weekends with synthetic/cached data
+      console.log(`[v0] No cached signal available. Proceeding with fresh evaluation even though market is reported as closed.`)
+      // Do NOT return 503 - continue processing below
     }
 
     const cached = SignalCache.get(symbol)
     if (cached) {
+      // Ensure cached signal has entryDecision
+      if (!cached.entryDecision) {
+        cached.entryDecision = strategies.buildEntryDecision(cached)
+      }
       return NextResponse.json({
         success: true,
         signal: cached,
@@ -178,6 +184,10 @@ export async function GET(request: Request) {
           }
         : undefined,
     }
+
+    // Build entry decision for checklist display
+    const entryDecision = strategies.buildEntryDecision(enhancedSignal)
+    enhancedSignal.entryDecision = entryDecision
 
     SignalCache.set(enhancedSignal, symbol)
 

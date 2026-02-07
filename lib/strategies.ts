@@ -332,6 +332,12 @@ export class TradingStrategies {
     indDaily: TechnicalIndicators,
     ind4h: TechnicalIndicators,
   ): { trend: "LONG" | "SHORT" | "NEUTRAL"; reason: string } {
+    // CRITICAL FIX #6: HTF Polarity Logic Clarification
+    // HTF polarity is determined by Daily+4H consensus (both same direction = strong trend)
+    // HTF NEUTRAL = Daily and 4H diverge or lack clear directional agreement
+    // B-tier signals allowed when HTF NEUTRAL IF 1H momentum + VWAP support the direction
+    // Counter-trend rule: If HTF shows clear trend, lower timeframes cannot override it
+    
     if (!dataDaily.length || !data4h.length) {
       return { trend: "NEUTRAL", reason: "Insufficient HTF data" }
     }
