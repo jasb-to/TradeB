@@ -174,7 +174,7 @@ ADX: ${adx.toFixed(2)} | RSI: ${rsi.toFixed(2)}
 🔒 SL: $${entryPrice.toFixed(2)} (Entry)
 
 ⏰ Time: ${new Date().toISOString()}
-═══════════════════════════`
+════════��══════════════════`
 
                   await notifier.sendMessage(tp2Message, false)
                   console.log(`[v0] TP1 reached - HOLDING for TP2 for ${symbol} (momentum: ${momentumStatus})`)
@@ -299,7 +299,8 @@ Great trade execution!
         // CRITICAL FIX #7: Never alert on cached signals when market is closed
         const marketStatus = MarketHours.getMarketStatus()
         const isMarketClosed = !marketStatus.isOpen
-        const isAlert = shouldAlert && signal.type === "ENTRY" && signal.alertLevel >= 2 && !isMarketClosed
+        // NEW: Include B-tier trades (alertLevel >= 1) in Telegram alerts for assessment week
+        const isAlert = shouldAlert && signal.type === "ENTRY" && signal.alertLevel >= 1 && !isMarketClosed
 
         // IMPORTANT: Store TP levels for ALL tiers (A+, A, B) for automatic monitoring
         // Even B-tier trades (alertLevel 1) get TP1/TP2 tracking automatically
@@ -338,7 +339,7 @@ Great trade execution!
             }
           }
         } else {
-          const reason = !shouldAlert ? "cooldown/duplicate" : isMarketClosed ? "market closed (cached signal blocked)" : signal.alertLevel < 2 ? "B-tier (TP monitoring only)" : !process.env.TELEGRAM_BOT_TOKEN ? "no token" : "no chat ID"
+          const reason = !shouldAlert ? "cooldown/duplicate" : isMarketClosed ? "market closed (cached signal blocked)" : !process.env.TELEGRAM_BOT_TOKEN ? "no token" : "no chat ID"
           console.log(`[v0] CRON-JOB Alert skipped for ${symbol}: ${reason}`)
         }
 
