@@ -1,0 +1,12 @@
+{
+  "buildCommand": "pnpm run build",
+  "outputDirectory": ".next",
+  "env": {
+    "NEXT_TELEMETRY_DISABLED": "1",
+    "VERCEL_BUILDER": "16"
+  }
+}
+
+  }
+}
+
