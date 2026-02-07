@@ -339,6 +339,7 @@ export default function GoldTradingDashboard() {
             } Silver runs as background system with Telegram-only alerts.
           </p>
         </div>
+        </div>
       </main>
     )
   } catch (error) {
