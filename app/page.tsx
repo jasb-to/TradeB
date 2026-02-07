@@ -119,6 +119,39 @@ export default function GoldTradingDashboard() {
     fetchSignals()
   }, [])
 
+  const sendTestMessage = async () => {
+    setTestingTelegram(true)
+    try {
+      const response = await fetch("/api/test-telegram", {
+        method: "GET",
+      })
+      const data = await response.json()
+
+      if (data.success) {
+        toast({
+          title: "Telegram Connected",
+          description: "Test message sent successfully to your chat",
+          variant: "default",
+        })
+      } else {
+        toast({
+          title: "Telegram Failed",
+          description: data.error || "Failed to send test message",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("[v0] Error sending test message:", error)
+      toast({
+        title: "Connection Error",
+        description: "Failed to connect to Telegram API",
+        variant: "destructive",
+      })
+    } finally {
+      setTestingTelegram(false)
+    }
+  }
+
   // Polling interval - 60s weekdays, 1h weekends
   useEffect(() => {
     // Polling strategy:
