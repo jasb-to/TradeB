@@ -345,7 +345,7 @@ export default function GoldTradingDashboard() {
     console.error("[v0] Render error:", error)
     setRenderError(error instanceof Error ? error.message : "Unknown render error")
     return (
-      <div className="min-h-screen bg-slate-950 p-4 md:p-8 flex items-center justify-center">
+      <main className="min-h-screen bg-slate-950 p-4 md:p-8 flex items-center justify-center">
         <Card className="bg-red-950/30 border-red-700/50 p-8 max-w-md">
           <div className="flex gap-3">
             <AlertCircle className="w-6 h-6 text-red-400 flex-shrink-0 mt-1" />
@@ -357,7 +357,7 @@ export default function GoldTradingDashboard() {
             </div>
           </div>
         </Card>
-      </div>
+      </main>
     )
   }
 }
