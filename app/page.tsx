@@ -58,10 +58,13 @@ export default function GoldTradingDashboard() {
       // Handle XAU signal - check both success flag and signal existence
       if (xauData.signal) {
         setSignalXAU(xauData.signal)
-        // Always cache successful signals for weekend display
+        // Always cache successful signals with complete metadata
         localStorage.setItem("lastValidSignalXAU", JSON.stringify({
           signal: xauData.signal,
           timestamp: Date.now(),
+          marketClosed: xauData.marketClosed ?? false,
+          marketMessage: xauData.marketStatus || "Market open",
+          dataSource: xauData.dataSource || "oanda",
         }))
       }
 
@@ -88,14 +91,18 @@ export default function GoldTradingDashboard() {
       const cached = localStorage.getItem("lastValidSignalXAU")
       if (cached) {
         try {
-          const cachedSignal = JSON.parse(cached)
-          setSignalXAU(cachedSignal.signal)
-          setLastUpdate(new Date(cachedSignal.timestamp))
-          setMarketClosed(true)
-          setMarketMessage("Using cached Friday close data")
+          const cachedData = JSON.parse(cached)
+          setSignalXAU(cachedData.signal)
+          setLastUpdate(new Date(cachedData.timestamp))
+          setMarketClosed(cachedData.marketClosed ?? true)
+          setMarketMessage(cachedData.marketMessage || "Using cached data (API unavailable)")
+          setDataSource(cachedData.dataSource || "oanda")
+          console.log("[v0] Recovered from API error using cached data")
         } catch (e) {
           console.log("[v0] Cache error:", e)
         }
+      } else {
+        console.warn("[v0] API failed and no cached data available")
       }
     } finally {
       setLoading(false)
@@ -107,11 +114,13 @@ export default function GoldTradingDashboard() {
     const cached = localStorage.getItem("lastValidSignalXAU")
     if (cached) {
       try {
-        const cachedSignal = JSON.parse(cached)
-        setSignalXAU(cachedSignal.signal)
-        setLastUpdate(new Date(cachedSignal.timestamp))
-        setMarketClosed(true)
-        setMarketMessage("Using cached Friday close data")
+        const cachedData = JSON.parse(cached)
+        setSignalXAU(cachedData.signal)
+        setLastUpdate(new Date(cachedData.timestamp))
+        setMarketClosed(cachedData.marketClosed ?? true)
+        setMarketMessage(cachedData.marketMessage || "Using cached market data")
+        setDataSource(cachedData.dataSource || "oanda")
+        console.log("[v0] Loaded cached signal from localStorage on mount")
       } catch (e) {
         console.log("[v0] Initial cache load error:", e)
       }

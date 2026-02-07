@@ -23,6 +23,7 @@ export async function GET(request: Request) {
     const symbol = (searchParams.get("symbol") || "XAU_USD") as "XAU_USD" | "XAG_USD"
 
     const marketStatus = MarketHours.getMarketStatus()
+    console.log(`[v0] API Request for ${symbol} - Market Status:`, marketStatus)
 
     const dataFetcher = new DataFetcher(symbol)
     const strategies = new TradingStrategies(DEFAULT_TRADING_CONFIG)
@@ -104,6 +105,7 @@ export async function GET(request: Request) {
           const strategies = new TradingStrategies(DEFAULT_TRADING_CONFIG)
           lastValidSignals[symbol].entryDecision = strategies.buildEntryDecision(lastValidSignals[symbol])
         }
+        console.log(`[v0] Market closed - returning cached signal for ${symbol}`)
         return NextResponse.json({
           success: true,
           signal: lastValidSignals[symbol],
@@ -111,15 +113,19 @@ export async function GET(request: Request) {
           marketClosed: true,
           marketStatus: marketStatus.message,
           mtfBias: mtfBias,
+          cached: true,
         })
       }
 
+      // Market closed but no cached signal - return 503 with clear message
+      console.warn(`[v0] Market closed and no cached signal available for ${symbol}`)
       return NextResponse.json(
         {
           success: false,
           error: marketStatus.message,
           marketClosed: true,
           nextOpen: marketStatus.nextOpen,
+          details: "No cached signal available. Wait for market to open or check backend logs.",
         },
         { status: 503 },
       )
