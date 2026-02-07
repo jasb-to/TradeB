@@ -30,8 +30,8 @@ export default function GoldTradingDashboard() {
   // XAU is always the main display, XAG runs in background
   const signal = signalXAU
 
-  const fetchSignals = async () => {
-    setLoading(true)
+  const handleManualRefresh = async () => {
+    setRefreshing(true)
     try {
       const [xauResponse, xagResponse] = await Promise.all([
         fetch("/api/signal/current?symbol=XAU_USD"),
@@ -39,35 +39,57 @@ export default function GoldTradingDashboard() {
       ])
 
       if (!xauResponse.ok || !xagResponse.ok) {
-        throw new Error("Signal API returned error")
+        throw new Error("Failed to fetch signals")
       }
 
       const xauData = await xauResponse.json()
       const xagData = await xagResponse.json()
 
-      if (xauData.success && xauData.signal) {
+      if (xauData.signal) {
         setSignalXAU(xauData.signal)
+        setMarketClosed(xauData.marketClosed || false)
+        setMarketMessage(xauData.marketStatus || null)
       }
-      if (xagData.success && xagData.signal) {
+      if (xagData.signal) {
         setSignalXAG(xagData.signal)
       }
 
       setLastUpdate(new Date())
       setSecondsAgo(0)
+      
+      toast({
+        title: "Data Refreshed",
+        description: "Signals updated successfully",
+        variant: "default",
+      })
     } catch (error) {
-      console.error("[v0] Polling error:", error)
+      console.error("[v0] Manual refresh error:", error)
+      toast({
+        title: "Refresh Failed",
+        description: "Could not update signals",
+        variant: "destructive",
+      })
     } finally {
-      setLoading(false)
+      setRefreshing(false)
     }
   }
 
   const sendTestMessage = async () => {
     setTestingTelegram(true)
+    console.log("[v0] Telegram test initiated")
     try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+      
       const response = await fetch("/api/test-telegram-instant", {
         method: "GET",
+        signal: controller.signal,
       })
+      clearTimeout(timeoutId)
+      
+      console.log("[v0] Telegram response status:", response.status)
       const data = await response.json()
+      console.log("[v0] Telegram response data:", data)
 
       if (data.success) {
         toast({
@@ -83,10 +105,11 @@ export default function GoldTradingDashboard() {
         })
       }
     } catch (error) {
-      console.error("[v0] Error sending test message:", error)
+      console.error("[v0] Telegram error:", error)
+      const errorMsg = error instanceof Error ? error.message : String(error)
       toast({
         title: "Connection Error",
-        description: "Failed to connect to Telegram endpoint",
+        description: errorMsg.includes("abort") ? "Request timeout (10s)" : "Failed to connect to Telegram endpoint",
         variant: "destructive",
       })
     } finally {
@@ -173,12 +196,8 @@ export default function GoldTradingDashboard() {
   }
 
   useEffect(() => {
+    // Initial fetch on mount only
     fetchXAU()
-    
-    // Determine polling interval based on market status
-    // Market open: poll every 30 seconds for live data
-    // Market closed: poll every 60 minutes just to check if market reopened
-    const pollInterval = marketClosed ? 60 * 60 * 1000 : 30000
     
     intervalRef.current = setInterval(async () => {
       try {
@@ -198,6 +217,22 @@ export default function GoldTradingDashboard() {
           if (xauData.signal) {
             setSignalXAU(xauData.signal)
           }
+          // CRITICAL FIX: Clear interval and restart with longer interval for market closed
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current)
+          }
+          intervalRef.current = setInterval(async () => {
+            const retryResponse = await fetch("/api/signal/current?symbol=XAU_USD")
+            if (retryResponse.ok) {
+              const retryData = await retryResponse.json()
+              if (!retryData.marketClosed) {
+                // Market reopened, restart normal polling
+                setMarketClosed(false)
+                setMarketMessage(null)
+                if (retryData.signal) setSignalXAU(retryData.signal)
+              }
+            }
+          }, 60 * 60 * 1000) // Check every 60 minutes when market closed
           return
         }
         
@@ -216,12 +251,12 @@ export default function GoldTradingDashboard() {
       } catch (error) {
         console.error("[v0] Polling error:", error)
       }
-    }, pollInterval)
+    }, 30000) // Poll every 30 seconds during market hours
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
-  }, [marketClosed])
+  }, [])
 
   // Timer for displaying "seconds ago"
   useEffect(() => {
@@ -247,21 +282,22 @@ export default function GoldTradingDashboard() {
           </div>
           <div className="flex gap-2">
             <Button
-              onClick={fetchXAU}
-              disabled={loading || refreshing}
+              onClick={handleManualRefresh}
+              disabled={refreshing}
               variant="outline"
               size="sm"
               className="gap-2 bg-transparent"
             >
-              <RefreshCw className={`w-4 h-4 ${loading || refreshing ? "animate-spin" : ""}`} />
+              <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
               {refreshing ? "Refreshing..." : "Refresh"}
             </Button>
             <Button
               onClick={sendTestMessage}
-              disabled={loading || testingTelegram}
+              disabled={testingTelegram}
               variant="outline"
               size="sm"
               className="gap-2 bg-transparent"
+              suppressHydrationWarning
             >
               <Send className={`w-4 h-4 ${testingTelegram ? "animate-spin" : ""}`} />
               {testingTelegram ? "Testing..." : "Test Telegram"}
