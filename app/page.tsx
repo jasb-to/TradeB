@@ -184,33 +184,9 @@ export default function GoldTradingDashboard() {
     }
   }, [lastUpdate])
 
-  // Error boundary wrapper
-  if (renderError) {
-    return (
-      <div className="min-h-screen bg-slate-950 p-4 md:p-8 flex items-center justify-center">
-        <Card className="bg-red-950/30 border-red-700/50 p-8 max-w-md">
-          <div className="flex gap-3">
-            <AlertCircle className="w-6 h-6 text-red-400 flex-shrink-0 mt-1" />
-            <div>
-              <h1 className="text-lg font-bold text-red-200 mb-2">Component Render Error</h1>
-              <p className="text-sm text-red-300">{renderError}</p>
-              <button
-                onClick={() => setRenderError(null)}
-                className="mt-4 px-3 py-1 bg-red-700/30 hover:bg-red-700/50 text-red-200 text-sm rounded border border-red-700"
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
-        </Card>
-      </div>
-    )
-  }
-
-  try {
-    return (
-      <main className="min-h-screen bg-slate-950 p-4 md:p-8">
-        <div className="max-w-7xl mx-auto space-y-6">
+  return (
+    <main className="min-h-screen bg-slate-950 p-4 md:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start gap-3 md:gap-2">
           <div>
@@ -339,26 +315,7 @@ export default function GoldTradingDashboard() {
             } Silver runs as background system with Telegram-only alerts.
           </p>
         </div>
-        </div>
-      </main>
-    )
-  } catch (error) {
-    console.error("[v0] Render error:", error)
-    setRenderError(error instanceof Error ? error.message : "Unknown render error")
-    return (
-      <main className="min-h-screen bg-slate-950 p-4 md:p-8 flex items-center justify-center">
-        <Card className="bg-red-950/30 border-red-700/50 p-8 max-w-md">
-          <div className="flex gap-3">
-            <AlertCircle className="w-6 h-6 text-red-400 flex-shrink-0 mt-1" />
-            <div>
-              <h1 className="text-lg font-bold text-red-200 mb-2">Render Error</h1>
-              <p className="text-sm text-red-300">
-                {error instanceof Error ? error.message : "An unknown error occurred"}
-              </p>
-            </div>
-          </div>
-        </Card>
-      </main>
-    )
-  }
+      </div>
+    </main>
+  )
 }
