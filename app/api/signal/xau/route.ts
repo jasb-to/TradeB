@@ -384,14 +384,17 @@ export async function GET() {
         marketClosed: isMarketClosed,
         marketStatus: isMarketClosed ? marketStatus.message : null,
         symbol: "XAU_USD",
+        dataSource: "oanda", // Indicate data is from real OANDA API
       })
     } catch (fetchError) {
       console.error("Error fetching XAU data:", fetchError)
+      // Return synthetic data response with flag so UI knows to show warning
       return NextResponse.json({
         success: false,
-        error: "Failed to fetch data",
+        error: "Failed to fetch data - using fallback",
         symbol: "XAU_USD",
-      }, { status: 500 })
+        dataSource: "synthetic",
+      }, { status: 503 })
     }
   } catch (error) {
     console.error("Error in XAU signal route:", error)

@@ -218,14 +218,16 @@ export async function GET() {
         timestamp: lastValidTimestampXAG,
         marketClosed: false,
         symbol: "XAG_USD",
+        dataSource: "oanda",
       })
     } catch (fetchError) {
       console.error("[v0] XAG: Error fetching data:", fetchError)
       return NextResponse.json({
         success: false,
-        error: "Failed to fetch data",
+        error: "Failed to fetch data - using fallback",
         symbol: "XAG_USD",
-      }, { status: 500 })
+        dataSource: "synthetic",
+      }, { status: 503 })
     }
   } catch (error) {
     console.error("[v0] XAG: Internal error:", error)

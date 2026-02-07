@@ -25,6 +25,7 @@ export default function GoldTradingDashboard() {
   const [marketMessage, setMarketMessage] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [testingTelegram, setTestingTelegram] = useState(false)
+  const [dataSource, setDataSource] = useState<"oanda" | "synthetic" | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -46,14 +47,13 @@ export default function GoldTradingDashboard() {
       const xauData = await xauResponse.json()
       const xagData = await xagResponse.json()
 
-      console.log("[v0] XAU Signal Fetched:", {
-        success: xauData.success,
-        hasSignal: !!xauData.signal,
-        hasIndicators: !!xauData.signal?.indicators,
-        stochRSI: xauData.signal?.indicators?.stochRSI,
-        adx: xauData.signal?.indicators?.adx,
-        atr: xauData.signal?.indicators?.atr,
-      })
+      // Track if data is synthetic - block display if so
+      if (xauData.dataSource === "synthetic") {
+        setDataSource("synthetic")
+        console.log("[v0] WARNING: XAU data is synthetic (OANDA unavailable)")
+      } else {
+        setDataSource("oanda")
+      }
 
       if (xauData.success && xauData.signal) {
         setSignalXAU(xauData.signal)
@@ -176,10 +176,10 @@ export default function GoldTradingDashboard() {
   useEffect(() => {
     fetchXAU()
     
-    // Determine polling interval based on market status
-    // Market open: poll every 30 seconds for live data
-    // Market closed: poll every 60 minutes just to check if market reopened
-    const pollInterval = marketClosed ? 60 * 60 * 1000 : 30000
+    // Polling intervals - reduced to conserve API calls
+    // Market open: 60 seconds (was 30s)
+    // Market closed: 5 minutes (was 60m) - still check if market reopened
+    const pollInterval = marketClosed ? 5 * 60 * 1000 : 60 * 1000
     
     intervalRef.current = setInterval(async () => {
       try {
@@ -191,6 +191,13 @@ export default function GoldTradingDashboard() {
         }
 
         const xauData = await xauResponse.json()
+
+        // Track data source
+        if (xauData.dataSource === "synthetic") {
+          setDataSource("synthetic")
+        } else {
+          setDataSource("oanda")
+        }
 
         // Check if market status changed
         if (xauData.marketClosed) {
@@ -295,7 +302,38 @@ export default function GoldTradingDashboard() {
           </Card>
         )}
 
+        {/* Synthetic Data Warning */}
+        {dataSource === "synthetic" && (
+          <Card className="bg-red-950/30 border-red-700/50 p-4">
+            <div className="flex gap-3 items-center">
+              <AlertCircle className="w-5 h-5 text-red-400" />
+              <div>
+                <h3 className="font-semibold text-red-200">Synthetic Data Active</h3>
+                <p className="text-sm text-red-300/80">
+                  OANDA API is unavailable. Dashboard is displaying generated data only. DO NOT trade on synthetic signals.
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
+
         {/* Main Content Grid */}
+        {dataSource === "synthetic" ? (
+          // Synthetic data: show warning, don't display trading signals
+          <div className="space-y-6">
+            <Card className="bg-slate-900/40 border-slate-700/50 p-6">
+              <div className="flex gap-3 items-start">
+                <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-red-200">Signals Blocked</h3>
+                  <p className="text-sm text-red-300/80 mt-1">
+                    All trading signals are hidden because the system is using synthetic data. Real OANDA market data is required for live trading. Once OANDA API is available, signals will display automatically.
+                  </p>
+                </div>
+              </div>
+            </Card>
+          </div>
+        ) : (
         <div className="space-y-6">
           {/* 0. Gold Price Display */}
           <GoldPriceDisplay signal={signal} marketClosed={marketClosed} />
@@ -333,14 +371,15 @@ export default function GoldTradingDashboard() {
             </Card>
           )}
         </div>
+        )}
 
         {/* Footer */}
         <div className="border-t border-slate-700/30 pt-6">
           <p className="text-xs text-slate-500 text-center">
             {marketClosed 
-              ? "Market closed - polling paused. Will resume when market reopens."
-              : "Data refreshes automatically every 30 seconds. Strategy: Multi-TF aligned entries with strict risk gates. DO NOT trade against the higher timeframe bias."
-            } Silver runs as background system with Telegram-only alerts.
+              ? "Market closed - polling every 5 minutes. Will resume normal polling when market reopens."
+              : "Data refreshes automatically every 60 seconds. Strategy: Multi-TF aligned entries with strict risk gates. DO NOT trade against the higher timeframe bias."
+            } Silver runs as background system with Telegram-only alerts. Synthetic data display is blocked for safety.
           </p>
         </div>
       </div>
