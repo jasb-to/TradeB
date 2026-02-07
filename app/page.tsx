@@ -163,7 +163,7 @@ export default function GoldTradingDashboard() {
           </div>
           <div className="flex gap-2 flex-wrap md:flex-nowrap">
             <Button
-              onClick={fetchXAU}
+              onClick={fetchSignals}
               disabled={loading || refreshing}
               variant="outline"
               size="sm"
