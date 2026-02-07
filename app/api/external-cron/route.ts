@@ -28,6 +28,14 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now()
   
   console.log(`[v0] EXTERNAL-CRON STARTED: requestId=${requestId}`)
+  
+  // CRITICAL FIX #4: Cooldown persistence warning
+  // Current implementation: In-memory cooldown WILL reset on cold start/redeploy
+  // This creates risk of duplicate alerts. For production, implement:
+  // - Vercel KV Store for persistent cooldown tracking
+  // - Database-backed cooldown with 1-hour TTL per symbol
+  // - Idempotency keys with signal hash + timestamp
+  console.log(`[v0] PRODUCTION WARNING: Cooldown tracking is in-memory. Coldstart or redeploy will reset it.`)
 
   try {
     const { searchParams } = new URL(request.url)
@@ -122,7 +130,12 @@ export async function GET(request: NextRequest) {
         const shouldAlert = SignalCache.shouldSendAlert(signalWithSymbol, symbol)
         console.log(`[v0] CRON-JOB ${symbol} signal generated: type=${signal.type} dir=${signal.direction} level=${signal.alertLevel} shouldAlert=${shouldAlert}`)
 
-        if (shouldAlert && process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
+        // CRITICAL FIX #7: Never alert on cached signals when market is closed
+        const marketStatus = MarketHours.getMarketStatus()
+        const isMarketClosed = !marketStatus.isOpen
+        const isAlert = shouldAlert && signal.type === "ENTRY" && signal.alertLevel >= 2 && !isMarketClosed
+
+        if (isAlert && process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
           console.log(`[v0] CRON-JOB Sending Telegram for ${symbol}`)
           
           if (!TelegramNotifier) {
@@ -142,7 +155,7 @@ export async function GET(request: NextRequest) {
             }
           }
         } else {
-          const reason = !shouldAlert ? "cooldown/duplicate" : !process.env.TELEGRAM_BOT_TOKEN ? "no token" : "no chat ID"
+          const reason = !shouldAlert ? "cooldown/duplicate" : isMarketClosed ? "market closed (cached signal blocked)" : !process.env.TELEGRAM_BOT_TOKEN ? "no token" : "no chat ID"
           console.log(`[v0] CRON-JOB Alert skipped for ${symbol}: ${reason}`)
         }
 
