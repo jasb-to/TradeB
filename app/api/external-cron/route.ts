@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // NEW: Monitor TP1/TP2 levels if active trade exists
+        // NEW: Monitor TP1/TP2 levels if active trade exists (ALL tiers: A+, A, B)
         const tpLevels = SignalCache.getTPLevels(symbol)
         if (alertState.activeTrade && tpLevels.tp1) {
           const currentPrice = signal.entryPrice || 0
@@ -301,6 +301,23 @@ Great trade execution!
         const isMarketClosed = !marketStatus.isOpen
         const isAlert = shouldAlert && signal.type === "ENTRY" && signal.alertLevel >= 2 && !isMarketClosed
 
+        // IMPORTANT: Store TP levels for ALL tiers (A+, A, B) for automatic monitoring
+        // Even B-tier trades (alertLevel 1) get TP1/TP2 tracking automatically
+        if (signal.type === "ENTRY" && signal.alertLevel >= 1 && !isMarketClosed) {
+          const state = SignalCache.getAlertState(symbol)
+          if (!state.activeTrade) {
+            // Store as active trade if no trade currently tracked
+            state.activeTrade = signalWithSymbol
+            state.activeTradeTime = Date.now()
+            
+            // Store TP1/TP2 levels for TP monitoring (ALL tiers)
+            if (signalWithSymbol.takeProfit1 && signalWithSymbol.takeProfit2) {
+              SignalCache.storeTakeProfitLevels(symbol, signalWithSymbol.takeProfit1, signalWithSymbol.takeProfit2)
+              console.log(`[v0] TP levels stored for ${symbol} (Tier: ${signalWithSymbol.tier}): TP1=$${signalWithSymbol.takeProfit1.toFixed(2)}, TP2=$${signalWithSymbol.takeProfit2.toFixed(2)}`)
+            }
+          }
+        }
+
         if (isAlert && process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
           console.log(`[v0] CRON-JOB Sending Telegram for ${symbol}`)
           
@@ -315,24 +332,13 @@ Great trade execution!
               )
               await notifier.sendSignalAlert(signalWithSymbol)
               SignalCache.recordAlert(signalWithSymbol, symbol)
-              // Store as active trade for direction-change monitoring
-              const state = SignalCache.getAlertState(symbol)
-              state.activeTrade = signalWithSymbol
-              state.activeTradeTime = Date.now()
-              
-              // Store TP1/TP2 levels for TP monitoring
-              if (signalWithSymbol.takeProfit1 && signalWithSymbol.takeProfit2) {
-                SignalCache.storeTakeProfitLevels(symbol, signalWithSymbol.takeProfit1, signalWithSymbol.takeProfit2)
-                console.log(`[v0] TP levels stored: TP1=$${signalWithSymbol.takeProfit1.toFixed(2)}, TP2=$${signalWithSymbol.takeProfit2.toFixed(2)}`)
-              }
-              
               console.log(`[v0] CRON-JOB Telegram SENT for ${symbol}: ${signalWithSymbol.type} ${signalWithSymbol.direction}`)
             } catch (telegramError) {
               console.error(`[v0] CRON-JOB Telegram error for ${symbol}:`, telegramError)
             }
           }
         } else {
-          const reason = !shouldAlert ? "cooldown/duplicate" : isMarketClosed ? "market closed (cached signal blocked)" : !process.env.TELEGRAM_BOT_TOKEN ? "no token" : "no chat ID"
+          const reason = !shouldAlert ? "cooldown/duplicate" : isMarketClosed ? "market closed (cached signal blocked)" : signal.alertLevel < 2 ? "B-tier (TP monitoring only)" : !process.env.TELEGRAM_BOT_TOKEN ? "no token" : "no chat ID"
           console.log(`[v0] CRON-JOB Alert skipped for ${symbol}: ${reason}`)
         }
 
