@@ -173,6 +173,7 @@ export default function GoldTradingDashboard() {
   }
 
   useEffect(() => {
+    // Initial fetch on mount only
     fetchXAU()
     
     // Determine polling interval based on market status
@@ -221,7 +222,7 @@ export default function GoldTradingDashboard() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
-  }, [marketClosed])
+  }, [])
 
   // Timer for displaying "seconds ago"
   useEffect(() => {
@@ -258,7 +259,7 @@ export default function GoldTradingDashboard() {
             </Button>
             <Button
               onClick={sendTestMessage}
-              disabled={loading || testingTelegram}
+              disabled={testingTelegram}
               variant="outline"
               size="sm"
               className="gap-2 bg-transparent"
