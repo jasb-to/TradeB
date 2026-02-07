@@ -41,7 +41,7 @@ export default function GoldTradingDashboard() {
       ])
 
       if (!xauResponse.ok || !xagResponse.ok) {
-        throw new Error("Signal API returned error")
+        throw new Error(`Signal API returned error: ${xauResponse.status} ${xagResponse.status}`)
       }
 
       const xauData = await xauResponse.json()
@@ -54,27 +54,28 @@ export default function GoldTradingDashboard() {
         setDataSource("oanda")
       }
 
-      // Update market status
-      if (xauData.marketClosed) {
-        setMarketClosed(true)
-        setMarketMessage(xauData.marketStatus || "Market closed")
-        if (xauData.signal) {
-          setSignalXAU(xauData.signal)
-          // Cache for weekend display
-          localStorage.setItem("lastValidSignalXAU", JSON.stringify({
-            signal: xauData.signal,
-            timestamp: Date.now(),
-          }))
-        }
-      } else {
-        setMarketClosed(false)
-        setMarketMessage(null)
-        if (xauData.success && xauData.signal) {
-          setSignalXAU(xauData.signal)
+      // Handle XAU signal - check both success flag and signal existence
+      if (xauData.signal) {
+        setSignalXAU(xauData.signal)
+        // Always cache successful signals for weekend display
+        localStorage.setItem("lastValidSignalXAU", JSON.stringify({
+          signal: xauData.signal,
+          timestamp: Date.now(),
+        }))
+      }
+
+      // Update market status if provided
+      if (xauData.marketClosed !== undefined) {
+        setMarketClosed(xauData.marketClosed)
+        if (xauData.marketClosed) {
+          setMarketMessage(xauData.marketStatus || "Market closed")
+        } else {
+          setMarketMessage(null)
         }
       }
 
-      if (xagData.success && xagData.signal) {
+      // Handle XAG signal
+      if (xagData.signal) {
         setSignalXAG(xagData.signal)
       }
 
@@ -89,6 +90,8 @@ export default function GoldTradingDashboard() {
           const cachedSignal = JSON.parse(cached)
           setSignalXAU(cachedSignal.signal)
           setLastUpdate(new Date(cachedSignal.timestamp))
+          setMarketClosed(true)
+          setMarketMessage("Using cached Friday close data")
         } catch (e) {
           console.log("[v0] Cache error:", e)
         }
@@ -98,111 +101,26 @@ export default function GoldTradingDashboard() {
     }
   }
 
-  const sendTestMessage = async () => {
-    setTestingTelegram(true)
-    try {
-      const response = await fetch("/api/test-telegram-instant", {
-        method: "GET",
-      })
-      const data = await response.json()
-
-      if (data.success) {
-        toast({
-          title: "Telegram Connected",
-          description: "Test message sent successfully to your chat",
-          variant: "default",
-        })
-      } else {
-        toast({
-          title: "Telegram Failed",
-          description: data.error || "Failed to send test message",
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
-      console.error("[v0] Error sending test message:", error)
-      toast({
-        title: "Connection Error",
-        description: "Failed to connect to Telegram endpoint",
-        variant: "destructive",
-      })
-    } finally {
-      setTestingTelegram(false)
-    }
-  }
-
-  const fetchXAU = async () => {
-    // Prevent double-clicks/rapid clicks by checking state before starting
-    if (refreshing) {
-      return
-    }
-    
-    setRefreshing(true)
-    try {
-      const response = await fetch("/api/signal/current?symbol=XAU_USD", {
-        signal: AbortSignal.timeout(15000) // 15 second timeout
-      })
-      
-      if (!response.ok) {
-        throw new Error(`Signal API returned ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      // Handle market closed state - preserve Friday close data
-      if (data.marketClosed) {
-        setMarketClosed(true)
-        setMarketMessage(data.marketStatus || "Market closed for weekend")
-        // Still update signal if cached data returned (Friday close snapshot)
-        if (data.signal) {
-          setSignalXAU(data.signal)
-        }
-      } else {
-        setMarketClosed(false)
-        setMarketMessage(null)
-        if (data.success && data.signal) {
-          setSignalXAU(data.signal)
-        }
-      }
-      
-      setLastUpdate(new Date())
-      setSecondsAgo(0)
-      setLoading(false) // Clear initial loading state
-    } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") {
-        console.error("[v0] XAU fetch timeout (15s)")
-      } else {
-        console.error("[v0] XAU polling error:", error)
-      }
-      setLoading(false) // Clear loading even on error
-    } finally {
-      setRefreshing(false)
-    }
-  }
-
-  const fetchXAG = async () => {
-    try {
-      const response = await fetch("/api/signal/current?symbol=XAG_USD")
-      
-      if (!response.ok) {
-        throw new Error(`XAG Signal API returned ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      if (data.success && data.signal) {
-        setSignalXAG(data.signal)
-      }
-    } catch (error) {
-      console.error("[v0] XAG polling error:", error)
-    }
-  }
-
-
-
+  // Load cached data immediately on component mount
   useEffect(() => {
-    fetchXAU()
-    
+    const cached = localStorage.getItem("lastValidSignalXAU")
+    if (cached) {
+      try {
+        const cachedSignal = JSON.parse(cached)
+        setSignalXAU(cachedSignal.signal)
+        setLastUpdate(new Date(cachedSignal.timestamp))
+        setMarketClosed(true)
+        setMarketMessage("Using cached Friday close data")
+      } catch (e) {
+        console.log("[v0] Initial cache load error:", e)
+      }
+    }
+    // Then fetch fresh data
+    fetchSignals()
+  }, [])
+
+  // Polling interval - 60s weekdays, 1h weekends
+  useEffect(() => {
     // Polling strategy:
     // Weekday (Mon-Fri): Poll every 60 seconds
     // Weekend (Sat-Sun): Poll every hour to keep cached data fresh
@@ -212,14 +130,14 @@ export default function GoldTradingDashboard() {
     const pollInterval = isWeekend ? 60 * 60 * 1000 : 60 * 1000 // 1 hour vs 60 seconds
 
     intervalRef.current = setInterval(() => {
-      fetchXAU()
+      fetchSignals()
     }, pollInterval)
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
   }, [])
-
+    
   useEffect(() => {
     if (!lastUpdate) return
 
