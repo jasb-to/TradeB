@@ -13,6 +13,13 @@ export function EntryChecklist({ signal }: EntryChecklistProps) {
   // This is the single source of truth shared with backend alert logic
   const entryDecision = signal?.entryDecision
   
+  console.log("[v0] EntryChecklist - signal:", signal)
+  console.log("[v0] EntryChecklist - entryDecision:", entryDecision)
+  console.log("[v0] EntryChecklist - signal?.entryDecision exists:", !!signal?.entryDecision)
+  if (signal) {
+    console.log("[v0] EntryChecklist - signal keys:", Object.keys(signal))
+  }
+  
   if (!entryDecision) {
     return (
       <Card className="bg-slate-900/40 border-slate-700/50">

@@ -12,7 +12,6 @@ import { GoldSignalPanel } from "@/components/gold-signal-panel"
 import { IndicatorCards } from "@/components/indicator-cards"
 import { EntryChecklist } from "@/components/entry-checklist"
 import { GoldPriceDisplay } from "@/components/gold-price-display"
-import { ActiveTrades } from "@/components/active-trades"
 
 export default function GoldTradingDashboard() {
   const { toast } = useToast()
@@ -25,8 +24,6 @@ export default function GoldTradingDashboard() {
   const [marketMessage, setMarketMessage] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [testingTelegram, setTestingTelegram] = useState(false)
-  const [activeTrades, setActiveTrades] = useState<any[]>([])
-  const [currentPrice, setCurrentPrice] = useState<number | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -47,6 +44,9 @@ export default function GoldTradingDashboard() {
 
       const xauData = await xauResponse.json()
       const xagData = await xagResponse.json()
+
+      console.log("[v0] Fetched XAU signal:", xauData)
+      console.log("[v0] XAU signal.entryDecision:", xauData.signal?.entryDecision)
 
       if (xauData.success && xauData.signal) {
         setSignalXAU(xauData.signal)
@@ -156,7 +156,7 @@ export default function GoldTradingDashboard() {
       const response = await fetch("/api/active-trades?symbol=XAU_USD")
       if (response.ok) {
         const data = await response.json()
-        setActiveTrades(data.activeTrades || [])
+        // Removed - no longer displaying active trades
       }
     } catch (error) {
       console.error("[v0] Error fetching active trades:", error)
@@ -168,9 +168,7 @@ export default function GoldTradingDashboard() {
       const response = await fetch("/api/signal/current?symbol=XAU_USD")
       if (response.ok) {
         const data = await response.json()
-        if (data.signal && data.signal.currentPrice) {
-          setCurrentPrice(data.signal.currentPrice)
-        }
+        // Removed - no longer displaying current price
       }
     } catch (error) {
       console.error("[v0] Error fetching current price:", error)
@@ -228,6 +226,7 @@ export default function GoldTradingDashboard() {
     }
   }, [marketClosed])
 
+  // Timer for displaying "seconds ago"
   useEffect(() => {
     if (!lastUpdate) return
 
@@ -239,26 +238,6 @@ export default function GoldTradingDashboard() {
       if (timerRef.current) clearInterval(timerRef.current)
     }
   }, [lastUpdate])
-
-  // Fetch active trades and current price when signal updates
-  useEffect(() => {
-    if (signal) {
-      fetchActiveTrades()
-      fetchCurrentPrice()
-    }
-  }, [signal])
-
-  // Poll active trades every 10 seconds when market is open
-  useEffect(() => {
-    if (!marketClosed) {
-      const tradeInterval = setInterval(() => {
-        fetchActiveTrades()
-        fetchCurrentPrice()
-      }, 10000) // Every 10 seconds
-
-      return () => clearInterval(tradeInterval)
-    }
-  }, [marketClosed])
 
   return (
     <div className="min-h-screen bg-slate-950 p-4 md:p-8">
@@ -336,17 +315,6 @@ export default function GoldTradingDashboard() {
 
           {/* 4. Entry Checklist */}
           <EntryChecklist signal={signal} />
-
-          {/* 5. Active Trades */}
-          <ActiveTrades
-            trades={activeTrades}
-            currentPrice={currentPrice}
-            onCloseTrade={(tradeId) => {
-              // Remove trade from state
-              setActiveTrades(prev => prev.filter(trade => trade.id !== tradeId))
-              // Clear from backend
-              fetch(`/api/active-trades?tradeId=${tradeId}`, { method: "DELETE" })
-            }}
             onAddTrade={(trade) => {
               // Add trade to backend
               fetch("/api/active-trades", {
