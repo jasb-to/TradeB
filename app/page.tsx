@@ -33,33 +33,6 @@ export default function GoldTradingDashboard() {
   const signal = signalXAU
 
   const fetchSignals = async () => {
-    // Don't fetch on weekends - use cached data instead
-    const now = new Date()
-    const dayOfWeek = now.getDay()
-    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
-    
-    if (isWeekend) {
-      // On weekends, load from cache if available and show cached data
-      const cached = localStorage.getItem("lastValidSignalXAU")
-      if (cached) {
-        try {
-          const cachedSignal = JSON.parse(cached)
-          setSignalXAU(cachedSignal.signal)
-          setLastUpdate(new Date(cachedSignal.timestamp))
-          setSecondsAgo(Math.floor((Date.now() - cachedSignal.timestamp) / 1000))
-          setDataSource("oanda")
-          setMarketClosed(true)
-          setMarketMessage("Market closed until Monday")
-          setLoading(false)
-          return
-        } catch (e) {
-          console.log("[v0] No cached data available for weekend")
-        }
-      }
-      setLoading(false)
-      return
-    }
-
     setLoading(true)
     try {
       const [xauResponse, xagResponse] = await Promise.all([
@@ -74,21 +47,33 @@ export default function GoldTradingDashboard() {
       const xauData = await xauResponse.json()
       const xagData = await xagResponse.json()
 
-      // Track data source but don't block display
+      // Track data source
       if (xauData.dataSource === "synthetic") {
         setDataSource("synthetic")
       } else {
         setDataSource("oanda")
       }
 
-      if (xauData.success && xauData.signal) {
-        setSignalXAU(xauData.signal)
-        // Cache the last valid signal for weekend display
-        localStorage.setItem("lastValidSignalXAU", JSON.stringify({
-          signal: xauData.signal,
-          timestamp: Date.now(),
-        }))
+      // Update market status
+      if (xauData.marketClosed) {
+        setMarketClosed(true)
+        setMarketMessage(xauData.marketStatus || "Market closed")
+        if (xauData.signal) {
+          setSignalXAU(xauData.signal)
+          // Cache for weekend display
+          localStorage.setItem("lastValidSignalXAU", JSON.stringify({
+            signal: xauData.signal,
+            timestamp: Date.now(),
+          }))
+        }
+      } else {
+        setMarketClosed(false)
+        setMarketMessage(null)
+        if (xauData.success && xauData.signal) {
+          setSignalXAU(xauData.signal)
+        }
       }
+
       if (xagData.success && xagData.signal) {
         setSignalXAG(xagData.signal)
       }
@@ -97,6 +82,17 @@ export default function GoldTradingDashboard() {
       setSecondsAgo(0)
     } catch (error) {
       console.error("[v0] Signal fetch error:", error)
+      // Load cached data if fetch fails
+      const cached = localStorage.getItem("lastValidSignalXAU")
+      if (cached) {
+        try {
+          const cachedSignal = JSON.parse(cached)
+          setSignalXAU(cachedSignal.signal)
+          setLastUpdate(new Date(cachedSignal.timestamp))
+        } catch (e) {
+          console.log("[v0] Cache error:", e)
+        }
+      }
     } finally {
       setLoading(false)
     }
@@ -207,78 +203,22 @@ export default function GoldTradingDashboard() {
   useEffect(() => {
     fetchXAU()
     
-    // Polling intervals - reduced to conserve API calls
-    // Market open (weekday): 60 seconds
-    // Market closed (weekday/weekend): No polling - use cached data
-    const now = new Date()
-    const dayOfWeek = now.getDay()
-    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
-    const hour = now.getHours()
-    
-    // Market hours: Mon-Fri 17:00 UTC (1:00 PM EST) to Sat 04:00 UTC (Friday 12:00 PM EST)
-    // Outside hours: no polling needed, just use cached data
-    const isMarketHours = !isWeekend && hour >= 17 || (dayOfWeek === 5 && hour < 4)
-    
-    if (!isMarketHours) {
-      console.log("[v0] Market closed - no polling, using cached data")
-      setLoading(false)
-      return
-    }
-    
-    intervalRef.current = setInterval(async () => {
-      try {
-        const xauResponse = await fetch("/api/signal/current?symbol=XAU_USD")
-        
-        if (!xauResponse.ok) {
-          throw new Error(`XAU Signal API returned ${xauResponse.status}`)
-        }
-
-        const xauData = await xauResponse.json()
-
-        // Track data source
-        if (xauData.dataSource === "synthetic") {
-          setDataSource("synthetic")
-        } else {
-          setDataSource("oanda")
-        }
-
-        // Check if market status changed
-        if (xauData.marketClosed) {
-          setMarketClosed(true)
-          setMarketMessage(xauData.marketStatus || "Market closed")
-          if (xauData.signal) {
-            setSignalXAU(xauData.signal)
-            // Cache for weekend display
-            localStorage.setItem("lastValidSignalXAU", JSON.stringify({
-              signal: xauData.signal,
-              timestamp: Date.now(),
-            }))
-          }
-          return
-        }
-        
-        // Market is open - update data normally
-        setMarketClosed(false)
-        setMarketMessage(null)
-        
-        if (xauData.success && xauData.signal) {
-          setSignalXAU(xauData.signal)
-          setLastUpdate(new Date())
-          setSecondsAgo(0)
-        }
-
-        // Poll XAG in background (every cycle)
-        const xagResponse = await fetch("/api/signal/current?symbol=XAG_USD")
-        if (xagResponse.ok) {
-          const xagData = await xagResponse.json()
-          if (xagData.success && xagData.signal) {
-            setSignalXAG(xagData.signal)
-          }
-        }
-      } catch (error) {
-        console.error("[v0] Polling error:", error)
+    // Polling - 60 seconds when market is open, don't poll on weekends
+    intervalRef.current = setInterval(() => {
+      const now = new Date()
+      const dayOfWeek = now.getDay()
+      const hour = now.getHours()
+      const minute = now.getMinutes()
+      
+      // Gold market hours: Sunday 5pm EST (22:00 UTC) to Friday 5pm EST (22:00 UTC)
+      // In UTC: Sunday 22:00 to Saturday 04:00 (continuous during week)
+      // For simplicity, skip polling on Saturday and Sunday
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
+      
+      if (!isWeekend) {
+        fetchXAU()
       }
-    }, 60000) // 60 seconds
+    }, 60000) // Every 60 seconds
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
@@ -368,28 +308,42 @@ export default function GoldTradingDashboard() {
           </Card>
         )}
 
-        {/* Main Content Grid - Always Display */}
-        <div className="space-y-6">
-          {/* 0. Gold Price Display */}
-          <GoldPriceDisplay signal={signal} marketClosed={marketClosed} />
-
-          {/* 1. Signal Status Panel */}
-          <GoldSignalPanel signal={signal} loading={loading} />
-
-          {/* 2. Multi-Timeframe Bias Viewer */}
+        {/* Loading State */}
+        {loading && !signal && (
           <Card className="bg-slate-900/40 border-slate-700/50 p-6">
-            <h2 className="text-sm font-mono font-bold mb-4 text-slate-200">MULTI-TIMEFRAME ALIGNMENT</h2>
-            <MTFBiasViewer signal={signal} />
+            <div className="flex gap-3 items-center justify-center min-h-[200px]">
+              <RefreshCw className="w-5 h-5 text-slate-400 animate-spin" />
+              <span className="text-slate-300">Loading signal data...</span>
+            </div>
           </Card>
+        )}
 
-          {/* 3. Indicator Strength Cards */}
-          <div>
-            <h2 className="text-sm font-mono font-bold mb-4 text-slate-200">INDICATOR ANALYSIS</h2>
-            <IndicatorCards signal={signal} />
-          </div>
+        {/* Main Content Grid */}
+        <div className="space-y-6">
+          {signal && (
+            <>
+              {/* 0. Gold Price Display */}
+              <GoldPriceDisplay signal={signal} marketClosed={marketClosed} />
 
-          {/* 4. Entry Checklist */}
-          <EntryChecklist signal={signal} />
+              {/* 1. Signal Status Panel */}
+              <GoldSignalPanel signal={signal} loading={!signal && loading} />
+
+              {/* 2. Multi-Timeframe Bias Viewer */}
+              <Card className="bg-slate-900/40 border-slate-700/50 p-6">
+                <h2 className="text-sm font-mono font-bold mb-4 text-slate-200">MULTI-TIMEFRAME ALIGNMENT</h2>
+                <MTFBiasViewer signal={signal} />
+              </Card>
+
+              {/* 3. Indicator Strength Cards */}
+              <div>
+                <h2 className="text-sm font-mono font-bold mb-4 text-slate-200">INDICATOR ANALYSIS</h2>
+                <IndicatorCards signal={signal} />
+              </div>
+
+              {/* 4. Entry Checklist */}
+              <EntryChecklist signal={signal} />
+            </>
+          )}
 
           {/* Error State */}
           {!loading && !signal && (

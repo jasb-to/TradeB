@@ -1,7 +1,6 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
 import type { Signal } from "@/types/trading"
 
@@ -10,17 +9,9 @@ interface IndicatorCardsProps {
 }
 
 export function IndicatorCards({ signal }: IndicatorCardsProps) {
-  // HARD GUARD: Only read from signal.indicators
+  // Handle null signal gracefully - parent will handle loading state
   if (!signal?.indicators) {
-    console.log("[v0] IndicatorCards GUARD: signal.indicators is null/undefined")
-    return (
-      <Alert className="bg-red-950/30 border-red-700/50">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription className="text-red-200">
-          DATA ERROR: Indicators missing from API response. Signal object exists but indicators is null/undefined.
-        </AlertDescription>
-      </Alert>
-    )
+    return null
   }
 
   const adx = signal.indicators.adx ?? 0
