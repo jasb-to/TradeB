@@ -8,24 +8,32 @@ export class MarketHours {
     const day = etTime.getDay() // 0 = Sunday, 6 = Saturday
     const hours = etTime.getHours()
     
+    console.log(`[v0] Market hours check: day=${day}, hour=${hours}, date=${etTime.toISOString()}`)
+    
     // Saturday is completely closed
     if (day === 6) {
+      console.log("[v0] Market closed: Saturday")
       return false
     }
     
     // Sunday opens at 5 PM ET (day 0, hour 17)
     if (day === 0) {
-      return hours >= 17
+      const isOpen = hours >= 17
+      console.log(`[v0] Sunday check: hour=${hours}, isOpen=${isOpen}`)
+      return isOpen
     }
     
     // Monday-Thursday: Open all day (0-23)
     if (day >= 1 && day <= 4) {
+      console.log(`[v0] Weekday (${["Mon","Tue","Wed","Thu"][day-1]}): Open all day`)
       return true
     }
     
     // Friday: Open until 5 PM ET (hour < 17)
     if (day === 5) {
-      return hours < 17
+      const isOpen = hours < 17
+      console.log(`[v0] Friday check: hour=${hours}, isOpen=${isOpen} (closed after 5 PM ET)`)
+      return isOpen
     }
     
     return false

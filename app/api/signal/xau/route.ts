@@ -26,15 +26,35 @@ export async function GET() {
     strategies.setDataSource("oanda")
 
     try {
-      const dataDaily = await dataFetcher.fetchCandles("1d", 100)
-      const data8h = await dataFetcher.fetchCandles("8h", 150)
-      const data4h = await dataFetcher.fetchCandles("4h", 200)
-      const data1h = await dataFetcher.fetchCandles("1h", 200)
-      const result15m = await dataFetcher.fetchCandles("15m", 200).catch(() => ({ candles: [] }))
-      const result5m = await dataFetcher.fetchCandles("5m", 200).catch(() => ({ candles: [] }))
+      const dataDaily = await dataFetcher.fetchCandles("1d", 100).catch(err => {
+        console.error("[v0] Failed to fetch daily candles:", err.message)
+        throw err
+      })
+      const data8h = await dataFetcher.fetchCandles("8h", 150).catch(err => {
+        console.error("[v0] Failed to fetch 8h candles:", err.message)
+        throw err
+      })
+      const data4h = await dataFetcher.fetchCandles("4h", 200).catch(err => {
+        console.error("[v0] Failed to fetch 4h candles:", err.message)
+        throw err
+      })
+      const data1h = await dataFetcher.fetchCandles("1h", 200).catch(err => {
+        console.error("[v0] Failed to fetch 1h candles:", err.message)
+        throw err
+      })
+      const result15m = await dataFetcher.fetchCandles("15m", 200).catch(err => {
+        console.warn("[v0] 15m fetch failed (non-critical):", err.message)
+        return { candles: [] }
+      })
+      const result5m = await dataFetcher.fetchCandles("5m", 200).catch(err => {
+        console.warn("[v0] 5m fetch failed (non-critical):", err.message)
+        return { candles: [] }
+      })
 
       const data15m = result15m.candles || []
       const data5m = result5m.candles || []
+
+      console.log(`[v0] Candles fetched: Daily=${dataDaily?.candles?.length}, 8H=${data8h?.candles?.length}, 4H=${data4h?.candles?.length}, 1H=${data1h?.candles?.length}, 15M=${data15m.length}, 5M=${data5m.length}`)
 
       // Note: We continue processing even when market is closed
       // This allows us to display the Friday close snapshot using available candle data
@@ -49,10 +69,17 @@ export async function GET() {
       // }
 
       if (!dataDaily?.candles?.length || !data1h?.candles?.length) {
+        console.error(`[v0] CRITICAL: Insufficient market data - Daily candles: ${dataDaily?.candles?.length || 0}, 1H candles: ${data1h?.candles?.length || 0}`)
         return NextResponse.json({
           success: false,
           error: "Insufficient market data",
           symbol: "XAU_USD",
+          debug: {
+            dailyCandles: dataDaily?.candles?.length || 0,
+            h1Candles: data1h?.candles?.length || 0,
+            marketOpen: marketStatus.isOpen,
+            message: marketStatus.message
+          }
         }, { status: 503 })
       }
 
@@ -63,7 +90,13 @@ export async function GET() {
         data1h.candles,
         data15m,
         data5m,
-      )
+      ).catch(evalError => {
+        console.error("[v0] Strategy evaluation failed:", {
+          error: evalError instanceof Error ? evalError.message : String(evalError),
+          stack: evalError instanceof Error ? evalError.stack : undefined,
+        })
+        throw evalError
+      })
 
       // Always include indicator data, even for NO_TRADE signals
       const data1hCandles = data1h.candles || []
@@ -116,14 +149,18 @@ export async function GET() {
       console.log("[v0] XAU Indicators prepared:", indicators)
 
       // Import market analyzer BEFORE using it
+      console.log("[v0] Importing MarketStateAnalyzer...")
       const { MarketStateAnalyzer } = await import("@/lib/market-analyzer")
+      console.log("[v0] MarketStateAnalyzer imported successfully")
 
       // Analyze market condition BEFORE building enhancedSignal
+      console.log("[v0] Analyzing market condition...")
       const marketCondition = MarketStateAnalyzer.analyzeMarketCondition(
         data1hCandles,
         indicators,
         closePrice,
       )
+      console.log("[v0] Market condition analyzed:", marketCondition)
 
       // If signal is active ENTRY, analyze exit conditions
       // NOTE: exitSignal is declared in outer scope, assign here (don't redeclare)
@@ -384,21 +421,45 @@ export async function GET() {
         marketClosed: isMarketClosed,
         marketStatus: isMarketClosed ? marketStatus.message : null,
         symbol: "XAU_USD",
+      }).catch(responseError => {
+        console.error("[v0] Response serialization failed:", {
+          error: responseError instanceof Error ? responseError.message : String(responseError),
+          signalType: typeof enhancedSignal,
+        })
+        return NextResponse.json({
+          success: false,
+          error: "Failed to serialize response",
+          symbol: "XAU_USD",
+        }, { status: 500 })
       })
     } catch (fetchError) {
-      console.error("Error fetching XAU data:", fetchError)
+      console.error("[v0] XAU fetch error - detailed:", {
+        error: fetchError instanceof Error ? fetchError.message : String(fetchError),
+        stack: fetchError instanceof Error ? fetchError.stack : undefined,
+        type: fetchError instanceof Error ? fetchError.constructor.name : typeof fetchError,
+      })
       return NextResponse.json({
         success: false,
         error: "Failed to fetch data",
         symbol: "XAU_USD",
+        debug: {
+          errorMessage: fetchError instanceof Error ? fetchError.message : "Unknown error",
+        }
       }, { status: 500 })
     }
   } catch (error) {
-    console.error("Error in XAU signal route:", error)
+    console.error("[v0] Error in XAU signal route - detailed:", {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      type: error instanceof Error ? error.constructor.name : typeof error,
+    })
     return NextResponse.json({
       success: false,
       error: "Internal error",
       symbol: "XAU_USD",
+      debug: {
+        errorMessage: error instanceof Error ? error.message : "Unknown error",
+      }
     }, { status: 500 })
   }
 }

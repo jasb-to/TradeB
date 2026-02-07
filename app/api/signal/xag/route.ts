@@ -32,6 +32,7 @@ export async function GET() {
       const data5m = result5m.candles || []
 
       if (!marketStatus.isOpen) {
+        console.log("[v0] XAG: Market closed, checking for cached signal...")
         if (lastValidSignalXAG && lastValidTimestampXAG) {
           console.log("[v0] XAG: Market closed, returning cached signal")
           return NextResponse.json({
@@ -43,12 +44,8 @@ export async function GET() {
             symbol: "XAG_USD",
           })
         }
-        return NextResponse.json({
-          success: false,
-          error: marketStatus.message,
-          marketClosed: true,
-          symbol: "XAG_USD",
-        }, { status: 503 })
+        console.log("[v0] XAG: No cached signal. Proceeding with fresh evaluation despite market being closed.")
+        // Continue processing - do NOT return 503
       }
 
       if (!dataDaily?.candles?.length || !data4h?.candles?.length || !data1h?.candles?.length) {
