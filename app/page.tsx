@@ -26,6 +26,7 @@ export default function GoldTradingDashboard() {
   const [refreshing, setRefreshing] = useState(false)
   const [testingTelegram, setTestingTelegram] = useState(false)
   const [dataSource, setDataSource] = useState<"oanda" | "synthetic" | null>(null)
+  const [renderError, setRenderError] = useState<string | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -183,9 +184,31 @@ export default function GoldTradingDashboard() {
     }
   }, [lastUpdate])
 
+  // Error boundary wrapper
+  if (renderError) {
+    return (
+      <div className="min-h-screen bg-slate-950 p-4 md:p-8 flex items-center justify-center">
+        <Card className="bg-red-950/30 border-red-700/50 p-8 max-w-md">
+          <div className="flex gap-3">
+            <AlertCircle className="w-6 h-6 text-red-400 flex-shrink-0 mt-1" />
+            <div>
+              <h1 className="text-lg font-bold text-red-200 mb-2">Component Render Error</h1>
+              <p className="text-sm text-red-300">{renderError}</p>
+              <button
+                onClick={() => setRenderError(null)}
+                className="mt-4 px-3 py-1 bg-red-700/30 hover:bg-red-700/50 text-red-200 text-sm rounded border border-red-700"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </Card>
+      </div>
+    )
+  }
 
-
-  return (
+  try {
+    return (
     <div className="min-h-screen bg-slate-950 p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
@@ -318,5 +341,24 @@ export default function GoldTradingDashboard() {
         </div>
       </div>
     </div>
-  )
+    )
+  } catch (error) {
+    console.error("[v0] Render error:", error)
+    setRenderError(error instanceof Error ? error.message : "Unknown render error")
+    return (
+      <div className="min-h-screen bg-slate-950 p-4 md:p-8 flex items-center justify-center">
+        <Card className="bg-red-950/30 border-red-700/50 p-8 max-w-md">
+          <div className="flex gap-3">
+            <AlertCircle className="w-6 h-6 text-red-400 flex-shrink-0 mt-1" />
+            <div>
+              <h1 className="text-lg font-bold text-red-200 mb-2">Render Error</h1>
+              <p className="text-sm text-red-300">
+                {error instanceof Error ? error.message : "An unknown error occurred"}
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
+    )
+  }
 }
