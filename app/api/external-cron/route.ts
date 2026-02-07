@@ -130,6 +130,33 @@ export async function GET(request: NextRequest) {
         const shouldAlert = SignalCache.shouldSendAlert(signalWithSymbol, symbol)
         console.log(`[v0] CRON-JOB ${symbol} signal generated: type=${signal.type} dir=${signal.direction} level=${signal.alertLevel} shouldAlert=${shouldAlert}`)
 
+        // NEW FEATURE: Direction-change detection for active trades
+        const alertState = SignalCache.getAlertState(symbol)
+        if (alertState.activeTrade && alertState.activeTrade.direction && signal.direction !== alertState.activeTrade.direction) {
+          console.log(`[v0] DIRECTION CHANGE DETECTED for ${symbol}: ${alertState.activeTrade.direction} -> ${signal.direction}`)
+          
+          if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID && TelegramNotifier) {
+            try {
+              const notifier = new TelegramNotifier(
+                process.env.TELEGRAM_BOT_TOKEN,
+                process.env.TELEGRAM_CHAT_ID,
+                "https://tradeb.vercel.app",
+              )
+              const exitMessage = `📊 DIRECTION CHANGE ALERT for ${symbol}\n\n` +
+                `Previous: ${alertState.activeTrade.direction} @ ${alertState.activeTrade.entryPrice?.toFixed(2)}\n` +
+                `Current: ${signal.direction} @ ${signal.entryPrice?.toFixed(2)}\n\n` +
+                `Action: Close ${alertState.activeTrade.direction === "LONG" ? "SELL" : "BUY"} trade immediately\n` +
+                `Time: ${new Date().toLocaleTimeString()}`
+              
+              await notifier.sendDirectionChangeAlert(symbol, exitMessage)
+              SignalCache.clearActiveTrade(symbol)
+              console.log(`[v0] Direction-change alert sent for ${symbol}`)
+            } catch (error) {
+              console.error(`[v0] Direction-change alert failed for ${symbol}:`, error)
+            }
+          }
+        }
+
         // CRITICAL FIX #7: Never alert on cached signals when market is closed
         const marketStatus = MarketHours.getMarketStatus()
         const isMarketClosed = !marketStatus.isOpen
@@ -149,6 +176,10 @@ export async function GET(request: NextRequest) {
               )
               await notifier.sendSignalAlert(signalWithSymbol)
               SignalCache.recordAlert(signalWithSymbol, symbol)
+              // Store as active trade for direction-change monitoring
+              const state = SignalCache.getAlertState(symbol)
+              state.activeTrade = signalWithSymbol
+              state.activeTradeTime = Date.now()
               console.log(`[v0] CRON-JOB Telegram SENT for ${symbol}: ${signalWithSymbol.type} ${signalWithSymbol.direction}`)
             } catch (telegramError) {
               console.error(`[v0] CRON-JOB Telegram error for ${symbol}:`, telegramError)

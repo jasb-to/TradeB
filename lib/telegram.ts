@@ -144,6 +144,24 @@ Profit: +${priceGain}%
     await this.sendMessage(message, false)
   }
 
+  async sendDirectionChangeAlert(symbol: string, message: string): Promise<void> {
+    const fullMessage = `${message}
+
+═════════════════════════════════════════
+⚠️ THIS IS A DIRECTION CHANGE ALERT
+⚠️ CLOSE YOUR TRADE IMMEDIATELY
+
+The market has reversed direction.
+Your active trade is now at risk.
+
+Dashboard: ${this.dashboardUrl}
+⏰ Time: ${new Date().toISOString()}
+═════════════════════════════════════════`;
+
+    console.log(`[v0] Sending direction-change alert for ${symbol}`)
+    await this.sendMessage(fullMessage, false)
+  }
+
   async sendTP2Alert(symbol: string, entryPrice: number, tp2Price: number, currentPrice: number): Promise<void> {
     const priceGain = ((currentPrice - entryPrice) / entryPrice * 100).toFixed(2)
 
