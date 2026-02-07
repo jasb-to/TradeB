@@ -12,6 +12,7 @@ interface IndicatorCardsProps {
 export function IndicatorCards({ signal }: IndicatorCardsProps) {
   // HARD GUARD: Only read from signal.indicators
   if (!signal?.indicators) {
+    console.log("[v0] IndicatorCards GUARD: signal.indicators is null/undefined")
     return (
       <Alert className="bg-red-950/30 border-red-700/50">
         <AlertCircle className="h-4 w-4" />
@@ -32,10 +33,19 @@ export function IndicatorCards({ signal }: IndicatorCardsProps) {
     ? stochRsiRaw as { value: number | null; state: string }
     : { value: typeof stochRsiRaw === "number" ? stochRsiRaw : null, state: "CALCULATING" }
 
+  // DEBUG: Log stochRSI data structure for diagnosis
+  console.log("[v0] IndicatorCards - stochRSI Debug:", {
+    raw: stochRsiRaw,
+    parsed: stochRsiData,
+    type: typeof stochRsiRaw,
+    isObject: typeof stochRsiRaw === "object",
+  })
+
   // Only critical indicators (ADX, ATR) must be non-zero. StochRSI can be null during calculation.
   const hasErrors = adx === 0 || atr === 0
 
   if (hasErrors) {
+    console.log("[v0] IndicatorCards GUARD: Critical indicators failed.", { adx, atr })
     return (
       <Alert className="bg-red-950/30 border-red-700/50">
         <AlertCircle className="h-4 w-4" />

@@ -194,6 +194,15 @@ export async function GET(request: Request) {
     const entryDecision = strategies.buildEntryDecision(enhancedSignal)
     enhancedSignal.entryDecision = entryDecision
 
+    // DEBUG: Log what's being sent to client
+    console.log("[v0] API Response - stochRSI Debug:", {
+      stochRSI_raw: signal.indicators?.stochRSI,
+      stochRSI_in_enhanced: enhancedSignal.indicators?.stochRSI,
+      adx: enhancedSignal.indicators?.adx,
+      atr: enhancedSignal.indicators?.atr,
+      indicators_exists: !!enhancedSignal.indicators,
+    })
+
     SignalCache.set(enhancedSignal, symbol)
 
     lastValidSignals[symbol] = enhancedSignal

@@ -46,6 +46,15 @@ export default function GoldTradingDashboard() {
       const xauData = await xauResponse.json()
       const xagData = await xagResponse.json()
 
+      console.log("[v0] XAU Signal Fetched:", {
+        success: xauData.success,
+        hasSignal: !!xauData.signal,
+        hasIndicators: !!xauData.signal?.indicators,
+        stochRSI: xauData.signal?.indicators?.stochRSI,
+        adx: xauData.signal?.indicators?.adx,
+        atr: xauData.signal?.indicators?.atr,
+      })
+
       if (xauData.success && xauData.signal) {
         setSignalXAU(xauData.signal)
       }
@@ -56,7 +65,7 @@ export default function GoldTradingDashboard() {
       setLastUpdate(new Date())
       setSecondsAgo(0)
     } catch (error) {
-      console.error("[v0] Polling error:", error)
+      console.error("[v0] Signal fetch error:", error)
     } finally {
       setLoading(false)
     }
