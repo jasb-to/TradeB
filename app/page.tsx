@@ -263,6 +263,7 @@ export default function GoldTradingDashboard() {
               variant="outline"
               size="sm"
               className="gap-2 bg-transparent"
+              suppressHydrationWarning
             >
               <Send className={`w-4 h-4 ${testingTelegram ? "animate-spin" : ""}`} />
               {testingTelegram ? "Testing..." : "Test Telegram"}
