@@ -405,7 +405,6 @@ export class TechnicalAnalysis {
       const ema200 = this.calculateEMA(closes, 200) || 0
       const rsi = this.calculateRSI(validCandles) || 50
       const stochRSIResult = this.calculateStochasticRSI(validCandles)
-      const stochRSIValue = typeof stochRSIResult === "object" ? (stochRSIResult.value ?? 50) : stochRSIResult
       const macd = this.calculateMACD(validCandles)
 
       // Ensure all numeric values are within realistic bounds
@@ -417,7 +416,10 @@ export class TechnicalAnalysis {
         ema50: ema50 > 0 ? ema50 : 0,
         ema200: ema200 > 0 ? ema200 : 0,
         rsi: Math.max(0, Math.min(100, rsi)),
-        stochRSI: Math.max(0, Math.min(100, stochRSIValue)),
+        stochRSI: stochRSIResult && typeof stochRSIResult === "object" ? {
+          value: Math.max(0, Math.min(100, stochRSIResult.value ?? 50)),
+          state: stochRSIResult.state || "CALCULATING"
+        } : { value: 50, state: "CALCULATING" },
         bollingerUpper: 0,
         bollingerLower: 0,
         chandelierStop: { long: 0, short: 0 },

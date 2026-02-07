@@ -173,11 +173,6 @@ export async function GET(request: Request) {
       takeProfit1: signal.direction ? takeProfit1 : undefined,
       takeProfit2: signal.direction ? takeProfit2 : undefined,
       riskReward: signal.direction ? Number(((takeProfit2 - entryPrice) / Math.abs(entryPrice - stopLoss)).toFixed(2)) : undefined,
-      // Ensure indicators preserve full stochRSI object structure
-      indicators: {
-        ...(signal.indicators || {}),
-        stochRSI: signal.indicators?.stochRSI || { value: null, state: "CALCULATING" }
-      },
       lastCandle: last1hCandle
         ? {
             close: last1hCandle.close,
