@@ -1,5 +1,6 @@
 export class MarketHours {
-  // OANDA Market Hours: Sunday 10:00 PM GMT - Friday 10:00 PM GMT (24/5 continuous)
+  // OANDA Market Hours: Sunday 11:00 PM GMT - Friday 11:00 PM GMT (24/5 continuous)
+  // Note: 11 PM GMT = 23:00 UTC
   static isGoldSilverMarketOpen(): boolean {
     const now = new Date()
     
@@ -15,10 +16,10 @@ export class MarketHours {
       return false
     }
     
-    // Sunday opens at 10 PM GMT (hour 22)
+    // Sunday opens at 11 PM GMT (hour 23)
     if (gmtDay === 0) {
-      const isOpen = gmtHours >= 22
-      console.log(`[v0] Sunday check: hour=${gmtHours}, isOpen=${isOpen} (opens 22:00 GMT)`)
+      const isOpen = gmtHours >= 23
+      console.log(`[v0] Sunday check: hour=${gmtHours}, isOpen=${isOpen} (opens 23:00 GMT)`)
       return isOpen
     }
     
@@ -49,26 +50,26 @@ export class MarketHours {
     if (gmtDay === 6) {
       return {
         isOpen: false,
-        message: "Market closed for weekend. Opens Sunday 10:00 PM GMT",
-        nextOpen: "Sunday 10:00 PM GMT",
+        message: "Market closed for weekend. Opens Sunday 11:00 PM GMT",
+        nextOpen: "Sunday 11:00 PM GMT",
       }
     }
 
-    // Sunday before 10 PM GMT
-    if (gmtDay === 0 && gmtHours < 22) {
+    // Sunday before 11 PM GMT
+    if (gmtDay === 0 && gmtHours < 23) {
       return {
         isOpen: false,
-        message: "Market opens Sunday 10:00 PM GMT",
-        nextOpen: "Sunday 10:00 PM GMT",
+        message: "Market opens Sunday 11:00 PM GMT",
+        nextOpen: "Sunday 11:00 PM GMT",
       }
     }
 
-    // Friday after 10 PM GMT
-    if (gmtDay === 5 && gmtHours >= 22) {
+    // Friday after 11 PM GMT
+    if (gmtDay === 5 && gmtHours >= 23) {
       return {
         isOpen: false,
-        message: "Market closed until Sunday 10:00 PM GMT",
-        nextOpen: "Sunday 10:00 PM GMT",
+        message: "Market closed until Sunday 11:00 PM GMT",
+        nextOpen: "Sunday 11:00 PM GMT",
       }
     }
 
