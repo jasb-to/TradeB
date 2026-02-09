@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
 
         // NEAR-MISS TRACKING (Diagnostic Only)
         if (signal.type === "ENTRY") {
-          const entryDecision = TradingStrategies.prototype.buildEntryDecision(signal)
+          const entryDecision = strategies.buildEntryDecision(signal)
           if (!entryDecision.allowed) {
             const indicatorsSnapshot = {
               adx: signal.indicators?.adx || 0,
@@ -174,7 +174,7 @@ ADX: ${adx.toFixed(2)} | RSI: ${rsi.toFixed(2)}
 🔒 SL: $${entryPrice.toFixed(2)} (Entry)
 
 ⏰ Time: ${new Date().toISOString()}
-════════���══════════════════`
+════════����══════════════════`
 
                   await notifier.sendMessage(tp2Message, false)
                   console.log(`[v0] TP1 reached - HOLDING for TP2 for ${symbol} (momentum: ${momentumStatus})`)
