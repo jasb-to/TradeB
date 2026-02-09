@@ -174,7 +174,7 @@ ADX: ${adx.toFixed(2)} | RSI: ${rsi.toFixed(2)}
 🔒 SL: $${entryPrice.toFixed(2)} (Entry)
 
 ⏰ Time: ${new Date().toISOString()}
-════════��══════════════════`
+════════���══════════════════`
 
                   await notifier.sendMessage(tp2Message, false)
                   console.log(`[v0] TP1 reached - HOLDING for TP2 for ${symbol} (momentum: ${momentumStatus})`)
@@ -346,13 +346,13 @@ Great trade execution!
         results[symbol] = signalWithSymbol
       } catch (error) {
         console.error(`[v0] CRON-JOB ERROR processing ${symbol}:`, error)
-        CronHeartbeat.recordFailure(symbol, error as Error)
+        await CronHeartbeat.recordFailure(symbol, error as Error)
         results[symbol] = { error: String(error), symbol }
       }
       
       // Record successful execution heartbeat
       if (!results[symbol]?.error) {
-        CronHeartbeat.recordExecution(symbol)
+        await CronHeartbeat.recordExecution(symbol)
       }
       
       console.log(`[v0] CRON-JOB END SYMBOL: ${symbol}`)

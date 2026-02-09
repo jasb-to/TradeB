@@ -62,8 +62,9 @@ export const CronHeartbeat = {
   /**
    * Record a successful cron execution for a symbol
    */
-  recordExecution: (symbol: string): void => {
-    getHeartbeat(symbol).then(async (heartbeat) => {
+  recordExecution: async (symbol: string): Promise<void> => {
+    try {
+      const heartbeat = await getHeartbeat(symbol)
       heartbeat.lastExecutionTime = Date.now()
       heartbeat.lastExecutionStatus = "SUCCESS"
       heartbeat.executionCount += 1
@@ -71,14 +72,17 @@ export const CronHeartbeat = {
       console.log(
         `[v0] HEARTBEAT: ${symbol} - Execution #${heartbeat.executionCount} at ${new Date(heartbeat.lastExecutionTime).toISOString()}`
       )
-    })
+    } catch (err) {
+      console.error(`[v0] HEARTBEAT RECORD EXECUTION ERROR: ${symbol} - ${err}`)
+    }
   },
 
   /**
    * Record a failed cron execution
    */
-  recordFailure: (symbol: string, error?: Error | string): void => {
-    getHeartbeat(symbol).then(async (heartbeat) => {
+  recordFailure: async (symbol: string, error?: Error | string): Promise<void> => {
+    try {
+      const heartbeat = await getHeartbeat(symbol)
       heartbeat.lastExecutionTime = Date.now()
       heartbeat.lastExecutionStatus = "FAILED"
       const errorMsg = typeof error === "string" ? error : error?.message || "Unknown error"
@@ -86,7 +90,9 @@ export const CronHeartbeat = {
       console.error(
         `[v0] HEARTBEAT FAILURE: ${symbol} - ${errorMsg} at ${new Date(heartbeat.lastExecutionTime).toISOString()}`
       )
-    })
+    } catch (err) {
+      console.error(`[v0] HEARTBEAT RECORD FAILURE ERROR: ${symbol} - ${err}`)
+    }
   },
 
   /**
