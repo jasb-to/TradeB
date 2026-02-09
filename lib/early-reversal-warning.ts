@@ -1,6 +1,5 @@
-import type { Signal, ActiveTrade } from "@/types/trading"
-import type { Candle } from "@/lib/technical-analysis"
-import { TechnicalAnalysis } from "@/lib/technical-analysis"
+import type { Signal, ActiveTrade, Candle } from "@/types/trading"
+import { TechnicalAnalysis } from "@/lib/indicators"
 import { FEATURE_FLAGS, DEFAULT_TRADING_CONFIG } from "./default-config"
 
 export interface EarlyReversalWarning {
