@@ -717,15 +717,33 @@ export class TradingStrategies {
     // Round to 1 decimal place and cap at 9
     const score = Math.min(Math.round(rawScore * 10) / 10, 9)
 
-    // Use the signal's setupQuality (from determineSetupTier) as the single
-    // authoritative tier.  buildEntryDecision scores the checklist criteria
-    // but does NOT independently re-derive the tier -- that caused the A vs A+
-    // mismatch between Telegram alerts and the UI.
+    // VALIDATE TIER vs SCORE CONSISTENCY
+    // The tier must align with the score ranges:
+    // A+: score >= 7
+    // A: 6 <= score < 7
+    // B: 4.5 <= score < 6
+    // NO_TRADE: score < 4.5
+    // If setupQuality doesn't match the score range, reconcile it.
     const signalTier = signal.setupQuality as "A+" | "A" | "B" | "STANDARD" | undefined
     let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
-    if (signalTier === "A+") tier = "A+"
-    else if (signalTier === "A") tier = "A"
-    else if (signalTier === "B") tier = "B"
+    
+    // Determine tier from score first
+    if (score >= 7) tier = "A+"
+    else if (score >= 6) tier = "A"
+    else if (score >= 4.5) tier = "B"
+    else tier = "NO_TRADE"
+    
+    // Log if setupQuality differed from score-derived tier
+    if (signalTier && signalTier !== "STANDARD") {
+      const expectedTier = tier
+      if (signalTier === "A+" && expectedTier !== "A+") {
+        console.warn(`[v0] TIER MISMATCH: setupQuality was "A+" but score ${score} derives tier "${expectedTier}"`)
+      } else if (signalTier === "A" && expectedTier !== "A") {
+        console.warn(`[v0] TIER MISMATCH: setupQuality was "A" but score ${score} derives tier "${expectedTier}"`)
+      } else if (signalTier === "B" && expectedTier !== "B") {
+        console.warn(`[v0] TIER MISMATCH: setupQuality was "B" but score ${score} derives tier "${expectedTier}"`)
+      }
+    }
 
     // Alert level based on tier
     let alertLevel: 0 | 1 | 2 | 3 = 0
