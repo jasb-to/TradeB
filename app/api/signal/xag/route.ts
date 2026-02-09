@@ -25,11 +25,23 @@ export async function GET() {
       const dataDaily = await dataFetcher.fetchCandles("1d", 100)
       const data4h = await dataFetcher.fetchCandles("4h", 200)
       const data1h = await dataFetcher.fetchCandles("1h", 200)
-      const result15m = await dataFetcher.fetchCandles("15m", 200).catch(() => ({ candles: [] }))
-      const result5m = await dataFetcher.fetchCandles("5m", 200).catch(() => ({ candles: [] }))
+      const result15m = await dataFetcher.fetchCandles("15m", 200).catch(() => ({ candles: [], source: "oanda" as const }))
+      const result5m = await dataFetcher.fetchCandles("5m", 200).catch(() => ({ candles: [], source: "oanda" as const }))
 
       const data15m = result15m.candles || []
       const data5m = result5m.candles || []
+
+      // CRITICAL FIX #2: Block synthetic data from producing signals
+      const criticalSources = [dataDaily.source, data4h.source, data1h.source]
+      if (criticalSources.some(s => s === "synthetic")) {
+        console.error(`[v0] XAG BLOCKED: Synthetic data detected. Sources: Daily=${dataDaily.source}, 4H=${data4h.source}, 1H=${data1h.source}`)
+        return NextResponse.json({
+          success: false,
+          error: "DATA_INVALID",
+          message: "Synthetic data detected — no signals produced",
+          symbol: "XAG_USD",
+        }, { status: 503 })
+      }
 
       if (!marketStatus.isOpen) {
         console.log("[v0] XAG: Market closed, checking for cached signal...")

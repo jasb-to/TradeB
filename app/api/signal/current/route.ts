@@ -48,6 +48,21 @@ export async function GET(request: Request) {
       console.log(
         `[v0] Data loaded: Daily=${dataDaily.candles.length}, 4H=${data4h.candles.length}, 1H=${data1h.candles.length}, 15M=${data15m.candles.length}, 5M=${data5m.candles.length} (source: OANDA)`,
       )
+
+      // CRITICAL FIX #2: Block synthetic data from producing signals
+      const criticalSources = [dataDaily.source, data8h.source, data4h.source, data1h.source]
+      if (criticalSources.some(s => s === "synthetic")) {
+        console.error(`[v0] ${symbol} BLOCKED: Synthetic data detected in critical timeframes`)
+        return NextResponse.json(
+          {
+            success: false,
+            error: "DATA_INVALID",
+            message: "Synthetic data detected — no signals produced",
+            symbol,
+          },
+          { status: 503 },
+        )
+      }
     } catch (fetchError) {
       console.error("Error fetching candle data:", fetchError)
       return NextResponse.json(

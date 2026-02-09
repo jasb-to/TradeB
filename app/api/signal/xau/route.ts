@@ -56,6 +56,18 @@ export async function GET() {
 
       console.log(`[v0] Candles fetched: Daily=${dataDaily?.candles?.length}, 8H=${data8h?.candles?.length}, 4H=${data4h?.candles?.length}, 1H=${data1h?.candles?.length}, 15M=${data15m.length}, 5M=${data5m.length}`)
 
+      // CRITICAL FIX #2: Block synthetic data from producing signals
+      const criticalSources = [dataDaily.source, data8h.source, data4h.source, data1h.source]
+      if (criticalSources.some(s => s === "synthetic")) {
+        console.error(`[v0] XAU BLOCKED: Synthetic data detected in critical timeframes. Sources: Daily=${dataDaily.source}, 8H=${data8h.source}, 4H=${data4h.source}, 1H=${data1h.source}`)
+        return NextResponse.json({
+          success: false,
+          error: "DATA_INVALID",
+          message: "Synthetic data detected — no signals produced",
+          symbol: "XAU_USD",
+        }, { status: 503 })
+      }
+
       // Note: We continue processing even when market is closed
       // This allows us to display the Friday close snapshot using available candle data
       const isMarketClosed = !marketStatus.isOpen

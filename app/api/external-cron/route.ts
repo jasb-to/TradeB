@@ -80,15 +80,69 @@ export async function GET(request: NextRequest) {
       try {
         console.log(`[v0] CRON-JOB START SYMBOL: ${symbol}`)
         
+        // ── CRITICAL FIX #3 (TDZ): Declare alertState BEFORE it's used ──
+        const alertState = SignalCache.getAlertState(symbol)
+
         const dataFetcher = new DataFetcher(symbol)
-        const [dataDaily, data8h, data4h, data1h, data15m, data5m] = await Promise.all([
-          dataFetcher.fetchCandles("1d", 200),
-          dataFetcher.fetchCandles("8h", 200),
-          dataFetcher.fetchCandles("4h", 200),
-          dataFetcher.fetchCandles("1h", 200),
-          dataFetcher.fetchCandles("15m", 200).catch(() => ({ candles: [] })),
-          dataFetcher.fetchCandles("5m", 200).catch(() => ({ candles: [] })),
-        ])
+
+        // ── Fetch each timeframe independently — no Promise.all poisoning ──
+        // Critical timeframes throw on failure; non-critical (15m, 5m) gracefully degrade
+        let dataDaily, data8h, data4h, data1h
+        let data15m: { candles: any[]; source: string } = { candles: [], source: "oanda" }
+        let data5m: { candles: any[]; source: string } = { candles: [], source: "oanda" }
+
+        try {
+          dataDaily = await dataFetcher.fetchCandles("1d", 200)
+        } catch (err) {
+          console.error(`[v0] CRON ${symbol} CRITICAL: Daily fetch failed - ${err}`)
+          throw err
+        }
+        try {
+          data8h = await dataFetcher.fetchCandles("8h", 200)
+        } catch (err) {
+          console.error(`[v0] CRON ${symbol} CRITICAL: 8H fetch failed - ${err}`)
+          throw err
+        }
+        try {
+          data4h = await dataFetcher.fetchCandles("4h", 200)
+        } catch (err) {
+          console.error(`[v0] CRON ${symbol} CRITICAL: 4H fetch failed - ${err}`)
+          throw err
+        }
+        try {
+          data1h = await dataFetcher.fetchCandles("1h", 200)
+        } catch (err) {
+          console.error(`[v0] CRON ${symbol} CRITICAL: 1H fetch failed - ${err}`)
+          throw err
+        }
+        try {
+          data15m = await dataFetcher.fetchCandles("15m", 200)
+        } catch (err) {
+          console.warn(`[v0] CRON ${symbol} 15m fetch failed (non-critical): ${err}`)
+          data15m = { candles: [], source: "oanda" }
+        }
+        try {
+          data5m = await dataFetcher.fetchCandles("5m", 200)
+        } catch (err) {
+          console.warn(`[v0] CRON ${symbol} 5m fetch failed (non-critical): ${err}`)
+          data5m = { candles: [], source: "oanda" }
+        }
+
+        // ── CRITICAL FIX #2: Block synthetic data from entering live trading logic ──
+        const sources = [dataDaily.source, data8h.source, data4h.source, data1h.source]
+        const hasSyntheticData = sources.some(s => s === "synthetic")
+        if (hasSyntheticData) {
+          console.error(`[v0] CRON ${symbol} BLOCKED: Synthetic data detected in critical timeframes. Sources: Daily=${dataDaily.source}, 8H=${data8h.source}, 4H=${data4h.source}, 1H=${data1h.source}`)
+          results[symbol] = {
+            symbol,
+            blocked: true,
+            reason: "DATA_INVALID",
+            message: "Synthetic data detected — no signals, alerts, or cache updates produced",
+          }
+          await CronHeartbeat.recordFailure(symbol, "Synthetic data detected — fetch failed for critical timeframes")
+          console.log(`[v0] CRON-JOB END SYMBOL: ${symbol} (BLOCKED)`)
+          continue
+        }
 
         const strategies = new TradingStrategies(DEFAULT_TRADING_CONFIG)
         const signal = await strategies.evaluateSignals(
@@ -127,7 +181,7 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // NEW: Monitor TP1/TP2 levels if active trade exists (ALL tiers: A+, A, B)
+        // Monitor TP1/TP2 levels if active trade exists (ALL tiers: A+, A, B)
         const tpLevels = SignalCache.getTPLevels(symbol)
         if (alertState.activeTrade && tpLevels.tp1) {
           const currentPrice = signal.entryPrice || 0
@@ -136,7 +190,6 @@ export async function GET(request: NextRequest) {
 
           // Check if TP1 has been reached
           if (SignalCache.checkTP1Reached(symbol, currentPrice)) {
-            // TP1 reached - now decide: exit at TP1 or hold for TP2
             if (!alertState.tp1AlertSent && process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID && TelegramNotifier) {
               try {
                 const notifier = new TelegramNotifier(
@@ -145,81 +198,27 @@ export async function GET(request: NextRequest) {
                   "https://tradeb.vercel.app",
                 )
 
-                // Analyze momentum to decide exit or hold for TP2
-                const momentumStatus = signal.indicators?.stochRSI?.state || "NEUTRAL"
+                const momentumStatus = (signal.indicators?.stochRSI as any)?.state || "NEUTRAL"
                 const adx = signal.indicators?.adx || 0
                 const rsi = signal.indicators?.rsi || 50
 
-                // Logic: If momentum is strong (MOMENTUM_UP/DOWN and high ADX), hold for TP2
-                // If momentum is weak (COMPRESSION) or fading, exit at TP1
                 const isStrongMomentum = (momentumStatus !== "COMPRESSION" && adx > 20)
                 const isFadingMomentum = (momentumStatus === "COMPRESSION" || rsi > 70 || rsi < 30)
 
                 if (isStrongMomentum) {
-                  // Market looks strong - hold for TP2
-                  const tp2Message = `📈 TP1 REACHED - HOLD FOR TP2
-═══════════════════════════
-Symbol: ${symbol}
-Entry Price: $${entryPrice.toFixed(2)}
-TP1 Level: $${tpLevels.tp1.toFixed(2)}
-TP2 Level: $${tpLevels.tp2?.toFixed(2) || "N/A"}
-Current Price: $${currentPrice.toFixed(2)}
-Profit at TP1: +${((currentPrice - entryPrice) / entryPrice * 100).toFixed(2)}%
-
-📊 Market Momentum: STRONG (${momentumStatus})
-ADX: ${adx.toFixed(2)} | RSI: ${rsi.toFixed(2)}
-
-💪 Action: HOLD position for TP2
-🎯 Target: $${tpLevels.tp2?.toFixed(2) || "N/A"}
-🔒 SL: $${entryPrice.toFixed(2)} (Entry)
-
-⏰ Time: ${new Date().toISOString()}
-════════����══════════════════`
-
+                  const tp2Message = `TP1 REACHED - HOLD FOR TP2\nSymbol: ${symbol}\nEntry: $${entryPrice.toFixed(2)} | TP1: $${tpLevels.tp1.toFixed(2)} | TP2: $${tpLevels.tp2?.toFixed(2) || "N/A"}\nCurrent: $${currentPrice.toFixed(2)}\nMomentum: STRONG (${momentumStatus}) ADX:${adx.toFixed(1)} RSI:${rsi.toFixed(1)}\nAction: HOLD for TP2\nTime: ${new Date().toISOString()}`
                   await notifier.sendMessage(tp2Message, false)
-                  console.log(`[v0] TP1 reached - HOLDING for TP2 for ${symbol} (momentum: ${momentumStatus})`)
+                  console.log(`[v0] TP1 reached - HOLDING for TP2 for ${symbol}`)
                 } else if (isFadingMomentum) {
-                  // Momentum fading - exit at TP1
-                  const tp1ExitMessage = `🛑 TP1 REACHED - EXIT NOW
-═══════════════════════════
-Symbol: ${symbol}
-Entry Price: $${entryPrice.toFixed(2)}
-TP1 Level: $${tpLevels.tp1.toFixed(2)}
-Current Price: $${currentPrice.toFixed(2)}
-Profit at TP1: +${((currentPrice - entryPrice) / entryPrice * 100).toFixed(2)}%
-
-📊 Market Momentum: WEAK (${momentumStatus})
-ADX: ${adx.toFixed(2)} | RSI: ${rsi.toFixed(2)}
-
-⚠️ Action: EXIT at TP1 - Momentum fading
-Take your profit and close this position.
-
-⏰ Time: ${new Date().toISOString()}
-═══════════════════════════`
-
+                  const tp1ExitMessage = `TP1 REACHED - EXIT NOW\nSymbol: ${symbol}\nEntry: $${entryPrice.toFixed(2)} | TP1: $${tpLevels.tp1.toFixed(2)}\nCurrent: $${currentPrice.toFixed(2)}\nMomentum: WEAK (${momentumStatus})\nAction: EXIT at TP1\nTime: ${new Date().toISOString()}`
                   await notifier.sendMessage(tp1ExitMessage, false)
-                  console.log(`[v0] TP1 reached - EXITING for ${symbol} (momentum fading: ${momentumStatus})`)
+                  console.log(`[v0] TP1 reached - EXITING for ${symbol}`)
                   SignalCache.clearActiveTrade(symbol)
                   SignalCache.clearTPLevels(symbol)
                 } else {
-                  // Neutral - default to exiting at TP1
-                  const tp1ExitMessage = `✅ TP1 REACHED - TAKE PROFIT
-═══════════════════════════
-Symbol: ${symbol}
-Entry Price: $${entryPrice.toFixed(2)}
-TP1 Level: $${tpLevels.tp1.toFixed(2)}
-Current Price: $${currentPrice.toFixed(2)}
-Profit at TP1: +${((currentPrice - entryPrice) / entryPrice * 100).toFixed(2)}%
-
-📊 Market Momentum: NEUTRAL
-
-💰 Action: TAKE PROFIT at TP1
-
-⏰ Time: ${new Date().toISOString()}
-═══════════════════════════`
-
+                  const tp1ExitMessage = `TP1 REACHED - TAKE PROFIT\nSymbol: ${symbol}\nEntry: $${entryPrice.toFixed(2)} | TP1: $${tpLevels.tp1.toFixed(2)}\nCurrent: $${currentPrice.toFixed(2)}\nMomentum: NEUTRAL\nAction: TAKE PROFIT at TP1\nTime: ${new Date().toISOString()}`
                   await notifier.sendMessage(tp1ExitMessage, false)
-                  console.log(`[v0] TP1 reached - EXITING for ${symbol} (neutral momentum)`)
+                  console.log(`[v0] TP1 reached - EXITING for ${symbol} (neutral)`)
                   SignalCache.clearActiveTrade(symbol)
                   SignalCache.clearTPLevels(symbol)
                 }
@@ -241,20 +240,7 @@ Profit at TP1: +${((currentPrice - entryPrice) / entryPrice * 100).toFixed(2)}%
                   process.env.TELEGRAM_CHAT_ID,
                   "https://tradeb.vercel.app",
                 )
-                const tp2ExitMessage = `🎉 TP2 REACHED - FULL SCALE OUT
-═══════════════════════════
-Symbol: ${symbol}
-Entry Price: $${entryPrice.toFixed(2)}
-TP2 Level: $${tpLevels.tp2.toFixed(2)}
-Current Price: $${currentPrice.toFixed(2)}
-Total Profit: +${((currentPrice - entryPrice) / entryPrice * 100).toFixed(2)}%
-
-✅ Trade Complete - Full position closed
-Great trade execution!
-
-⏰ Time: ${new Date().toISOString()}
-═══════════════════════════`
-
+                const tp2ExitMessage = `TP2 REACHED - FULL SCALE OUT\nSymbol: ${symbol}\nEntry: $${entryPrice.toFixed(2)} | TP2: $${tpLevels.tp2.toFixed(2)}\nCurrent: $${currentPrice.toFixed(2)}\nTrade Complete\nTime: ${new Date().toISOString()}`
                 await notifier.sendMessage(tp2ExitMessage, false)
                 console.log(`[v0] TP2 alert sent for ${symbol}`)
               } catch (error) {
@@ -269,8 +255,7 @@ Great trade execution!
         const shouldAlert = SignalCache.shouldSendAlert(signalWithSymbol, symbol)
         console.log(`[v0] CRON-JOB ${symbol} signal generated: type=${signal.type} dir=${signal.direction} level=${signal.alertLevel} shouldAlert=${shouldAlert}`)
 
-        // NEW FEATURE: Direction-change detection for active trades
-        const alertState = SignalCache.getAlertState(symbol)
+        // Direction-change detection for active trades
         if (alertState.activeTrade && alertState.activeTrade.direction && signal.direction !== alertState.activeTrade.direction) {
           console.log(`[v0] DIRECTION CHANGE DETECTED for ${symbol}: ${alertState.activeTrade.direction} -> ${signal.direction}`)
           
@@ -281,7 +266,7 @@ Great trade execution!
                 process.env.TELEGRAM_CHAT_ID,
                 "https://tradeb.vercel.app",
               )
-              const exitMessage = `📊 DIRECTION CHANGE ALERT for ${symbol}\n\n` +
+              const exitMessage = `DIRECTION CHANGE ALERT for ${symbol}\n\n` +
                 `Previous: ${alertState.activeTrade.direction} @ ${alertState.activeTrade.entryPrice?.toFixed(2)}\n` +
                 `Current: ${signal.direction} @ ${signal.entryPrice?.toFixed(2)}\n\n` +
                 `Action: Close ${alertState.activeTrade.direction === "LONG" ? "SELL" : "BUY"} trade immediately\n` +
@@ -296,25 +281,21 @@ Great trade execution!
           }
         }
 
-        // CRITICAL FIX #7: Never alert on cached signals when market is closed
-        const marketStatus = MarketHours.getMarketStatus()
-        const isMarketClosed = !marketStatus.isOpen
-        // NEW: Include B-tier trades (alertLevel >= 1) in Telegram alerts for assessment week
+        // Never alert on cached signals when market is closed
+        const currentMarketStatus = MarketHours.getMarketStatus()
+        const isMarketClosed = !currentMarketStatus.isOpen
         const isAlert = shouldAlert && signal.type === "ENTRY" && signal.alertLevel >= 1 && !isMarketClosed
 
-        // IMPORTANT: Store TP levels for ALL tiers (A+, A, B) for automatic monitoring
-        // Even B-tier trades (alertLevel 1) get TP1/TP2 tracking automatically
+        // Store TP levels for ALL tiers (A+, A, B) for automatic monitoring
         if (signal.type === "ENTRY" && signal.alertLevel >= 1 && !isMarketClosed) {
           const state = SignalCache.getAlertState(symbol)
           if (!state.activeTrade) {
-            // Store as active trade if no trade currently tracked
             state.activeTrade = signalWithSymbol
             state.activeTradeTime = Date.now()
             
-            // Store TP1/TP2 levels for TP monitoring (ALL tiers)
             if (signalWithSymbol.takeProfit1 && signalWithSymbol.takeProfit2) {
               SignalCache.storeTakeProfitLevels(symbol, signalWithSymbol.takeProfit1, signalWithSymbol.takeProfit2)
-              console.log(`[v0] TP levels stored for ${symbol} (Tier: ${signalWithSymbol.tier}): TP1=$${signalWithSymbol.takeProfit1.toFixed(2)}, TP2=$${signalWithSymbol.takeProfit2.toFixed(2)}`)
+              console.log(`[v0] TP levels stored for ${symbol}: TP1=$${signalWithSymbol.takeProfit1.toFixed(2)}, TP2=$${signalWithSymbol.takeProfit2.toFixed(2)}`)
             }
           }
         }

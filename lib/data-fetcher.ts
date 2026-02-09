@@ -1,23 +1,21 @@
 import type { Candle, DataSource } from "@/types/trading"
 
-interface CircuitBreakerState {
-  failures: number
-  lastFailure: number
-  isOpen: boolean
-  nextRetry: number
+// ── Error classification for OANDA API responses ──────────────────────────
+type OandaErrorClass = "AUTH_FAILURE" | "RATE_LIMIT" | "NETWORK" | "SERVER_ERROR" | "DATA_ERROR" | "UNKNOWN"
+
+function classifyOandaError(status: number, message: string): OandaErrorClass {
+  if (status === 401 || status === 403) return "AUTH_FAILURE"
+  if (status === 429) return "RATE_LIMIT"
+  if (status >= 500 && status < 600) return "SERVER_ERROR"
+  if (status === 0 || message.includes("fetch failed") || message.includes("ETIMEDOUT") || message.includes("ECONNREFUSED") || message.includes("network") || message.includes("abort")) return "NETWORK"
+  if (status === 400 || status === 404) return "DATA_ERROR"
+  return "UNKNOWN"
 }
 
 interface RealTimePrice {
   price: number
   timestamp: number
   source: string
-}
-
-interface DailyCache {
-  data: Candle[]
-  timestamp: number
-  lastCandleTimestamp: number
-  fullHistoryLoaded: boolean
 }
 
 interface OandaCache {
@@ -30,13 +28,10 @@ const moduleState = {
   lastRequestTime: 0,
 }
 
-const SYNTHESIZED_CACHE_TTL = 5 * 60 * 1000
-const FULL_HISTORY_CACHE_TTL = 24 * 60 * 60 * 1000
-const INCREMENTAL_UPDATE_INTERVAL = 5 * 60 * 1000
 const MIN_REQUEST_INTERVAL = 500 // 500ms between requests
-const CIRCUIT_BREAKER_THRESHOLD = 5
-const CIRCUIT_BREAKER_RESET_MS = 60 * 1000
 const OANDA_CACHE_TTL = 60 * 1000 // 1 minute cache for OANDA
+const OANDA_FETCH_TIMEOUT_MS = 15_000 // 15s timeout per request
+const OANDA_MAX_RETRIES = 2 // retry transient errors up to 2 times
 
 let detectedOandaServer: "practice" | "live" = "live"
 
@@ -51,12 +46,8 @@ export class DataFetcher {
     return !!(process.env.OANDA_API_KEY && process.env.OANDA_ACCOUNT_ID)
   }
 
-  private getOandaBaseUrl(forceServer?: "practice" | "live"): string {
-    if (forceServer) {
-      return forceServer === "live" ? "https://api-fxtrade.oanda.com" : "https://api-fxpractice.oanda.com"
-    }
-
-    return detectedOandaServer === "live" ? "https://api-fxtrade.oanda.com" : "https://api-fxpractice.oanda.com"
+  private getOandaBaseUrl(server: "practice" | "live"): string {
+    return server === "live" ? "https://api-fxtrade.oanda.com" : "https://api-fxpractice.oanda.com"
   }
 
   private getOandaGranularity(timeframe: string): string {
@@ -71,39 +62,84 @@ export class DataFetcher {
     return map[timeframe] || "H1"
   }
 
+  /**
+   * CRITICAL FIX #1: Isolated per-request fetching with correct error classification.
+   * - Each call builds fresh headers (no shared mutation).
+   * - Only true 401/403 responses trigger server-swap; all others propagate with their real class.
+   * - Transient errors (network, 429, 5xx) are retried up to OANDA_MAX_RETRIES before giving up.
+   */
   private async fetchFromOanda(timeframe: "5m" | "15m" | "1h" | "4h" | "8h" | "1d", limit: number): Promise<Candle[]> {
     const apiKey = process.env.OANDA_API_KEY
     if (!apiKey) {
-      throw new Error("OANDA_API_KEY not configured")
+      throw new OandaFetchError("OANDA_API_KEY not configured", "AUTH_FAILURE")
     }
 
     const granularity = this.getOandaGranularity(timeframe)
     const instrument = this.symbol
     const count = Math.min(limit, 5000)
 
-    // Try with detected server first
-    try {
-      return await this.tryOandaFetch(detectedOandaServer, instrument, granularity, count, apiKey)
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
+    // Snapshot the current server preference — do NOT mutate during concurrent fetches
+    const primaryServer = detectedOandaServer
 
-      // If auth error, try the other server
-      if (msg.includes("401") || msg.includes("authorization")) {
-        const otherServer = detectedOandaServer === "live" ? "practice" : "live"
-        console.log(`[v0] Trying OANDA ${otherServer} server...`)
+    try {
+      return await this.tryOandaFetchWithRetry(primaryServer, instrument, granularity, count, apiKey)
+    } catch (error) {
+      // Only swap servers on confirmed AUTH_FAILURE
+      if (error instanceof OandaFetchError && error.errorClass === "AUTH_FAILURE") {
+        const otherServer = primaryServer === "live" ? "practice" : "live"
+        console.log(`[v0] OANDA auth failed on ${primaryServer}, trying ${otherServer} server...`)
 
         try {
-          const candles = await this.tryOandaFetch(otherServer, instrument, granularity, count, apiKey)
+          const candles = await this.tryOandaFetchWithRetry(otherServer, instrument, granularity, count, apiKey)
+          // Only update after confirmed success
           detectedOandaServer = otherServer
-          console.log(`[v0] OANDA ${otherServer} server working!`)
+          console.log(`[v0] OANDA ${otherServer} server confirmed working`)
           return candles
         } catch (secondError) {
-          throw new Error("OANDA authentication failed on both servers. Check your API key.")
+          if (secondError instanceof OandaFetchError && secondError.errorClass === "AUTH_FAILURE") {
+            throw new OandaFetchError("OANDA authentication failed on both servers. Check your API key.", "AUTH_FAILURE")
+          }
+          throw secondError
         }
       }
 
+      // Re-throw non-auth errors as-is — they should NOT be labeled "auth failed"
       throw error
     }
+  }
+
+  /**
+   * Retry wrapper: retries on NETWORK / RATE_LIMIT / SERVER_ERROR; throws immediately on AUTH_FAILURE / DATA_ERROR.
+   */
+  private async tryOandaFetchWithRetry(
+    server: "practice" | "live",
+    instrument: string,
+    granularity: string,
+    count: number,
+    apiKey: string,
+  ): Promise<Candle[]> {
+    let lastError: Error | null = null
+    for (let attempt = 0; attempt <= OANDA_MAX_RETRIES; attempt++) {
+      try {
+        return await this.tryOandaFetch(server, instrument, granularity, count, apiKey)
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error))
+        const errorClass = error instanceof OandaFetchError ? error.errorClass : "UNKNOWN"
+
+        // Non-retryable errors — fail immediately
+        if (errorClass === "AUTH_FAILURE" || errorClass === "DATA_ERROR") {
+          throw error
+        }
+
+        // Retryable — back off and try again
+        if (attempt < OANDA_MAX_RETRIES) {
+          const backoffMs = Math.min(1000 * Math.pow(2, attempt), 4000)
+          console.log(`[v0] OANDA ${server} ${errorClass} (attempt ${attempt + 1}/${OANDA_MAX_RETRIES + 1}), retrying in ${backoffMs}ms...`)
+          await new Promise((resolve) => setTimeout(resolve, backoffMs))
+        }
+      }
+    }
+    throw lastError!
   }
 
   private async tryOandaFetch(
@@ -124,22 +160,43 @@ export class DataFetcher {
     }
     moduleState.lastRequestTime = Date.now()
 
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "Accept-Datetime-Format": "RFC3339",
-      },
-    })
+    // Fresh headers per request — no shared object mutation
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "Accept-Datetime-Format": "RFC3339",
+    }
+
+    let response: Response
+    try {
+      response = await fetch(url, {
+        headers,
+        signal: AbortSignal.timeout(OANDA_FETCH_TIMEOUT_MS),
+      })
+    } catch (fetchError) {
+      // Network-level failure (timeout, DNS, connection refused)
+      const msg = fetchError instanceof Error ? fetchError.message : String(fetchError)
+      throw new OandaFetchError(`OANDA network error (${server}): ${msg}`, "NETWORK")
+    }
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`OANDA API error ${response.status}: ${errorText}`)
+      const errorText = await response.text().catch(() => "")
+      const errorClass = classifyOandaError(response.status, errorText)
+      throw new OandaFetchError(
+        `OANDA API error ${response.status} (${server}/${instrument}/${granularity}): ${errorText.slice(0, 200)}`,
+        errorClass,
+      )
     }
 
     const data = await response.json()
     return this.parseOandaCandles(data)
   }
+
+  /** Visible source tag for all fetched data */
+  public getLastFetchSource(): DataSource {
+    return this._lastFetchSource
+  }
+  private _lastFetchSource: DataSource = "synthetic"
 
   private parseOandaCandles(data: any): Candle[] {
     if (!data.candles || data.candles.length === 0) {
@@ -161,19 +218,27 @@ export class DataFetcher {
     return candles
   }
 
+  /**
+   * CRITICAL FIX: fetchCandles now properly classifies errors and NEVER silently
+   * falls back to synthetic data.  If OANDA credentials exist, a fetch failure
+   * propagates the real error so callers can decide whether to proceed.
+   * Synthetic data is ONLY returned when there are genuinely no OANDA credentials
+   * (local dev / testing).
+   */
   async fetchCandles(
     timeframe: "5m" | "15m" | "1h" | "4h" | "8h" | "1d",
     limit = 100,
   ): Promise<{ candles: Candle[]; source: DataSource }> {
     const cacheKey = `${this.symbol}-${timeframe}-${limit}`
 
-    // Check cache first
+    // Check cache first (only OANDA data is cached)
     const cached = moduleState.oandaCache.data.get(cacheKey)
     if (cached && Date.now() - cached.timestamp < OANDA_CACHE_TTL) {
+      this._lastFetchSource = "oanda"
       return { candles: cached.candles, source: "oanda" }
     }
 
-    // Try OANDA first if credentials are available
+    // ── OANDA path ──────────────────────────────────────────────────────
     if (this.hasOandaCredentials()) {
       try {
         const candles = await this.fetchFromOanda(timeframe, limit)
@@ -181,7 +246,6 @@ export class DataFetcher {
         if (candles.length > 0) {
           moduleState.oandaCache.data.set(cacheKey, { candles, timestamp: Date.now() })
 
-          // Update real-time price
           const latest = candles[candles.length - 1]
           moduleState.realTimePriceCache = {
             price: latest.close,
@@ -190,26 +254,27 @@ export class DataFetcher {
           }
         }
 
+        this._lastFetchSource = "oanda"
         return { candles, source: "oanda" }
       } catch (error) {
-        console.warn(`[v0] OANDA fetch failed: ${error}. Falling back to synthetic data.`)
+        // Log with proper classification — never say "auth failed" for non-auth errors
+        const errorClass = error instanceof OandaFetchError ? error.errorClass : "UNKNOWN"
+        const msg = error instanceof Error ? error.message : String(error)
+        console.error(`[v0] OANDA fetch FAILED [${errorClass}] ${this.symbol}/${timeframe}: ${msg}`)
+
+        // CRITICAL: Do NOT silently fall back to synthetic data when OANDA credentials exist.
+        // The caller MUST know data is unavailable so it can avoid producing signals.
+        throw error
       }
     }
 
-    // Fallback to synthetic data for testing
-    console.log(`[v0] Using synthetic data for ${this.symbol} (${timeframe})`)
+    // ── No OANDA credentials: synthetic for local dev only ──────────────
+    console.log(`[v0] NO OANDA CREDENTIALS — Using synthetic data for ${this.symbol} (${timeframe})`)
     const syntheticCandles = this.generateSyntheticCandles(timeframe, limit)
-    
-    moduleState.oandaCache.data.set(cacheKey, { candles: syntheticCandles, timestamp: Date.now() })
-    
-    // Update real-time price with synthetic data
-    const latest = syntheticCandles[syntheticCandles.length - 1]
-    moduleState.realTimePriceCache = {
-      price: latest.close,
-      timestamp: Date.now(),
-      source: "synthetic",
-    }
 
+    // CRITICAL FIX #2: Synthetic data is NEVER cached in the OANDA cache
+    // and is NEVER stored as real-time price.
+    this._lastFetchSource = "synthetic"
     return { candles: syntheticCandles, source: "synthetic" }
   }
 
@@ -321,5 +386,18 @@ export class DataFetcher {
         status: "Using synthetic data for testing (no OANDA credentials)",
       }
     }
+  }
+}
+
+/**
+ * Custom error with a classified error type so callers can react correctly.
+ */
+export class OandaFetchError extends Error {
+  public readonly errorClass: OandaErrorClass
+
+  constructor(message: string, errorClass: OandaErrorClass) {
+    super(message)
+    this.name = "OandaFetchError"
+    this.errorClass = errorClass
   }
 }
