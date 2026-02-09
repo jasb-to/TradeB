@@ -950,42 +950,79 @@ export class TradingStrategies {
       }
     }
 
-    // Check for trend reversal on 1H timeframe (qualitative rule for A/A+ trades)
-    // For profitable trades in trend reversal, suggest exit to lock in gains
+    // Check for trend reversal on 1H timeframe with AGGRESSIVE profit-locking
+    // For A/A+ tier trades: lock in ANY profit above entry to avoid losses
     const indicators1h = TechnicalAnalysis.calculateAllIndicators(candles1h)
     const bias1h = this.determineBias(candles1h, indicators1h)
 
-    if (trade.direction === "LONG" && currentPrice > trade.entryPrice && bias1h === "BEARISH") {
+    // LONG positions: exit when profitable AND bias turns bearish
+    if (trade.direction === "LONG" && currentPrice > trade.entryPrice) {
       const profitPercent = ((currentPrice - trade.entryPrice) / trade.entryPrice) * 100
-      if (profitPercent >= 0.3) {
-        // At least 0.3% profit
+      
+      // Aggressive: Any profit + trend reversal = exit signal
+      if (bias1h === "BEARISH" && profitPercent > 0) {
         return {
           type: "EXIT",
           direction: "NONE",
           alertLevel: 2,
-          confidence: 80,
+          confidence: 85,
           timestamp: Date.now(),
           reasons: [
-            `TREND REVERSAL: Market bias shifted to BEARISH`,
-            `Current profit: ${profitPercent.toFixed(2)}% - Recommended to exit before reversal accelerates`,
+            `LOCK IN GAINS: Market bias shifted to BEARISH`,
+            `Current profit: ${profitPercent.toFixed(2)}% - Exit before reversal accelerates`,
+          ],
+          indicators: {},
+        }
+      }
+
+      // EXTRA AGGRESSIVE: If profit > 0.5% AND any sign of weakness, exit
+      if (profitPercent >= 0.5 && (bias1h === "BEARISH" || bias1h === "NEUTRAL")) {
+        return {
+          type: "EXIT",
+          direction: "NONE",
+          alertLevel: 1,
+          confidence: 75,
+          timestamp: Date.now(),
+          reasons: [
+            `SECURE PROFITS: ${profitPercent.toFixed(2)}% gain with weakening momentum`,
+            `Bias: ${bias1h} - Take profit and avoid risk`,
           ],
           indicators: {},
         }
       }
     }
 
-    if (trade.direction === "SHORT" && currentPrice < trade.entryPrice && bias1h === "BULLISH") {
+    // SHORT positions: exit when profitable AND bias turns bullish
+    if (trade.direction === "SHORT" && currentPrice < trade.entryPrice) {
       const profitPercent = ((trade.entryPrice - currentPrice) / trade.entryPrice) * 100
-      if (profitPercent >= 0.3) {
+      
+      // Aggressive: Any profit + trend reversal = exit signal
+      if (bias1h === "BULLISH" && profitPercent > 0) {
         return {
           type: "EXIT",
           direction: "NONE",
           alertLevel: 2,
-          confidence: 80,
+          confidence: 85,
           timestamp: Date.now(),
           reasons: [
-            `TREND REVERSAL: Market bias shifted to BULLISH`,
-            `Current profit: ${profitPercent.toFixed(2)}% - Recommended to exit before reversal accelerates`,
+            `LOCK IN GAINS: Market bias shifted to BULLISH`,
+            `Current profit: ${profitPercent.toFixed(2)}% - Exit before reversal accelerates`,
+          ],
+          indicators: {},
+        }
+      }
+
+      // EXTRA AGGRESSIVE: If profit > 0.5% AND any sign of weakness, exit
+      if (profitPercent >= 0.5 && (bias1h === "BULLISH" || bias1h === "NEUTRAL")) {
+        return {
+          type: "EXIT",
+          direction: "NONE",
+          alertLevel: 1,
+          confidence: 75,
+          timestamp: Date.now(),
+          reasons: [
+            `SECURE PROFITS: ${profitPercent.toFixed(2)}% gain with weakening momentum`,
+            `Bias: ${bias1h} - Take profit and avoid risk`,
           ],
           indicators: {},
         }
