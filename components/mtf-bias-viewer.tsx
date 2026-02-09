@@ -83,15 +83,6 @@ export function MTFBiasViewer({ signal }: MTFBiasViewerProps) {
   const dailyVWAP = signal?.indicators?.vwap ?? 0
   const currentPrice = signal?.lastCandle?.close ?? 0
   
-  console.log("[v0] MTFBiasViewer - Data validation:", {
-    hasSignal: !!signal,
-    hasIndicators: !!signal?.indicators,
-    vwapValue: dailyVWAP,
-    vwapType: typeof dailyVWAP,
-    currentPrice: currentPrice,
-    priceType: typeof currentPrice,
-  })
-  
   const getVWAPBias = () => {
     // Strict validation: both values must be valid numbers and non-zero
     if (typeof dailyVWAP !== "number" || dailyVWAP <= 0 || typeof currentPrice !== "number" || currentPrice <= 0) {
