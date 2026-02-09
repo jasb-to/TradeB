@@ -10,6 +10,7 @@ interface TradeEntry {
   trailingActive: boolean
   trailingStopLevel: number
   manualExit: boolean
+  earlyReversalWarned: boolean
 }
 
 const TRADE_HISTORY: Map<string, TradeEntry[]> = new Map()
@@ -48,6 +49,8 @@ export const ActiveTradeTracker = {
       tp2Achieved: false,
       trailingActive: false,
       trailingStopLevel: trade.stopLoss,
+      manualExit: false,
+      earlyReversalWarned: false,
       manualExit: false,
     }
 
