@@ -1,7 +1,7 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle2, X } from "lucide-react"
+import { CheckCircle2, X, AlertCircle } from "lucide-react"
 import type { Signal } from "@/types/trading"
 
 interface EntryChecklistProps {
@@ -12,6 +12,15 @@ export function EntryChecklist({ signal }: EntryChecklistProps) {
   // CANONICAL: Use ONLY entryDecision.criteria - do NOT recalculate
   // This is the single source of truth shared with backend alert logic
   const entryDecision = signal?.entryDecision
+  
+  // Validation: Ensure all criteria are present
+  const validateCriteria = () => {
+    if (!entryDecision?.criteria) return { valid: false, missingCount: 7 };
+    const missing = entryDecision.criteria.filter(c => !c.passed).length;
+    return { valid: true, missingCount: missing };
+  };
+  
+  const { valid: criteriaValid, missingCount } = validateCriteria();
   
   if (!entryDecision) {
     return (
@@ -28,6 +37,16 @@ export function EntryChecklist({ signal }: EntryChecklistProps) {
 
   const passCount = entryDecision.criteria.filter((c) => c.passed).length
   const totalCount = entryDecision.criteria.length
+  
+  // Validate tier/score consistency
+  const isScoreValid = 
+    (entryDecision.tier === "A+" && entryDecision.score >= 7) ||
+    (entryDecision.tier === "A" && entryDecision.score >= 6 && entryDecision.score < 7) ||
+    (entryDecision.tier === "B" && entryDecision.score >= 4.5 && entryDecision.score < 6) ||
+    (entryDecision.tier === "NO_TRADE" && entryDecision.score < 4.5);
+  
+  // Consistency check: allowed should match tier and blocked reasons
+  const isAllowanceValid = !entryDecision.allowed || entryDecision.blockedReasons.length === 0;
 
   return (
     <Card className="bg-slate-900/40 border-slate-700/50">
@@ -38,29 +57,65 @@ export function EntryChecklist({ signal }: EntryChecklistProps) {
             {passCount}/{totalCount}
           </span>
         </CardTitle>
-        <p className="text-xs text-slate-400 mt-2">Tier: {entryDecision.tier} | Score: {entryDecision.score.toFixed(1)}/9</p>
+        <div className="text-xs text-slate-400 mt-2 space-y-1">
+          <p>Tier: {entryDecision.tier} | Score: {entryDecision.score.toFixed(1)}/9</p>
+          {!isScoreValid && (
+            <p className="text-red-400 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
+              Score/Tier mismatch detected
+            </p>
+          )}
+          {!isAllowanceValid && (
+            <p className="text-yellow-400 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
+              Consistency warning: Allowed flag mismatch
+            </p>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-2">
         {entryDecision.criteria.map((criterion, i) => (
           <div key={criterion.key} className="flex items-center gap-2 text-sm">
             {criterion.passed ? (
-              <CheckCircle2 className="w-4 h-4 text-green-400" />
+              <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
             ) : (
-              <X className="w-4 h-4 text-red-400" />
+              <X className="w-4 h-4 text-red-400 flex-shrink-0" />
             )}
             <div className="flex-1 min-w-0">
-              <span className={criterion.passed ? "text-green-300" : "text-red-300"}>{criterion.label}</span>
+              <span className={criterion.passed ? "text-green-300" : "text-red-300"}>
+                {i + 1}. {criterion.label}
+              </span>
               <p className="text-xs text-slate-500">{criterion.reason}</p>
+              {/* Additional context for problematic criteria */}
+              {criterion.key === "momentum_confirm" && !criterion.passed && (
+                <p className="text-xs text-slate-600 italic">
+                  Timing confirmation • Non-blocking
+                </p>
+              )}
+              {criterion.key === "htf_polarity" && criterion.passed && (
+                <p className="text-xs text-slate-600 italic">
+                  Directional integrity verified
+                </p>
+              )}
             </div>
           </div>
         ))}
         
         {entryDecision.blockedReasons.length > 0 && (
           <div className="mt-3 p-2 bg-red-500/10 border border-red-500/30 rounded">
-            <p className="text-xs text-red-300">Blocked Reasons:</p>
+            <p className="text-xs text-red-300 font-semibold">Blocked Reasons:</p>
             {entryDecision.blockedReasons.map((reason, i) => (
               <p key={i} className="text-xs text-red-300/70">• {reason}</p>
             ))}
+          </div>
+        )}
+        
+        {entryDecision.allowed && (
+          <div className="mt-3 p-2 bg-green-500/10 border border-green-500/30 rounded">
+            <p className="text-xs text-green-300 font-semibold">✓ Entry Approved</p>
+            <p className="text-xs text-green-300/70">
+              {entryDecision.tier} tier • {passCount}/{totalCount} criteria met
+            </p>
           </div>
         )}
       </CardContent>

@@ -78,6 +78,32 @@ export function MTFBiasViewer({ signal }: MTFBiasViewerProps) {
     return "Alignment data processing..."
   }
 
+  // Get VWAP bias from indicators (use daily VWAP for anchor level)
+  // VWAP comes from daily candles and represents key daily support/resistance
+  const dailyVWAP = signal?.indicators?.vwap ?? 0
+  const currentPrice = signal?.lastCandle?.close ?? 0
+  
+  console.log("[v0] MTFBiasViewer - Data validation:", {
+    hasSignal: !!signal,
+    hasIndicators: !!signal?.indicators,
+    vwapValue: dailyVWAP,
+    vwapType: typeof dailyVWAP,
+    currentPrice: currentPrice,
+    priceType: typeof currentPrice,
+  })
+  
+  const getVWAPBias = () => {
+    // Strict validation: both values must be valid numbers and non-zero
+    if (typeof dailyVWAP !== "number" || dailyVWAP <= 0 || typeof currentPrice !== "number" || currentPrice <= 0) {
+      return "N/A"
+    }
+    const threshold = 0.002 // 0.2% threshold
+    if (currentPrice > dailyVWAP * (1 + threshold)) return "BULLISH"
+    if (currentPrice < dailyVWAP * (1 - threshold)) return "BEARISH"
+    return "NEUTRAL"
+  }
+  const vwapBias = getVWAPBias()
+
   return (
     <div className="space-y-3">
       {/* Multi-timeframe alignment badges - from canonical backend source */}
@@ -94,6 +120,36 @@ export function MTFBiasViewer({ signal }: MTFBiasViewerProps) {
         ))}
       </div>
 
+      {/* Daily VWAP Anchor Level */}
+      <div className="space-y-2">
+        <p className="text-xs text-slate-400 font-semibold">Daily Anchor Level</p>
+        {dailyVWAP && dailyVWAP > 0 ? (
+          <>
+            <Badge
+              className={`border font-mono text-sm px-3 py-2 flex items-center gap-2 w-full justify-center ${
+                vwapBias === "BULLISH" 
+                  ? "bg-green-950/50 text-green-200 border-green-700/50"
+                  : vwapBias === "BEARISH"
+                    ? "bg-red-950/50 text-red-200 border-red-700/50"
+                    : "bg-slate-800/50 text-slate-200 border-slate-700/50"
+              }`}
+            >
+              <span>VWAP</span>
+              <span className="font-bold">${dailyVWAP.toFixed(2)}</span>
+              <span>→</span>
+              <span className="font-bold">{vwapBias}</span>
+            </Badge>
+            <p className="text-xs text-slate-500 text-center">
+              Daily Anchor | Key Support/Resistance
+            </p>
+          </>
+        ) : (
+          <Badge className="bg-slate-900/50 border-slate-700/50 text-slate-400 w-full text-center">
+            —N/A
+          </Badge>
+        )}
+      </div>
+
       {/* Market regime badge */}
       <Badge
         className={`${getTrendColor()} border font-mono text-sm px-3 py-2 flex items-center gap-2 w-full justify-center`}
@@ -106,7 +162,7 @@ export function MTFBiasViewer({ signal }: MTFBiasViewerProps) {
       <div className="text-xs text-slate-400 p-2 bg-slate-900/30 rounded border border-slate-700/30 flex gap-2">
         <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
         <span>
-          <strong>Bias requires confirmed EMA structure:</strong> Bias requires close {">"} EMA20 {">"} EMA50 with RSI alignment. Strong momentum or volatility may exist without clear structural bias. See higher-timeframe trend direction for context.
+          <strong>Bias requires confirmed EMA structure:</strong> Bias requires close {">"} EMA20 {">"} EMA50 with RSI alignment. VWAP anchors daily support/resistance. Strong momentum or volatility may exist without clear structural bias.
         </span>
       </div>
     </div>

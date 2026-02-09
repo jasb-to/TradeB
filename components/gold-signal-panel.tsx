@@ -99,24 +99,33 @@ export function GoldSignalPanel({ signal, loading, onManualExit }: GoldSignalPan
                   <div className="bg-slate-900/40 rounded p-3">
                     <p className="text-slate-500 text-xs mb-1">Entry</p>
                     <p className="text-lg font-bold text-blue-300">${signal.entryPrice.toFixed(2)}</p>
+                    <p className="text-xs text-slate-400 mt-1">Now Active</p>
                   </div>
                 )}
                 {signal.stopLoss && (
                   <div className="bg-slate-900/40 rounded p-3">
                     <p className="text-slate-500 text-xs mb-1">Stop Loss</p>
                     <p className="text-lg font-bold text-red-400">${signal.stopLoss.toFixed(2)}</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      {signal.entryPrice ? 
+                        ((Math.abs(Number(signal.entryPrice) - Number(signal.stopLoss)) / Number(signal.entryPrice)) * 100).toFixed(2) 
+                        : "—"
+                      }% risk
+                    </p>
                   </div>
                 )}
                 {signal.takeProfit1 && (
                   <div className="bg-slate-900/40 rounded p-3">
                     <p className="text-slate-500 text-xs mb-1">TP 1</p>
                     <p className="text-lg font-bold text-green-300">${signal.takeProfit1.toFixed(2)}</p>
+                    <p className="text-xs text-slate-400 mt-1">1R (Exit 50%)</p>
                   </div>
                 )}
                 {signal.takeProfit2 && (
                   <div className="bg-slate-900/40 rounded p-3">
                     <p className="text-slate-500 text-xs mb-1">TP 2</p>
                     <p className="text-lg font-bold text-green-400">${signal.takeProfit2.toFixed(2)}</p>
+                    <p className="text-xs text-slate-400 mt-1">{signal.setupQuality === "A+" ? "2R" : "1.5R"} (Trail)</p>
                   </div>
                 )}
               </div>

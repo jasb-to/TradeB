@@ -137,20 +137,40 @@ export async function GET() {
       // STRICT: Pass full structured object, NEVER fallback to 50
       const stochRSIResult = TechnicalAnalysis.calculateStochasticRSI(normalizedCandles, 14, 3)
       
-      // Calculate VWAP from normalized candles
-      const vwapResult = normalizedCandles && normalizedCandles.length > 0
-        ? TechnicalAnalysis.calculateVWAP(normalizedCandles)
+      // Calculate VWAP from DAILY candles as anchor level (not 1H)
+      // Daily VWAP represents key support/resistance for the current day
+      const dailyCandlesNormalized = dataDaily.candles?.map((c: any) => ({
+        open: c.bid?.o || 0,
+        high: c.bid?.h || 0,
+        low: c.bid?.l || 0,
+        close: c.bid?.c || 0,
+        volume: c.volume || 1,
+        time: c.time,
+        timestamp: c.time || Date.now(),
+      })) || []
+      
+      console.log(`[v0] Daily candles normalized: ${dailyCandlesNormalized.length} candles, first=${dailyCandlesNormalized[0]?.close || 'NONE'}, last=${dailyCandlesNormalized[dailyCandlesNormalized.length - 1]?.close || 'NONE'}`)
+      
+      const vwapResultDaily = dailyCandlesNormalized && dailyCandlesNormalized.length > 0
+        ? TechnicalAnalysis.calculateVWAP(dailyCandlesNormalized)
         : { value: 0, bias: "FLAT" }
-      const vwapValue = typeof vwapResult === "object" ? vwapResult.value : vwapResult
+      const vwapValueDaily = typeof vwapResultDaily === "object" ? vwapResultDaily.value : vwapResultDaily
+      
+      console.log(`[v0] XAU Daily VWAP Calculated: ${typeof vwapValueDaily === 'number' ? vwapValueDaily.toFixed(2) : 'INVALID'} from ${dailyCandlesNormalized.length} daily candles, closePrice=${closePrice}, fallback=${closePrice || 0}`)
 
       // Build indicators object - stochRSI is full structured object (value + state)
       // SAFETY: Ensure all indicators have numeric values (never undefined)
+      // VWAP: Use daily VWAP if calculated, else use current price as fallback anchor
+      const finalVWAPValue = typeof vwapValueDaily === "number" && vwapValueDaily > 0 
+        ? vwapValueDaily 
+        : (typeof closePrice === "number" && closePrice > 0 ? closePrice : 0)
+      
       const indicators = {
         adx: typeof adxValue === "number" ? adxValue : 0,
         atr: typeof atrValue === "number" ? atrValue : 0,
         rsi: typeof rsiValue === "number" ? rsiValue : 50,
         stochRSI: stochRSIResult, // FULL OBJECT: { value: number | null, state: string }
-        vwap: vwapValue > 0 ? vwapValue : (closePrice || 0),
+        vwap: finalVWAPValue,
         ema20: 0,
         ema50: 0,
         ema200: 0,
@@ -426,6 +446,36 @@ export async function GET() {
       } else if (!entryDecision.allowed) {
         console.log(`[v0] ALERT BLOCKED for ${symbol} by entryDecision: ${entryDecision.blockedReasons.join(" | ")}`)
       }
+
+      // VALIDATION: Ensure response completeness before sending
+      const validateSignalResponse = () => {
+        const validations = {
+          hasIndicators: !!enhancedSignal.indicators,
+          hasVWAP: enhancedSignal.indicators?.vwap !== undefined && enhancedSignal.indicators?.vwap !== null,
+          hasStochRSI: !!enhancedSignal.indicators?.stochRSI,
+          stochRSIHasState: (enhancedSignal.indicators?.stochRSI as any)?.state !== undefined,
+          hasEntryDecision: !!enhancedSignal.entryDecision,
+          hasCriteria: (enhancedSignal.entryDecision?.criteria?.length || 0) === 7,
+          hasLastCandle: !!enhancedSignal.lastCandle,
+          tierValid: ["A+", "A", "B", "NO_TRADE"].includes(enhancedSignal.entryDecision?.tier || ""),
+          scoreValid: enhancedSignal.entryDecision?.score >= 0 && enhancedSignal.entryDecision?.score <= 9,
+        };
+
+        const allValid = Object.values(validations).every(v => v);
+
+        console.log(`[v0] Signal Response Validation: ${allValid ? "✓ PASS" : "✗ FAIL"}`, {
+          ...validations,
+          vwapValue: enhancedSignal.indicators?.vwap,
+          stochRSIState: (enhancedSignal.indicators?.stochRSI as any)?.state,
+          criteriaCount: enhancedSignal.entryDecision?.criteria?.length,
+          tier: enhancedSignal.entryDecision?.tier,
+          score: enhancedSignal.entryDecision?.score,
+        });
+
+        return allValid;
+      };
+
+      validateSignalResponse();
 
       return NextResponse.json({
         success: true,
