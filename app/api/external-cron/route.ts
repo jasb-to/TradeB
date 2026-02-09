@@ -5,8 +5,6 @@ import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
 import { MarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
 import { NearMissTracker } from "@/lib/near-miss-tracker"
-import { BTradeEvaluator } from "@/lib/b-trade-evaluator"
-import { BTradeTracker } from "@/lib/b-trade-tracker"
 import { CronHeartbeat } from "@/lib/cron-heartbeat"
 
 // Dynamically import TelegramNotifier to handle potential import failures
@@ -169,15 +167,6 @@ export async function GET(request: NextRequest) {
             }
             NearMissTracker.recordNearMiss(signal, entryDecision, 6.0, indicatorsSnapshot)
             console.log(`[v0] CRON-JOB: Near-miss recorded for ${symbol}`)
-          }
-
-          // B-TRADE EVALUATION (Diagnostic Only)
-          if (!entryDecision.allowed) {
-            const bEvaluation = BTradeEvaluator.evaluateBSetup(signal, entryDecision)
-            if (bEvaluation.isValid) {
-              BTradeTracker.recordBSetup(signal, bEvaluation, symbol)
-              console.log(`[v0] CRON-JOB: B_SETUP recorded for ${symbol} - ${bEvaluation.classification}`)
-            }
           }
         }
 
