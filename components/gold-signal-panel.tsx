@@ -15,15 +15,16 @@ interface GoldSignalPanelProps {
 
 export function GoldSignalPanel({ signal, loading, onManualExit }: GoldSignalPanelProps) {
   const [exiting, setExiting] = useState(false)
-  if (loading) {
-    return (
-      <Card className="bg-slate-900/40 border-slate-700/50 p-6">
-        <div className="text-center text-slate-400">Loading signal...</div>
-      </Card>
-    )
-  }
 
+  // Show signal as soon as we have one -- even if loading hasn't flipped to false yet
   if (!signal) {
+    if (loading) {
+      return (
+        <Card className="bg-slate-900/40 border-slate-700/50 p-6">
+          <div className="text-center text-slate-400">Loading signal...</div>
+        </Card>
+      )
+    }
     return (
       <Card className="bg-slate-900/40 border-slate-700/50 p-6">
         <div className="text-center text-slate-400">No signal available</div>

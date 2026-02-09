@@ -1,3 +1,4 @@
+// Trading Strategies - VWAP fix, tier unification, weight key alignment (Feb 2026)
 import type { Candle, Signal, TechnicalIndicators, TradingConfig, EntryDecision, EntryDecisionCriteria, TimeframeAlignment, AlignmentState } from "../types/trading"
 import { TechnicalAnalysis } from "./indicators"
 
@@ -87,7 +88,7 @@ export class TradingStrategies {
 
     // ENFORCE HTF POLARITY: Lock to HTF trend direction only
     if (htfPolarity.trend !== "NEUTRAL" && direction !== "NEUTRAL" && direction !== htfPolarity.trend) {
-      console.log(`[v0] ✗ COUNTER-TREND: HTF ${htfPolarity.trend} vs signal ${direction}`)
+      console.log(`[v0] COUNTER-TREND: HTF ${htfPolarity.trend} vs signal ${direction}`)
       return {
         type: "NO_TRADE",
         direction: "NONE",
@@ -96,6 +97,11 @@ export class TradingStrategies {
         counterTrendBlocked: true,
         htfTrend: htfPolarity.trend,
         timeframeAlignment: timeframeAlignment,
+        // Include lastCandle so VWAP bias and price display work in the UI
+        lastCandle: {
+          close: currentPrice,
+          timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
+        },
         reasons: [
           `Counter-trend entry blocked: HTF ${htfPolarity.trend}-only regime`,
           `(${htfPolarity.reason})`,
@@ -175,6 +181,10 @@ export class TradingStrategies {
           confidence: 0,
           htfTrend: "NEUTRAL",
           timeframeAlignment: timeframeAlignment,
+          lastCandle: {
+            close: currentPrice,
+            timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
+          },
           reasons: [`HTF neutral + B-tier gate failed: ${failReasons.join("; ")}`],
           timestamp: Date.now(),
           strategy: "BREAKOUT_CHANDELIER",
@@ -217,15 +227,19 @@ export class TradingStrategies {
         alertLevel: 0,
         confidence: 0,
         timeframeAlignment: timeframeAlignment,
+        lastCandle: {
+          close: currentPrice,
+          timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
+        },
         timestamp: Date.now(),
         strategy: "BREAKOUT_CHANDELIER",
         reasons: [`Daily/4H alignment required for entry, got ${biases.daily}/${biases["4h"]}`],
         indicators: {
-          adx: 0,
-          atr: 0,
-          rsi: 0,
-          stochRSI: 0,
-          vwap: 0,
+          adx: indicators1h.adx || 0,
+          atr: indicators1h.atr || 0,
+          rsi: indicators1h.rsi || 50,
+          stochRSI: indicators1h.stochRSI || 50,
+          vwap: indicators1h.vwap || 0,
           ema20: 0,
           ema50: 0,
           ema200: 0,
@@ -258,6 +272,10 @@ export class TradingStrategies {
         confidence: confidence,
         pendingReason: `Waiting for 5M/15M confirmation on ${direction} entry`,
         timeframeAlignment: timeframeAlignment,
+        lastCandle: {
+          close: currentPrice,
+          timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
+        },
         strategyRequirements: {
           dailyAligned: dailyAligned,
           htfAligned: htfAligned,
@@ -341,6 +359,14 @@ export class TradingStrategies {
         rsi: indicators1h.rsi,
         stochRSI: indicators1h.stochRSI,
         atr: atr1h,
+        vwap: indicators1h.vwap || 0,
+        ema20: indicators1h.ema20 || 0,
+        ema50: indicators1h.ema50 || 0,
+        ema200: indicators1h.ema200 || 0,
+      },
+      lastCandle: {
+        close: currentPrice,
+        timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
       },
       mtfBias: biases as any,
       timeframeAlignment: timeframeAlignment,
@@ -430,12 +456,14 @@ export class TradingStrategies {
   }
 
   private calculateWeightedAlignment(biases: Record<string, "LONG" | "SHORT" | "NEUTRAL">) {
-    const weights = {
+    // Keys MUST match the bias object keys: "daily", "8h", "4h", "1h", "15m", "5m"
+    const weights: Record<string, number> = {
       daily: 2,
-      h4: 2,
-      h1: 2,
-      m15: 1,
-      m5: 1,
+      "8h": 1.5,
+      "4h": 2,
+      "1h": 2,
+      "15m": 1,
+      "5m": 1,
     }
 
     let longScore = 0
@@ -684,12 +712,15 @@ export class TradingStrategies {
     })
     if (htfTrendMatch || tierBAllowance) score += 1
 
-    // Determine tier based on NEW score thresholds
-    // Tier B threshold raised to 4.5 for better quality filtering
+    // Use the signal's setupQuality (from determineSetupTier) as the single
+    // authoritative tier.  buildEntryDecision scores the checklist criteria
+    // but does NOT independently re-derive the tier -- that caused the A vs A+
+    // mismatch between Telegram alerts and the UI.
+    const signalTier = signal.setupQuality as "A+" | "A" | "B" | "STANDARD" | undefined
     let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
-    if (score >= 7) tier = "A+"
-    else if (score >= 6) tier = "A"
-    else if (score >= 4.5) tier = "B"
+    if (signalTier === "A+") tier = "A+"
+    else if (signalTier === "A") tier = "A"
+    else if (signalTier === "B") tier = "B"
 
     // Alert level based on tier
     let alertLevel: 0 | 1 | 2 | 3 = 0

@@ -137,7 +137,6 @@ export default function GoldTradingDashboard() {
       if (data.marketClosed) {
         setMarketClosed(true)
         setMarketMessage(data.marketStatus || "Market closed for weekend")
-        // Still update signal if cached data returned (Friday close snapshot)
         if (data.signal) {
           setSignalXAU(data.signal)
         }
@@ -155,6 +154,7 @@ export default function GoldTradingDashboard() {
       console.error("[v0] XAU polling error:", error)
     } finally {
       setRefreshing(false)
+      setLoading(false)
     }
   }
 

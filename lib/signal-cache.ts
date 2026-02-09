@@ -261,6 +261,16 @@ export const SignalCache = {
     }
   },
 
+  // Clear active trade when direction changes or TP2 is hit
+  clearActiveTrade: (symbol: string): void => {
+    const state = getAlertState(symbol)
+    if (state.activeTrade) {
+      console.log(`[v0] ${symbol} Active trade cleared (was ${state.activeTrade.direction} @ ${state.activeTrade.entryPrice})`)
+    }
+    state.activeTrade = null
+    state.activeTradeTime = 0
+  },
+
   // NEW: Store TP1/TP2 levels when entry alert sent
   storeTakeProfitLevels: (symbol: string, tp1: number, tp2: number): void => {
     const state = getAlertState(symbol)
@@ -431,7 +441,11 @@ export const SignalCache = {
     console.log(`[v0] Alert recorded for ${symbol}: hash=${hash} time=${new Date().toLocaleTimeString()}`)
   },
 
-  getAlertState: (symbol: string): AlertState => ({ ...getAlertState(symbol) }),
+  // CRITICAL FIX: Return the actual mutable reference, NOT a spread copy.
+  // The external-cron route mutates alertState.activeTrade directly — a spread
+  // copy meant those mutations were silently lost, breaking TP monitoring and
+  // direction-change detection.
+  getAlertState: (symbol: string): AlertState => getAlertState(symbol),
 
   getConsecutiveNoTrades: (symbol: string): number => getAlertState(symbol).consecutiveNoTrades,
 

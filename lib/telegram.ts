@@ -59,10 +59,14 @@ You will now receive:
     const emoji = signal.direction === "LONG" ? "📈" : signal.direction === "SHORT" ? "📉" : "⚪";
     const confidence = signal.confidence || 0;
     const confidenceBadge = confidence >= 80 ? "🟢" : confidence >= 70 ? "🟡" : "🔴";
-    const setupTier = signal.setupQuality === "A+" ? "🔥 A+ PREMIUM SETUP" : "⭐ A SETUP";
+    const setupTier = signal.setupQuality === "A+" ? "A+ PREMIUM SETUP" 
+      : signal.setupQuality === "A" ? "A SETUP"
+      : "B SETUP";
     const setupDescription = signal.setupQuality === "A+" 
       ? "(High confidence - ADX strong, perfect alignment)"
-      : "(Good setup - Solid trend confirmation)";
+      : signal.setupQuality === "A" 
+      ? "(Good setup - Solid trend confirmation)"
+      : "(Momentum trade - 1H/15M aligned, reduced position size)";
 
     const entryPrice = signal.entryPrice?.toFixed(2) || "N/A";
     const stopLoss = signal.stopLoss?.toFixed(2) || "N/A";
