@@ -455,12 +455,14 @@ export class TradingStrategies {
   }
 
   private calculateWeightedAlignment(biases: Record<string, "LONG" | "SHORT" | "NEUTRAL">) {
-    const weights = {
+    // Keys MUST match the bias object keys: "daily", "8h", "4h", "1h", "15m", "5m"
+    const weights: Record<string, number> = {
       daily: 2,
-      h4: 2,
-      h1: 2,
-      m15: 1,
-      m5: 1,
+      "8h": 1.5,
+      "4h": 2,
+      "1h": 2,
+      "15m": 1,
+      "5m": 1,
     }
 
     let longScore = 0
@@ -709,12 +711,15 @@ export class TradingStrategies {
     })
     if (htfTrendMatch || tierBAllowance) score += 1
 
-    // Determine tier based on NEW score thresholds
-    // Tier B threshold raised to 4.5 for better quality filtering
+    // Use the signal's setupQuality (from determineSetupTier) as the single
+    // authoritative tier.  buildEntryDecision scores the checklist criteria
+    // but does NOT independently re-derive the tier -- that caused the A vs A+
+    // mismatch between Telegram alerts and the UI.
+    const signalTier = signal.setupQuality as "A+" | "A" | "B" | "STANDARD" | undefined
     let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
-    if (score >= 7) tier = "A+"
-    else if (score >= 6) tier = "A"
-    else if (score >= 4.5) tier = "B"
+    if (signalTier === "A+") tier = "A+"
+    else if (signalTier === "A") tier = "A"
+    else if (signalTier === "B") tier = "B"
 
     // Alert level based on tier
     let alertLevel: 0 | 1 | 2 | 3 = 0
