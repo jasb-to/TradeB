@@ -137,11 +137,24 @@ export async function GET() {
       // STRICT: Pass full structured object, NEVER fallback to 50
       const stochRSIResult = TechnicalAnalysis.calculateStochasticRSI(normalizedCandles, 14, 3)
       
-      // Calculate VWAP from normalized candles
-      const vwapResult = normalizedCandles && normalizedCandles.length > 0
-        ? TechnicalAnalysis.calculateVWAP(normalizedCandles)
+      // Calculate VWAP from DAILY candles as anchor level (not 1H)
+      // Daily VWAP represents key support/resistance for the current day
+      const dailyCandlesNormalized = dataDaily.candles?.map((c: any) => ({
+        open: c.bid?.o || 0,
+        high: c.bid?.h || 0,
+        low: c.bid?.l || 0,
+        close: c.bid?.c || 0,
+        volume: c.volume || 1,
+        time: c.time,
+        timestamp: c.time || Date.now(),
+      })) || []
+      
+      const vwapResultDaily = dailyCandlesNormalized && dailyCandlesNormalized.length > 0
+        ? TechnicalAnalysis.calculateVWAP(dailyCandlesNormalized)
         : { value: 0, bias: "FLAT" }
-      const vwapValue = typeof vwapResult === "object" ? vwapResult.value : vwapResult
+      const vwapValueDaily = typeof vwapResultDaily === "object" ? vwapResultDaily.value : vwapResultDaily
+      
+      console.log(`[v0] XAU Daily VWAP Calculated: ${vwapValueDaily.toFixed(2)} from ${dailyCandlesNormalized.length} daily candles`)
 
       // Build indicators object - stochRSI is full structured object (value + state)
       // SAFETY: Ensure all indicators have numeric values (never undefined)
@@ -150,7 +163,7 @@ export async function GET() {
         atr: typeof atrValue === "number" ? atrValue : 0,
         rsi: typeof rsiValue === "number" ? rsiValue : 50,
         stochRSI: stochRSIResult, // FULL OBJECT: { value: number | null, state: string }
-        vwap: vwapValue > 0 ? vwapValue : (closePrice || 0),
+        vwap: vwapValueDaily > 0 ? vwapValueDaily : (closePrice || 0),
         ema20: 0,
         ema50: 0,
         ema200: 0,

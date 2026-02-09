@@ -79,7 +79,7 @@ export function MTFBiasViewer({ signal }: MTFBiasViewerProps) {
   }
 
   // Get VWAP bias from indicators (use daily VWAP for anchor level)
-  // VWAP comes from 1H indicators but represents daily anchor
+  // VWAP comes from daily candles and represents key daily support/resistance
   const dailyVWAP = signal?.indicators?.vwap ?? 0
   const currentPrice = signal?.lastCandle?.close ?? 0
   
