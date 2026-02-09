@@ -1,6 +1,9 @@
 // Trading Strategies - VWAP fix, tier unification, weight key alignment (Feb 2026)
 import type { Candle, Signal, TechnicalIndicators, TradingConfig, EntryDecision, EntryDecisionCriteria, TimeframeAlignment, AlignmentState } from "../types/trading"
 import { TechnicalAnalysis } from "./indicators"
+import { FEATURE_FLAGS } from "./default-config"
+import { ExitSignalManager } from "./exit-signal-manager"
+import { EarlyReversalWarningSystem } from "./early-reversal-warning"
 
 interface ChopAnalysis {
   isChoppy: boolean
@@ -257,9 +260,27 @@ export class TradingStrategies {
     }
 
     let confidence = 0
+    
+    // B-TIER REJECTION (Feature Flag)
+    if (setupTier === "B" && !FEATURE_FLAGS.ENABLE_B_TIER) {
+      console.log(`[v0] B-tier trade rejected (ENABLE_B_TIER=${FEATURE_FLAGS.ENABLE_B_TIER})`)
+      return {
+        type: "NO_TRADE",
+        direction: "NONE",
+        alertLevel: 0,
+        confidence: 0,
+        reasons: ["B-tier trades disabled - only A/A+ allowed"],
+        timeframeAlignment: timeframeAlignment,
+        lastCandle: {
+          close: currentPrice,
+          timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
+        },
+      }
+    }
+    
     if (adx1h >= 25) confidence = setupTier === "A+" ? 95 : 85
     else if (adx1h >= 20) confidence = setupTier === "A+" ? 75 : 70
-    else if (setupTier === "B") confidence = 65 // Changed from 45 to 65-75 range
+    else if (setupTier === "B") confidence = 65 // B-tier (if enabled)
     else confidence = setupTier === "A+" ? 50 : 45
 
     const ltfConfirm = direction !== "NEUTRAL" ? this.checkLTFConfirmation(data5m, data15m, indicators5m, indicators15m, direction) : false
@@ -882,168 +903,48 @@ export class TradingStrategies {
   }
 
   /**
-   * Evaluate if an active trade should be exited based on current market conditions
-   * Uses ExitSignalManager logic to check for TP1/TP2 hits and trend reversals
+   * Evaluate if an active trade should exit (HARD STOPS ONLY)
+   * 
+   * Only automatic exits:
+   * - Stop Loss hit
+   * - Take Profit 1 hit
+   * - Take Profit 2 hit
+   * 
+   * All other logic is advisory-only via EarlyReversalWarningSystem
    */
   public async evaluateExitForTrade(trade: any, candles1h: Candle[], candles15m: Candle[], candles5m: Candle[]): Promise<Signal | null> {
-    // Get current price from latest 1H candle
     const currentPrice = candles1h[candles1h.length - 1]?.close || 0
+    
+    // Use simplified ExitSignalManager for hard stops only
+    return ExitSignalManager.checkForExit(trade, currentPrice)
+  }
 
-    // Check for SL breach - ALWAYS PRIORITY
-    if (trade.direction === "LONG" && currentPrice <= trade.stopLoss) {
-      return {
-        type: "EXIT",
-        direction: "NONE",
-        alertLevel: 3,
-        confidence: 100,
-        timestamp: Date.now(),
-        reasons: [`STOP LOSS BREACHED: Price ${currentPrice.toFixed(2)} <= SL ${trade.stopLoss.toFixed(2)}`],
-        indicators: {},
-      }
+  /**
+   * Evaluate reversal warnings (ADVISORY ONLY)
+   * Non-blocking alerts when 2+ reversal conditions detected
+   * Will only trigger once per trade (must reset on SL/TP hit)
+   */
+  public async evaluateReversalWarning(
+    trade: any,
+    candles1h: Candle[],
+    candles15m: Candle[],
+    symbol: string,
+    initialADX: number
+  ): Promise<any | null> {
+    const currentPrice = candles1h[candles1h.length - 1]?.close || 0
+    
+    // Check if already warned for this trade
+    if (trade.earlyReversalWarned) {
+      return null
     }
 
-    if (trade.direction === "SHORT" && currentPrice >= trade.stopLoss) {
-      return {
-        type: "EXIT",
-        direction: "NONE",
-        alertLevel: 3,
-        confidence: 100,
-        timestamp: Date.now(),
-        reasons: [`STOP LOSS BREACHED: Price ${currentPrice.toFixed(2)} >= SL ${trade.stopLoss.toFixed(2)}`],
-        indicators: {},
-      }
-    }
-
-    // Check for TP2 hit
-    if (trade.direction === "LONG" && currentPrice >= trade.takeProfit2) {
-      return {
-        type: "EXIT",
-        direction: "NONE",
-        alertLevel: 2,
-        confidence: 100,
-        timestamp: Date.now(),
-        reasons: [`TAKE PROFIT 2 REACHED: Price ${currentPrice.toFixed(2)} >= TP2 ${trade.takeProfit2.toFixed(2)}`],
-        indicators: {},
-      }
-    }
-
-    if (trade.direction === "SHORT" && currentPrice <= trade.takeProfit2) {
-      return {
-        type: "EXIT",
-        direction: "NONE",
-        alertLevel: 2,
-        confidence: 100,
-        timestamp: Date.now(),
-        reasons: [`TAKE PROFIT 2 REACHED: Price ${currentPrice.toFixed(2)} <= TP2 ${trade.takeProfit2.toFixed(2)}`],
-        indicators: {},
-      }
-    }
-
-    // Check for TP1 hit
-    if (trade.direction === "LONG" && currentPrice >= trade.takeProfit1 && !trade.tp1Hit) {
-      return {
-        type: "EXIT",
-        direction: "NONE",
-        alertLevel: 1,
-        confidence: 95,
-        timestamp: Date.now(),
-        reasons: [`TAKE PROFIT 1 REACHED: Price ${currentPrice.toFixed(2)} >= TP1 ${trade.takeProfit1.toFixed(2)}`],
-        indicators: {},
-      }
-    }
-
-    if (trade.direction === "SHORT" && currentPrice <= trade.takeProfit1 && !trade.tp1Hit) {
-      return {
-        type: "EXIT",
-        direction: "NONE",
-        alertLevel: 1,
-        confidence: 95,
-        timestamp: Date.now(),
-        reasons: [`TAKE PROFIT 1 REACHED: Price ${currentPrice.toFixed(2)} <= TP1 ${trade.takeProfit1.toFixed(2)}`],
-        indicators: {},
-      }
-    }
-
-    // Check for trend reversal on 1H timeframe with AGGRESSIVE profit-locking
-    // For A/A+ tier trades: lock in ANY profit above entry to avoid losses
-    const indicators1h = TechnicalAnalysis.calculateAllIndicators(candles1h)
-    const bias1h = this.determineBias(candles1h, indicators1h)
-
-    // LONG positions: exit when profitable AND bias turns bearish
-    if (trade.direction === "LONG" && currentPrice > trade.entryPrice) {
-      const profitPercent = ((currentPrice - trade.entryPrice) / trade.entryPrice) * 100
-      
-      // Aggressive: Any profit + trend reversal = exit signal
-      if (bias1h === "BEARISH" && profitPercent > 0) {
-        return {
-          type: "EXIT",
-          direction: "NONE",
-          alertLevel: 2,
-          confidence: 85,
-          timestamp: Date.now(),
-          reasons: [
-            `LOCK IN GAINS: Market bias shifted to BEARISH`,
-            `Current profit: ${profitPercent.toFixed(2)}% - Exit before reversal accelerates`,
-          ],
-          indicators: {},
-        }
-      }
-
-      // EXTRA AGGRESSIVE: If profit > 0.5% AND any sign of weakness, exit
-      if (profitPercent >= 0.5 && (bias1h === "BEARISH" || bias1h === "NEUTRAL")) {
-        return {
-          type: "EXIT",
-          direction: "NONE",
-          alertLevel: 1,
-          confidence: 75,
-          timestamp: Date.now(),
-          reasons: [
-            `SECURE PROFITS: ${profitPercent.toFixed(2)}% gain with weakening momentum`,
-            `Bias: ${bias1h} - Take profit and avoid risk`,
-          ],
-          indicators: {},
-        }
-      }
-    }
-
-    // SHORT positions: exit when profitable AND bias turns bullish
-    if (trade.direction === "SHORT" && currentPrice < trade.entryPrice) {
-      const profitPercent = ((trade.entryPrice - currentPrice) / trade.entryPrice) * 100
-      
-      // Aggressive: Any profit + trend reversal = exit signal
-      if (bias1h === "BULLISH" && profitPercent > 0) {
-        return {
-          type: "EXIT",
-          direction: "NONE",
-          alertLevel: 2,
-          confidence: 85,
-          timestamp: Date.now(),
-          reasons: [
-            `LOCK IN GAINS: Market bias shifted to BULLISH`,
-            `Current profit: ${profitPercent.toFixed(2)}% - Exit before reversal accelerates`,
-          ],
-          indicators: {},
-        }
-      }
-
-      // EXTRA AGGRESSIVE: If profit > 0.5% AND any sign of weakness, exit
-      if (profitPercent >= 0.5 && (bias1h === "BULLISH" || bias1h === "NEUTRAL")) {
-        return {
-          type: "EXIT",
-          direction: "NONE",
-          alertLevel: 1,
-          confidence: 75,
-          timestamp: Date.now(),
-          reasons: [
-            `SECURE PROFITS: ${profitPercent.toFixed(2)}% gain with weakening momentum`,
-            `Bias: ${bias1h} - Take profit and avoid risk`,
-          ],
-          indicators: {},
-        }
-      }
-    }
-
-    // No exit signal
-    return null
+    return EarlyReversalWarningSystem.evaluateReversalRisk(
+      trade,
+      currentPrice,
+      candles1h,
+      candles15m,
+      initialADX,
+      symbol
+    )
   }
 }

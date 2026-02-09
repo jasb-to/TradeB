@@ -1,6 +1,7 @@
 import type { Signal, ActiveTrade } from "@/types/trading"
 import type { Candle } from "@/lib/technical-analysis"
 import { TechnicalAnalysis } from "@/lib/technical-analysis"
+import { FEATURE_FLAGS, DEFAULT_TRADING_CONFIG } from "./default-config"
 
 export interface EarlyReversalWarning {
   tradeId: string
@@ -14,14 +15,22 @@ export interface EarlyReversalWarning {
 }
 
 /**
- * Early Reversal Warning System
- * Monitors active trades for 2+ reversal risk indicators
- * Purely advisory - does NOT auto-close trades or modify SL
+ * Early Reversal Warning System (ADVISORY ONLY)
+ * 
+ * RULES:
+ * - One warning per trade maximum
+ * - Never auto-closes trades
+ * - Never modifies stop losses
+ * - Purely informational for manual risk management
+ * - Requires 2+ reversal conditions to trigger
  */
 export const EarlyReversalWarningSystem = {
   /**
    * Evaluate if an active trade should trigger early reversal warning
    * Requires 2 or more conditions to trigger
+   * 
+   * WARNING: Check earlyReversalWarned flag BEFORE calling this
+   * Only alert once per trade
    */
   evaluateReversalRisk: (
     trade: ActiveTrade,
@@ -31,6 +40,11 @@ export const EarlyReversalWarningSystem = {
     initialADX: number,
     symbol: string
   ): EarlyReversalWarning | null => {
+    // FEATURE FLAG: Disable all reversal warnings if turned off
+    if (!FEATURE_FLAGS.ENABLE_REVERSAL_WARNINGS) {
+      return null
+    }
+
     const triggeredConditions: string[] = []
 
     // CONDITION 1: 1H Bias Weakening (LONG/SHORT → NEUTRAL)
@@ -63,16 +77,23 @@ export const EarlyReversalWarningSystem = {
       }
 
       // CONDITION 4: Chandelier Exit Threat (price within 0.25 × ATR of chandelier level)
-      const atr1h = indicators1h.atr || 0
-      const chandelierStop = TechnicalAnalysis.calculateChandelierStop(candles1h, 22, 3)
-      const chandelierTP = trade.direction === "LONG" ? chandelierStop.long : chandelierStop.short
-      const distanceToChandelier = Math.abs(chandelierTP - currentPrice)
-      const chandelierWarningZone = atr1h * 0.25
+      // Tuned per asset for Gold vs Silver
+      if (FEATURE_FLAGS.ENABLE_CHANDELIER_EXIT) {
+        const atr1h = indicators1h.atr || 0
+        const chandelierSettings = DEFAULT_TRADING_CONFIG.chandelierSettings?.[symbol as "XAU_USD" | "XAG_USD"]
+        const period = chandelierSettings?.period || 22
+        const multiplier = chandelierSettings?.multiplier || 3.0
 
-      if (distanceToChandelier <= chandelierWarningZone) {
-        triggeredConditions.push(
-          `Chandelier Exit Threatened (${(distanceToChandelier / atr1h).toFixed(2)}x ATR away)`
-        )
+        const chandelierStop = TechnicalAnalysis.calculateChandelierStop(candles1h, period, multiplier)
+        const chandelierTP = trade.direction === "LONG" ? chandelierStop.long : chandelierStop.short
+        const distanceToChandelier = Math.abs(chandelierTP - currentPrice)
+        const chandelierWarningZone = atr1h * 0.25
+
+        if (distanceToChandelier <= chandelierWarningZone) {
+          triggeredConditions.push(
+            `Chandelier Exit Threatened (${(distanceToChandelier / atr1h).toFixed(2)}x ATR away, ${chandelierSettings?.description})`
+          )
+        }
       }
     }
 
@@ -117,6 +138,7 @@ export const EarlyReversalWarningSystem = {
 
   /**
    * Generate alert message for Telegram
+   * Includes note that this is advisory only
    */
   formatAlertMessage: (warning: EarlyReversalWarning): string => {
     const emoji = warning.direction === "LONG" ? "🔼" : "🔽"
@@ -129,7 +151,7 @@ export const EarlyReversalWarningSystem = {
       `P&L: ${pnlPercent}%\n\n` +
       `Reversal Risk Factors (${warning.conditionCount} triggered):\n` +
       warning.triggeredConditions.map((c) => `• ${c}`).join("\n") +
-      `\n\n⚠️ This is a WARNING, not an exit.\n` +
-      `Manage risk manually or set additional stops.`
+      `\n\n⚠️ ADVISORY ONLY - No automatic action taken\n` +
+      `Hard stops (SL/TP) still active. Manage manually as needed.`
   },
 }
