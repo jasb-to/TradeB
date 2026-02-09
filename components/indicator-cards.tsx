@@ -32,17 +32,20 @@ export function IndicatorCards({ signal }: IndicatorCardsProps) {
     ? stochRsiRaw as { value: number | null; state: string }
     : { value: typeof stochRsiRaw === "number" ? stochRsiRaw : null, state: "CALCULATING" }
 
-  // RELAXED: Only critical indicators that are BOTH zero indicate real error
-  // If either ADX or ATR has value, we have valid data from calculation
-  // Zero values can occur legitimately during market transitions (scale-dependent)
-  const hasErrors = adx === 0 && atr === 0
+  // VALIDATION: Check if we have valid indicator calculations
+  // We only consider it an error if BOTH are missing AND signal has no candle data
+  // Zero values CAN occur legitimately during market transitions (especially ATR at intraday levels)
+  const hasCandles = signal?.lastCandle?.close !== undefined && signal?.lastCandle?.close !== 0
+  const hasValidAdx = adx > 0 || adx >= 0 // ADX can be calculated even if small
+  const hasValidAtr = atr > 0 || atr >= 0 // ATR can be calculated even if small
+  const indicatorsNotCalculated = adx === 0 && atr === 0 && !hasCandles
 
-  if (hasErrors) {
+  if (indicatorsNotCalculated) {
     return (
       <Alert className="bg-red-950/30 border-red-700/50">
         <AlertCircle className="h-4 w-4" />
         <AlertDescription className="text-red-200">
-          DATA ERROR: Critical indicators missing. ADX={adx.toFixed(1)}, ATR={atr.toFixed(2)}
+          DATA ERROR: Indicators not yet calculated. ADX={adx.toFixed(1)}, ATR={atr.toFixed(2)}
         </AlertDescription>
       </Alert>
     )
