@@ -130,22 +130,44 @@ export class TradingStrategies {
       direction = htfPolarity.trend as "LONG" | "SHORT"
     }
 
-    // TIER B: Allow NEUTRAL HTF if momentum + VWAP support the direction
-    // This enables continuation/momentum trades when HTFs are mixed
+    // ── TIER B GATE ──────────────────────────────────────────────────────
+    // B-tier allows HTF NEUTRAL because Daily+4H structural divergence is
+    // common during momentum phases; the trade is driven by 1H+15M alignment
+    // instead. Reduced position sizing (50-60%) compensates for the weaker
+    // HTF backing. Counter-trend is still hard-blocked above (line 89-126).
+    //
+    // Rules (Gold & Silver identical):
+    //   1. 1H + 15M must align in the same direction
+    //   2. Daily must NOT oppose the direction (NEUTRAL is acceptable)
+    //   3. ADX >= 15 (lowered from 18 to capture valid momentum earlier)
+    //   4. VWAP must support direction on 1H
     if (htfPolarity.trend === "NEUTRAL" && direction !== "NEUTRAL") {
       const price1h = data1h[data1h.length - 1]?.close || 0
       const vwap1h = indicators1h.vwap || 0
-      const rsi1h = indicators1h.rsi || 50
-      
-      // Check if price and momentum support the direction
+
+      // B-tier primary alignment: 1H + 15M must agree on direction
+      const h1Aligned = biases["1h"] === direction
+      const m15Aligned = biases["15m"] === direction
+      const ltfAlignment = h1Aligned && m15Aligned
+
+      // B-tier HTF constraint: Daily must NOT oppose (NEUTRAL is fine)
+      const dailyNotOpposing = biases.daily === "NEUTRAL" || biases.daily === direction
+
+      // B-tier ADX floor: 15 (lowered from 18 for both Gold & Silver)
+      const adxMinimum = adx1h >= 15
+
+      // VWAP directional support on 1H
       const vwapSupport = (direction === "LONG" && price1h > vwap1h) || (direction === "SHORT" && price1h < vwap1h)
-      const rsiSupport = (direction === "LONG" && rsi1h > 50) || (direction === "SHORT" && rsi1h < 50)
-      const adxMinimum = adx1h >= 18 // Minimum momentum requirement
-      
-      if (vwapSupport && rsiSupport && adxMinimum) {
-        console.log(`[v0] TIER B: HTF neutral + momentum confirms ${direction}`)
+
+      if (ltfAlignment && dailyNotOpposing && adxMinimum && vwapSupport) {
+        console.log(`[v0] TIER B PASS: HTF neutral + 1H/15M aligned ${direction} | Daily=${biases.daily} ADX=${adx1h.toFixed(1)} VWAP=${vwapSupport ? "OK" : "FAIL"}`)
       } else {
-        console.log(`[v0] ✗ HTF neutral + weak momentum`)
+        const failReasons: string[] = []
+        if (!ltfAlignment) failReasons.push(`1H+15M not aligned (1H=${biases["1h"]}, 15M=${biases["15m"]})`)
+        if (!dailyNotOpposing) failReasons.push(`Daily opposes (${biases.daily} vs ${direction})`)
+        if (!adxMinimum) failReasons.push(`ADX ${adx1h.toFixed(1)} < 15`)
+        if (!vwapSupport) failReasons.push("VWAP not supporting direction")
+        console.log(`[v0] TIER B FAIL: ${failReasons.join(" | ")}`)
         return {
           type: "NO_TRADE",
           direction: "NONE",
@@ -153,7 +175,7 @@ export class TradingStrategies {
           confidence: 0,
           htfTrend: "NEUTRAL",
           timeframeAlignment: timeframeAlignment,
-          reasons: ["HTF neutral + insufficient momentum for Tier B entry"],
+          reasons: [`HTF neutral + B-tier gate failed: ${failReasons.join("; ")}`],
           timestamp: Date.now(),
           strategy: "BREAKOUT_CHANDELIER",
           indicators: {
@@ -179,7 +201,7 @@ export class TradingStrategies {
       }
     }
 
-    const setupTier = this.determineSetupTier(alignmentScore, adx1h, biases.daily, biases["4h"], biases["1h"])
+    const setupTier = this.determineSetupTier(alignmentScore, adx1h, biases.daily, biases["4h"], biases["1h"], biases["15m"])
 
     const dailyAligned = biases.daily === direction
     const h4Aligned = biases["4h"] === direction
@@ -437,34 +459,40 @@ export class TradingStrategies {
     dailyBias: string,
     h4Bias: string,
     h1Bias: string,
+    m15Bias?: string,
   ): "A+" | "A" | "B" | null {
     const allAligned = dailyBias === h4Bias && h4Bias === h1Bias && dailyBias !== "NEUTRAL"
 
     // Check if this is Silver (more volatile) vs Gold
     const isSilver = this.isSilverSymbol()
 
+    // ── A+ / A tiers: UNCHANGED ─────────────────────────────────────────
     // Silver-specific thresholds (more lenient due to higher volatility)
     if (isSilver) {
-      // A+ Setup: Perfect alignment + strong ADX (Silver: lower thresholds)
       if (score >= 7.5 && adx >= 21 && allAligned) return "A+"
-
-      // A Setup: Good alignment + moderate ADX (Silver: lower thresholds)
       if (score >= 5.5 && adx >= 17 && allAligned) return "A"
-
-      // B Setup: 1H momentum + minimum ADX (Silver: lower ADX requirement)
-      if (score >= 4 && adx >= 16 && h1Bias !== "NEUTRAL") return "B"
     } else {
-      // Gold-specific thresholds (original stricter requirements)
-      // A+ Setup: Perfect alignment + strong ADX (loosened by 1%)
+      // Gold-specific thresholds
       if (score >= 7.5 && adx >= 23.5 && allAligned) return "A+"
-
-      // A Setup: Good alignment + moderate ADX (loosened by 1%)
       if (score >= 5.5 && adx >= 19 && allAligned) return "A"
-
-      // B Setup: 1H momentum + minimum ADX (NO HTF alignment required)
-      // Daily/4H can be neutral or mixed - 1H drives the trade
-      if (score >= 4 && adx >= 18 && h1Bias !== "NEUTRAL") return "B"
     }
+
+    // ── B tier: UPDATED (Gold & Silver unified) ─────────────────────────
+    // B-tier is driven by 1H+15M alignment, NOT full HTF consensus.
+    // This allows more frequent signals during momentum phases while
+    // preserving safety via reduced position sizing (50-60%).
+    //
+    // Requirements:
+    //   - 1H bias must match trade direction (not NEUTRAL)
+    //   - 15M bias must match trade direction (alignment confirmation)
+    //   - ADX >= 15 (lowered from 18/16 to capture valid momentum earlier)
+    //   - Daily must NOT oppose (checked upstream in B-tier gate)
+    //   - Minimum weighted score >= 4
+    const h1Active = h1Bias !== "NEUTRAL"
+    const m15Active = m15Bias !== undefined && m15Bias !== "NEUTRAL"
+    const ltfAligned = h1Active && m15Active && h1Bias === m15Bias
+
+    if (score >= 4 && adx >= 15 && ltfAligned) return "B"
 
     return null
   }
@@ -581,19 +609,21 @@ export class TradingStrategies {
     })
     if (h1Aligned) score += 1 // Non-blocking confirmation bonus
 
-    // Criterion 4: ADX strength gate (loosened for Tier B)
+    // Criterion 4: ADX strength gate
+    // B-tier ADX lowered to 15 (from 18) to allow valid momentum trades
+    // when 1H+15M are aligned. A/A+ thresholds are UNCHANGED.
     const adx = signal.indicators?.adx || 0
-    let adxThreshold = 18 // Default Tier B minimum
+    let adxThreshold = 15 // Default / Tier B minimum (lowered from 18)
     const setupQuality = signal.setupQuality || "STANDARD"
     if (setupQuality === "A+") adxThreshold = isGold ? 23.5 : 21
     else if (setupQuality === "A") adxThreshold = isGold ? 19 : 17
-    else if (setupQuality === "B") adxThreshold = 18
+    else if (setupQuality === "B") adxThreshold = 15
     const adxPassed = adx >= adxThreshold
     criteria.push({
       key: "adx_strength",
       label: `ADX ≥ ${adxThreshold.toFixed(1)} (${setupQuality} threshold)`,
       passed: adxPassed,
-      reason: `ADX ${adx.toFixed(1)} ${adxPassed ? "✓" : "✗"}`,
+      reason: `ADX ${adx.toFixed(1)} ${adxPassed ? "��" : "✗"}`,
     })
     if (adxPassed) score += 1
 
