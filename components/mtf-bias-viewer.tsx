@@ -78,13 +78,16 @@ export function MTFBiasViewer({ signal }: MTFBiasViewerProps) {
     return "Alignment data processing..."
   }
 
-  // Get VWAP bias from indicators
-  const vwap = signal?.indicators?.vwap ?? 0
+  // Get VWAP bias from indicators (use daily VWAP for anchor level)
+  // VWAP comes from 1H indicators but represents daily anchor
+  const dailyVWAP = signal?.indicators?.vwap ?? 0
   const currentPrice = signal?.lastCandle?.close ?? 0
+  
   const getVWAPBias = () => {
-    if (vwap === 0 || currentPrice === 0) return "N/A"
-    if (currentPrice > vwap * 1.002) return "BULLISH"
-    if (currentPrice < vwap * 0.998) return "BEARISH"
+    if (!dailyVWAP || dailyVWAP === 0 || !currentPrice || currentPrice === 0) return "N/A"
+    const threshold = 0.002 // 0.2% threshold
+    if (currentPrice > dailyVWAP * (1 + threshold)) return "BULLISH"
+    if (currentPrice < dailyVWAP * (1 - threshold)) return "BEARISH"
     return "NEUTRAL"
   }
   const vwapBias = getVWAPBias()
@@ -105,23 +108,35 @@ export function MTFBiasViewer({ signal }: MTFBiasViewerProps) {
         ))}
       </div>
 
-      {/* VWAP Bias Badge */}
-      {vwap > 0 && (
-        <Badge
-          className={`border font-mono text-sm px-3 py-2 flex items-center gap-2 w-full justify-center ${
-            vwapBias === "BULLISH" 
-              ? "bg-green-950/50 text-green-200 border-green-700/50"
-              : vwapBias === "BEARISH"
-                ? "bg-red-950/50 text-red-200 border-red-700/50"
-                : "bg-gray-900/50 text-gray-200 border-gray-700/50"
-          }`}
-        >
-          <span className="text-xs">VWAP Bias</span>
-          <span className="font-bold">${vwap.toFixed(2)}</span>
-          <span>|</span>
-          <span>{vwapBias}</span>
-        </Badge>
-      )}
+      {/* Daily VWAP Anchor Level */}
+      <div className="space-y-2">
+        <p className="text-xs text-slate-400 font-semibold">Daily Anchor Level</p>
+        {dailyVWAP && dailyVWAP > 0 ? (
+          <>
+            <Badge
+              className={`border font-mono text-sm px-3 py-2 flex items-center gap-2 w-full justify-center ${
+                vwapBias === "BULLISH" 
+                  ? "bg-green-950/50 text-green-200 border-green-700/50"
+                  : vwapBias === "BEARISH"
+                    ? "bg-red-950/50 text-red-200 border-red-700/50"
+                    : "bg-slate-800/50 text-slate-200 border-slate-700/50"
+              }`}
+            >
+              <span>VWAP</span>
+              <span className="font-bold">${dailyVWAP.toFixed(2)}</span>
+              <span>→</span>
+              <span className="font-bold">{vwapBias}</span>
+            </Badge>
+            <p className="text-xs text-slate-500 text-center">
+              Daily Anchor | Key Support/Resistance
+            </p>
+          </>
+        ) : (
+          <Badge className="bg-slate-900/50 border-slate-700/50 text-slate-400 w-full text-center">
+            —N/A
+          </Badge>
+        )}
+      </div>
 
       {/* Market regime badge */}
       <Badge

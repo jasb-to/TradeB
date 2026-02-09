@@ -202,7 +202,11 @@ export default function GoldTradingDashboard() {
 
   useEffect(() => {
     // Initial fetch on mount only
-    fetchXAU()
+    const initFetch = async () => {
+      await fetchXAU()
+      setLoading(false)
+    }
+    initFetch()
     
     intervalRef.current = setInterval(async () => {
       try {
@@ -214,6 +218,7 @@ export default function GoldTradingDashboard() {
         }
 
         const xauData = await xauResponse.json()
+        console.log("[v0] Signal fetch result:", { type: xauData.signal?.type, direction: xauData.signal?.direction, indicators: !!xauData.signal?.indicators })
 
         // Check if market status changed
         if (xauData.marketClosed) {
@@ -246,7 +251,10 @@ export default function GoldTradingDashboard() {
         setMarketMessage(null)
         
         if (xauData.success && xauData.signal) {
+          console.log("[v0] Setting signal XAU from API response")
           setSignalXAU(xauData.signal)
+        } else {
+          console.log("[v0] API response missing signal:", xauData)
         }
         
         setLastUpdate(Date.now())
