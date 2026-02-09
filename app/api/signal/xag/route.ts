@@ -114,6 +114,12 @@ export async function GET() {
         },
       }
 
+      // BUILD ENTRY DECISION - Determines tier (A+, A, B, NO_TRADE) and alert level
+      const { buildEntryDecision } = await import("@/lib/strategies")
+      const strategies = new (await import("@/lib/strategies")).TradingStrategies()
+      const entryDecision = strategies.buildEntryDecision(enhancedSignal)
+      enhancedSignal.entryDecision = entryDecision
+
       // Cache the signal
       SignalCache.set(enhancedSignal, symbol)
       lastValidSignalXAG = enhancedSignal
@@ -128,9 +134,9 @@ export async function GET() {
         vwap: vwapResult.value,
       })
 
-      // SHORT REJECTION TRACKING: Log potential SHORT setups that are rejected
+      // SHORT REJECTION TRACKING: Log potential setups that are rejected
       // This helps verify the HTF fix is working and rejections are legitimate
-      if (enhancedSignal.type !== "ENTRY" || enhancedSignal.alertLevel < 2) {
+      if (!entryDecision.allowed) {
         const htfStructure = {
           daily: enhancedSignal.timeframeAlignment?.daily?.includes("HH") ? "HH" : 
                  enhancedSignal.timeframeAlignment?.daily?.includes("LL") ? "LL" : 
@@ -140,6 +146,7 @@ export async function GET() {
               enhancedSignal.timeframeAlignment?.h4 || "UNKNOWN"
         }
         
+        const { ShortRejectionTracker } = await import("@/lib/short-rejection-tracker")
         ShortRejectionTracker.logShortRejection(
           "XAG_USD",
           enhancedSignal.htfTrend || "NEUTRAL",
@@ -152,23 +159,18 @@ export async function GET() {
             m5: enhancedSignal.mtfBias?.["5m"] || enhancedSignal.mtfBias?.m5
           },
           {
-            adx: indicators.atr || 0, // XAG uses different indicator structure
+            adx: indicators.adx || 0,
             atr: indicators.atr || 0,
             rsi: indicators.rsi || 0,
             stochRSI: typeof indicators.stochRSI === "object" ? (indicators.stochRSI as any).value : null,
             vwap: indicators.vwap as number
           },
-          {
-            allowed: enhancedSignal.type === "ENTRY" && enhancedSignal.alertLevel >= 2,
-            tier: enhancedSignal.setupQuality || "NO_TRADE",
-            score: 0, // XAG uses different scoring
-            blockedReasons: enhancedSignal.reasons || []
-          }
+          entryDecision
         )
       }
 
       // ENTRY ALERTS: Check all rules before sending
-      if (enhancedSignal.type === "ENTRY" && enhancedSignal.alertLevel >= 2) {
+      if (entryDecision.allowed && entryDecision.alertLevel >= 2) {
         const alertCheck = SignalCache.canAlertSetup(enhancedSignal, symbol)
 
         if (alertCheck.allowed && process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
@@ -177,7 +179,7 @@ export async function GET() {
               process.env.TELEGRAM_BOT_TOKEN,
               process.env.TELEGRAM_CHAT_ID,
             )
-            console.log("[v0] SILVER: Sending entry alert - all rules passed")
+            console.log("[v0] SILVER: Sending entry alert - tier " + entryDecision.tier + " all rules passed")
             await notifier.sendSilverAlert(enhancedSignal)
             
             // Record alert sent in state machine
@@ -189,6 +191,8 @@ export async function GET() {
         } else {
           console.log(`[v0] SILVER ENTRY ALERT BLOCKED: ${alertCheck.reason}`)
         }
+      } else if (!entryDecision.allowed) {
+        console.log(`[v0] SILVER ENTRY BLOCKED: Tier ${entryDecision.tier} | Score ${entryDecision.score}/9 | Reasons: ${entryDecision.blockedReasons.join(" | ")}`)
       }
 
       // GET READY ALERTS: Optional, controlled "setup forming" alerts
