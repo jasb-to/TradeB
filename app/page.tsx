@@ -251,7 +251,6 @@ export default function GoldTradingDashboard() {
         
         setLastUpdate(Date.now())
         setSecondsAgo(0)
-      }
 
         // Poll XAG in background (every cycle)
         fetchXAG()
