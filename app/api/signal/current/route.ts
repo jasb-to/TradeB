@@ -33,7 +33,7 @@ export async function GET(request: Request) {
 
     try {
       dataDaily = await dataFetcher.fetchCandles("1d", 100)
-      data8h = await dataFetcher.fetchCandles("8h", 150)
+      data8h = await dataFetcher.fetchCandles("8h", 200)
       data4h = await dataFetcher.fetchCandles("4h", 200)
       data1h = await dataFetcher.fetchCandles("1h", 200)
 

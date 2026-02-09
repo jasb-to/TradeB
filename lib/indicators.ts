@@ -159,11 +159,11 @@ export class TechnicalAnalysis {
   static calculateStochasticRSI(
     candles: Candle[],
     rsiPeriod = 14,
-    stochPeriod = 3,
+    stochPeriod = 5,
   ): { value: number | null; state: "CALCULATING" | "MOMENTUM_UP" | "MOMENTUM_DOWN" | "COMPRESSION" } {
     // STRICT: Never use 50 as fallback. Return null when insufficient data.
     if (!candles || candles.length < rsiPeriod + stochPeriod) {
-      console.log(`[v0] STOCH RSI STATE: CALCULATING | VALUE: null (insufficient candles: ${candles?.length || 0})`)
+      console.log(`[v0] STOCH RSI STATE: CALCULATING | VALUE: null (insufficient candles: ${candles?.length || 0} < ${rsiPeriod + stochPeriod})`)
       return { value: null, state: "CALCULATING" }
     }
 
@@ -179,15 +179,28 @@ export class TechnicalAnalysis {
       return { value: null, state: "CALCULATING" }
     }
 
-    // Calculate Stochastic of RSI
-    const recentRSI = rsiValues.slice(-stochPeriod)
+    // ADAPTIVE SMOOTHING: Use larger stoch period for small datasets
+    // This prevents false extremes when recent RSI values are all at one end
+    // For 200+ candles: use stochPeriod=5 (default)
+    // For 150-199 candles: use stochPeriod=7 for better smoothing
+    // For <150 candles: use stochPeriod=min(8, candles.length/20)
+    const adaptiveStochPeriod = (() => {
+      if (rsiValues.length >= 200) return Math.min(stochPeriod, 5)
+      if (rsiValues.length >= 150) return Math.min(stochPeriod, 7)
+      if (rsiValues.length >= 100) return Math.min(stochPeriod, 8)
+      return Math.max(3, Math.floor(rsiValues.length / 20))
+    })()
+
+    // Calculate Stochastic of RSI using adaptive period
+    const recentRSI = rsiValues.slice(-adaptiveStochPeriod)
     const minRSI = Math.min(...recentRSI)
     const maxRSI = Math.max(...recentRSI)
     const currentRSI = rsiValues[rsiValues.length - 1]
 
-    // If range is zero, still compute but return COMPRESSION (not fake 50)
+    // If range is zero, return COMPRESSION with the current RSI value
+    // (not fake 50, which could mislead analysis)
     if (maxRSI === minRSI) {
-      console.log(`[v0] STOCH RSI STATE: COMPRESSION | VALUE: ${currentRSI.toFixed(1)} (flat RSI range)`)
+      console.log(`[v0] STOCH RSI STATE: COMPRESSION | VALUE: ${currentRSI.toFixed(1)} (flat RSI range over last ${adaptiveStochPeriod} candles)`)
       return { value: currentRSI, state: "COMPRESSION" }
     }
 
@@ -201,7 +214,7 @@ export class TechnicalAnalysis {
       state = "MOMENTUM_DOWN"
     }
 
-    console.log(`[v0] STOCH RSI STATE: ${state} | VALUE: ${stochValue.toFixed(1)}`)
+    console.log(`[v0] STOCH RSI STATE: ${state} | VALUE: ${stochValue.toFixed(1)} (adaptive period=${adaptiveStochPeriod}, RSI values=${rsiValues.length})`)
     return { value: stochValue, state }
   }
 

@@ -30,7 +30,7 @@ export async function GET() {
         console.error("[v0] Failed to fetch daily candles:", err.message)
         throw err
       })
-      const data8h = await dataFetcher.fetchCandles("8h", 150).catch(err => {
+      const data8h = await dataFetcher.fetchCandles("8h", 200).catch(err => {
         console.error("[v0] Failed to fetch 8h candles:", err.message)
         throw err
       })
