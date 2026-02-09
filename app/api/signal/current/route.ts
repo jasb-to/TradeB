@@ -137,23 +137,25 @@ export async function GET(request: Request) {
       // Do NOT return 503 - continue processing below
     }
 
-    const cached = SignalCache.get(symbol)
-    if (cached) {
-      // Ensure cached signal has entryDecision
-      if (!cached.entryDecision) {
-        cached.entryDecision = strategies.buildEntryDecision(cached)
-      }
-      return NextResponse.json({
-        success: true,
-        signal: cached,
-        timestamp: new Date(SignalCache.getTimestamp(symbol)).toISOString(),
-        marketClosed: false,
-        cached: true,
-        mtfBias: mtfBias,
-      })
-    }
-
+    // When market is open and we have fresh candle data, ALWAYS do a fresh
+    // evaluation instead of returning stale cache.  The cache is only used as
+    // a fallback when fresh data is unavailable (e.g., data fetch failed above).
     if (!dataDaily?.candles?.length || !data1h?.candles?.length) {
+      // No fresh data -- try cache as fallback
+      const cached = SignalCache.get(symbol)
+      if (cached) {
+        if (!cached.entryDecision) {
+          cached.entryDecision = strategies.buildEntryDecision(cached)
+        }
+        return NextResponse.json({
+          success: true,
+          signal: cached,
+          timestamp: new Date(SignalCache.getTimestamp(symbol)).toISOString(),
+          marketClosed: false,
+          cached: true,
+          mtfBias: mtfBias,
+        })
+      }
       return NextResponse.json(
         {
           success: false,

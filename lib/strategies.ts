@@ -87,7 +87,7 @@ export class TradingStrategies {
 
     // ENFORCE HTF POLARITY: Lock to HTF trend direction only
     if (htfPolarity.trend !== "NEUTRAL" && direction !== "NEUTRAL" && direction !== htfPolarity.trend) {
-      console.log(`[v0] ✗ COUNTER-TREND: HTF ${htfPolarity.trend} vs signal ${direction}`)
+      console.log(`[v0] COUNTER-TREND: HTF ${htfPolarity.trend} vs signal ${direction}`)
       return {
         type: "NO_TRADE",
         direction: "NONE",
@@ -96,6 +96,11 @@ export class TradingStrategies {
         counterTrendBlocked: true,
         htfTrend: htfPolarity.trend,
         timeframeAlignment: timeframeAlignment,
+        // Include lastCandle so VWAP bias and price display work in the UI
+        lastCandle: {
+          close: currentPrice,
+          timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
+        },
         reasons: [
           `Counter-trend entry blocked: HTF ${htfPolarity.trend}-only regime`,
           `(${htfPolarity.reason})`,
@@ -175,6 +180,10 @@ export class TradingStrategies {
           confidence: 0,
           htfTrend: "NEUTRAL",
           timeframeAlignment: timeframeAlignment,
+          lastCandle: {
+            close: currentPrice,
+            timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
+          },
           reasons: [`HTF neutral + B-tier gate failed: ${failReasons.join("; ")}`],
           timestamp: Date.now(),
           strategy: "BREAKOUT_CHANDELIER",
@@ -217,15 +226,19 @@ export class TradingStrategies {
         alertLevel: 0,
         confidence: 0,
         timeframeAlignment: timeframeAlignment,
+        lastCandle: {
+          close: currentPrice,
+          timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
+        },
         timestamp: Date.now(),
         strategy: "BREAKOUT_CHANDELIER",
         reasons: [`Daily/4H alignment required for entry, got ${biases.daily}/${biases["4h"]}`],
         indicators: {
-          adx: 0,
-          atr: 0,
-          rsi: 0,
-          stochRSI: 0,
-          vwap: 0,
+          adx: indicators1h.adx || 0,
+          atr: indicators1h.atr || 0,
+          rsi: indicators1h.rsi || 50,
+          stochRSI: indicators1h.stochRSI || 50,
+          vwap: indicators1h.vwap || 0,
           ema20: 0,
           ema50: 0,
           ema200: 0,
