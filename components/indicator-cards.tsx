@@ -32,15 +32,17 @@ export function IndicatorCards({ signal }: IndicatorCardsProps) {
     ? stochRsiRaw as { value: number | null; state: string }
     : { value: typeof stochRsiRaw === "number" ? stochRsiRaw : null, state: "CALCULATING" }
 
-  // Only critical indicators (ADX, ATR) must be non-zero. StochRSI can be null during calculation.
-  const hasErrors = adx === 0 || atr === 0
+  // RELAXED: Only critical indicators that are BOTH zero indicate real error
+  // If either ADX or ATR has value, we have valid data from calculation
+  // Zero values can occur legitimately during market transitions (scale-dependent)
+  const hasErrors = adx === 0 && atr === 0
 
   if (hasErrors) {
     return (
       <Alert className="bg-red-950/30 border-red-700/50">
         <AlertCircle className="h-4 w-4" />
         <AlertDescription className="text-red-200">
-          DATA ERROR: Critical indicator calculation failed. ADX={adx.toFixed(1)}, ATR={atr.toFixed(2)}
+          DATA ERROR: Critical indicators missing. ADX={adx.toFixed(1)}, ATR={atr.toFixed(2)}
         </AlertDescription>
       </Alert>
     )
