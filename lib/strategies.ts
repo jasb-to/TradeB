@@ -1,3 +1,4 @@
+// Trading Strategies - VWAP fix, tier unification, weight key alignment (Feb 2026)
 import type { Candle, Signal, TechnicalIndicators, TradingConfig, EntryDecision, EntryDecisionCriteria, TimeframeAlignment, AlignmentState } from "../types/trading"
 import { TechnicalAnalysis } from "./indicators"
 
