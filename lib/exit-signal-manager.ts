@@ -232,188 +232,61 @@ export class ExitSignalManager {
       }
     }
 
-    // CHECK FOR KEY TECHNICAL EXIT SIGNALS (8/21 MA, StochRSI, MACD, Volume)
+    // PRIMARY EXIT TRIGGER: 8/21 EMA CROSSOVER
+    // This is the best signal for intraday moves - when the fast MA crosses the slow MA,
+    // it confirms the trend is reversing. Lock in profits immediately.
     const ema8 = indicators1h.ema8 || indicators1h.ema?.ema8 || currentPrice
     const ema21 = indicators1h.ema21 || indicators1h.ema?.ema21 || currentPrice
-    const stochRsi = indicators1h.stochasticRsi
-    const macd = indicators1h.macd
-    const volumeIndicators = indicators1h.volume || {}
 
-    // 8/21 EMA CROSSOVER: When moving averages cross, it signals trend reversal
     if (candles1h.length >= 2) {
-      const prevPrice = candles1h[candles1h.length - 2]?.close || currentPrice
-      const prevEma8 = indicators1h.ema8 || ema8
-      const prevEma21 = indicators1h.ema21 || ema21
+      const prevCandle = candles1h[candles1h.length - 2]
+      if (prevCandle) {
+        const prevIndicators = TechnicalAnalysis.calculateAllIndicators(candles1h.slice(-2))
+        const prevEma8 = prevIndicators.ema8 || ema8
+        const prevEma21 = prevIndicators.ema21 || ema21
 
-      // LONG trade: 8 EMA crosses below 21 EMA = SELL signal
-      if (trade.direction === "LONG" && currentPrice > trade.entryPrice) {
-        if (prevEma8 >= prevEma21 && ema8 < ema21) {
-          const pnl = currentPrice - trade.entryPrice
-          const pnlPercent = (pnl / trade.entryPrice) * 100
-          if (pnlPercent > 0) {
+        // LONG trade: 8 EMA crosses below 21 EMA = EXIT signal
+        if (trade.direction === "LONG" && currentPrice > trade.entryPrice) {
+          if (prevEma8 >= prevEma21 && ema8 < ema21) {
+            const pnlPercent = ((currentPrice - trade.entryPrice) / trade.entryPrice) * 100
             return {
               type: "EXIT",
               direction: "EXIT" as any,
               alertLevel: 2,
-              confidence: 85,
+              confidence: 90,
               timestamp: Date.now(),
-              exitReason: `MOVING AVERAGE CROSS: 8 EMA crossed below 21 EMA - SELL signal`,
+              exitReason: `8/21 EMA CROSSOVER: Fast MA crossed below slow MA - trend reversing`,
               urgency: "HIGH",
               profitTaken: pnlPercent,
               reasons: [
-                `8/21 EMA Crossover detected: EMA8=${ema8.toFixed(2)} < EMA21=${ema21.toFixed(2)}`,
-                `Current profit: ${pnlPercent.toFixed(2)}% - Exit before trend reversal accelerates`,
-              ],
-              indicators: { ...indicators1h },
-            }
-          }
-        }
-      }
-
-      // SHORT trade: 8 EMA crosses above 21 EMA = BUY signal
-      if (trade.direction === "SHORT" && currentPrice < trade.entryPrice) {
-        if (prevEma8 <= prevEma21 && ema8 > ema21) {
-          const pnl = trade.entryPrice - currentPrice
-          const pnlPercent = (pnl / trade.entryPrice) * 100
-          if (pnlPercent > 0) {
-            return {
-              type: "EXIT",
-              direction: "EXIT" as any,
-              alertLevel: 2,
-              confidence: 85,
-              timestamp: Date.now(),
-              exitReason: `MOVING AVERAGE CROSS: 8 EMA crossed above 21 EMA - BUY signal`,
-              urgency: "HIGH",
-              profitTaken: pnlPercent,
-              reasons: [
-                `8/21 EMA Crossover detected: EMA8=${ema8.toFixed(2)} > EMA21=${ema21.toFixed(2)}`,
-                `Current profit: ${pnlPercent.toFixed(2)}% - Exit before trend reversal accelerates`,
-              ],
-              indicators: { ...indicators1h },
-            }
-          }
-        }
-      }
-    }
-
-    // STOCHASTIC RSI: When StochRSI tops out (>80 on LONG, or <20 on SHORT), exit profitable trades
-    if (stochRsi && stochRsi.k !== undefined) {
-      if (trade.direction === "LONG" && currentPrice > trade.entryPrice && stochRsi.k > 80) {
-        const pnlPercent = ((currentPrice - trade.entryPrice) / trade.entryPrice) * 100
-        if (pnlPercent > 0) {
-          return {
-            type: "EXIT",
-            direction: "EXIT" as any,
-            alertLevel: 1,
-            confidence: 80,
-            timestamp: Date.now(),
-            exitReason: `STOCHASTIC RSI OVERBOUGHT: StochRSI=${stochRsi.k.toFixed(0)} > 80 - potential pullback`,
-            urgency: "MEDIUM",
-            profitTaken: pnlPercent,
-            reasons: [
-              `StochRSI overbought condition detected (${stochRsi.k.toFixed(0)})`,
-              `Current profit: ${pnlPercent.toFixed(2)}% - Take profits before momentum reversal`,
-            ],
-            indicators: { ...indicators1h },
-          }
-        }
-      }
-
-      if (trade.direction === "SHORT" && currentPrice < trade.entryPrice && stochRsi.k < 20) {
-        const pnlPercent = ((trade.entryPrice - currentPrice) / trade.entryPrice) * 100
-        if (pnlPercent > 0) {
-          return {
-            type: "EXIT",
-            direction: "EXIT" as any,
-            alertLevel: 1,
-            confidence: 80,
-            timestamp: Date.now(),
-            exitReason: `STOCHASTIC RSI OVERSOLD: StochRSI=${stochRsi.k.toFixed(0)} < 20 - potential bounce`,
-            urgency: "MEDIUM",
-            profitTaken: pnlPercent,
-            reasons: [
-              `StochRSI oversold condition detected (${stochRsi.k.toFixed(0)})`,
-              `Current profit: ${pnlPercent.toFixed(2)}% - Take profits before momentum reversal`,
-            ],
-            indicators: { ...indicators1h },
-          }
-        }
-      }
-    }
-
-    // MACD CROSSOVER: When MACD histogram crosses zero or lines cross, exit profitable trades
-    if (macd && macd.histogram !== undefined) {
-      if (candles1h.length >= 2) {
-        const prevMacd = candles1h[candles1h.length - 2] ? TechnicalAnalysis.calculateAllIndicators([candles1h[candles1h.length - 2]]) : null
-        const prevHistogram = prevMacd?.macd?.histogram || macd.histogram
-
-        // LONG: MACD histogram crosses below zero = exit
-        if (trade.direction === "LONG" && currentPrice > trade.entryPrice && prevHistogram >= 0 && macd.histogram < 0) {
-          const pnlPercent = ((currentPrice - trade.entryPrice) / trade.entryPrice) * 100
-          if (pnlPercent > 0) {
-            return {
-              type: "EXIT",
-              direction: "EXIT" as any,
-              alertLevel: 2,
-              confidence: 85,
-              timestamp: Date.now(),
-              exitReason: `MACD CROSSOVER: MACD histogram crossed below zero - momentum shift`,
-              urgency: "HIGH",
-              profitTaken: pnlPercent,
-              reasons: [
-                `MACD histogram negative: ${macd.histogram.toFixed(4)}`,
-                `Current profit: ${pnlPercent.toFixed(2)}% - Exit before momentum completely reverses`,
+                `8 EMA=${ema8.toFixed(2)} crossed below 21 EMA=${ema21.toFixed(2)}`,
+                `Trend reversal confirmed - Exit with ${pnlPercent.toFixed(2)}% profit`,
               ],
               indicators: { ...indicators1h },
             }
           }
         }
 
-        // SHORT: MACD histogram crosses above zero = exit
-        if (trade.direction === "SHORT" && currentPrice < trade.entryPrice && prevHistogram <= 0 && macd.histogram > 0) {
-          const pnlPercent = ((trade.entryPrice - currentPrice) / trade.entryPrice) * 100
-          if (pnlPercent > 0) {
+        // SHORT trade: 8 EMA crosses above 21 EMA = EXIT signal
+        if (trade.direction === "SHORT" && currentPrice < trade.entryPrice) {
+          if (prevEma8 <= prevEma21 && ema8 > ema21) {
+            const pnlPercent = ((trade.entryPrice - currentPrice) / trade.entryPrice) * 100
             return {
               type: "EXIT",
               direction: "EXIT" as any,
               alertLevel: 2,
-              confidence: 85,
+              confidence: 90,
               timestamp: Date.now(),
-              exitReason: `MACD CROSSOVER: MACD histogram crossed above zero - momentum shift`,
+              exitReason: `8/21 EMA CROSSOVER: Fast MA crossed above slow MA - trend reversing`,
               urgency: "HIGH",
               profitTaken: pnlPercent,
               reasons: [
-                `MACD histogram positive: ${macd.histogram.toFixed(4)}`,
-                `Current profit: ${pnlPercent.toFixed(2)}% - Exit before momentum completely reverses`,
+                `8 EMA=${ema8.toFixed(2)} crossed above 21 EMA=${ema21.toFixed(2)}`,
+                `Trend reversal confirmed - Exit with ${pnlPercent.toFixed(2)}% profit`,
               ],
               indicators: { ...indicators1h },
             }
           }
-        }
-      }
-    }
-
-    // VOLUME SPIKE: Unusual volume can signal exhaustion or reversal
-    if (volumeIndicators.volumeSpike && volumeIndicators.volumeSpike > 1.5) {
-      const pnl = trade.direction === "LONG" ? currentPrice - trade.entryPrice : trade.entryPrice - currentPrice
-      const pnlPercent = (pnl / trade.entryPrice) * 100
-
-      if (pnlPercent > 0.3) {
-        // At least 0.3% profit
-        return {
-          type: "EXIT",
-          direction: "EXIT" as any,
-          alertLevel: 1,
-          confidence: 70,
-          timestamp: Date.now(),
-          exitReason: `VOLUME SPIKE: Unusual volume detected - potential exhaustion`,
-          urgency: "MEDIUM",
-          profitTaken: pnlPercent,
-          reasons: [
-            `Volume spike detected: ${volumeIndicators.volumeSpike.toFixed(1)}x normal`,
-            `Current profit: ${pnlPercent.toFixed(2)}% - Lock in gains before reversal`,
-          ],
-          indicators: { ...indicators1h },
         }
       }
     }
