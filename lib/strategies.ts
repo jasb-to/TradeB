@@ -866,4 +866,133 @@ export class TradingStrategies {
       }
     }
   }
+
+  /**
+   * Evaluate if an active trade should be exited based on current market conditions
+   * Uses ExitSignalManager logic to check for TP1/TP2 hits and trend reversals
+   */
+  public async evaluateExitForTrade(trade: any, candles1h: Candle[], candles15m: Candle[], candles5m: Candle[]): Promise<Signal | null> {
+    // Get current price from latest 1H candle
+    const currentPrice = candles1h[candles1h.length - 1]?.close || 0
+
+    // Check for SL breach - ALWAYS PRIORITY
+    if (trade.direction === "LONG" && currentPrice <= trade.stopLoss) {
+      return {
+        type: "EXIT",
+        direction: "NONE",
+        alertLevel: 3,
+        confidence: 100,
+        timestamp: Date.now(),
+        reasons: [`STOP LOSS BREACHED: Price ${currentPrice.toFixed(2)} <= SL ${trade.stopLoss.toFixed(2)}`],
+        indicators: {},
+      }
+    }
+
+    if (trade.direction === "SHORT" && currentPrice >= trade.stopLoss) {
+      return {
+        type: "EXIT",
+        direction: "NONE",
+        alertLevel: 3,
+        confidence: 100,
+        timestamp: Date.now(),
+        reasons: [`STOP LOSS BREACHED: Price ${currentPrice.toFixed(2)} >= SL ${trade.stopLoss.toFixed(2)}`],
+        indicators: {},
+      }
+    }
+
+    // Check for TP2 hit
+    if (trade.direction === "LONG" && currentPrice >= trade.takeProfit2) {
+      return {
+        type: "EXIT",
+        direction: "NONE",
+        alertLevel: 2,
+        confidence: 100,
+        timestamp: Date.now(),
+        reasons: [`TAKE PROFIT 2 REACHED: Price ${currentPrice.toFixed(2)} >= TP2 ${trade.takeProfit2.toFixed(2)}`],
+        indicators: {},
+      }
+    }
+
+    if (trade.direction === "SHORT" && currentPrice <= trade.takeProfit2) {
+      return {
+        type: "EXIT",
+        direction: "NONE",
+        alertLevel: 2,
+        confidence: 100,
+        timestamp: Date.now(),
+        reasons: [`TAKE PROFIT 2 REACHED: Price ${currentPrice.toFixed(2)} <= TP2 ${trade.takeProfit2.toFixed(2)}`],
+        indicators: {},
+      }
+    }
+
+    // Check for TP1 hit
+    if (trade.direction === "LONG" && currentPrice >= trade.takeProfit1 && !trade.tp1Hit) {
+      return {
+        type: "EXIT",
+        direction: "NONE",
+        alertLevel: 1,
+        confidence: 95,
+        timestamp: Date.now(),
+        reasons: [`TAKE PROFIT 1 REACHED: Price ${currentPrice.toFixed(2)} >= TP1 ${trade.takeProfit1.toFixed(2)}`],
+        indicators: {},
+      }
+    }
+
+    if (trade.direction === "SHORT" && currentPrice <= trade.takeProfit1 && !trade.tp1Hit) {
+      return {
+        type: "EXIT",
+        direction: "NONE",
+        alertLevel: 1,
+        confidence: 95,
+        timestamp: Date.now(),
+        reasons: [`TAKE PROFIT 1 REACHED: Price ${currentPrice.toFixed(2)} <= TP1 ${trade.takeProfit1.toFixed(2)}`],
+        indicators: {},
+      }
+    }
+
+    // Check for trend reversal on 1H timeframe (qualitative rule for A/A+ trades)
+    // For profitable trades in trend reversal, suggest exit to lock in gains
+    const indicators1h = TechnicalAnalysis.calculateAllIndicators(candles1h)
+    const bias1h = this.determineBias(candles1h, indicators1h)
+
+    if (trade.direction === "LONG" && currentPrice > trade.entryPrice && bias1h === "BEARISH") {
+      const profitPercent = ((currentPrice - trade.entryPrice) / trade.entryPrice) * 100
+      if (profitPercent >= 0.3) {
+        // At least 0.3% profit
+        return {
+          type: "EXIT",
+          direction: "NONE",
+          alertLevel: 2,
+          confidence: 80,
+          timestamp: Date.now(),
+          reasons: [
+            `TREND REVERSAL: Market bias shifted to BEARISH`,
+            `Current profit: ${profitPercent.toFixed(2)}% - Recommended to exit before reversal accelerates`,
+          ],
+          indicators: {},
+        }
+      }
+    }
+
+    if (trade.direction === "SHORT" && currentPrice < trade.entryPrice && bias1h === "BULLISH") {
+      const profitPercent = ((trade.entryPrice - currentPrice) / trade.entryPrice) * 100
+      if (profitPercent >= 0.3) {
+        return {
+          type: "EXIT",
+          direction: "NONE",
+          alertLevel: 2,
+          confidence: 80,
+          timestamp: Date.now(),
+          reasons: [
+            `TREND REVERSAL: Market bias shifted to BULLISH`,
+            `Current profit: ${profitPercent.toFixed(2)}% - Recommended to exit before reversal accelerates`,
+          ],
+          indicators: {},
+        }
+      }
+    }
+
+    // No exit signal
+    return null
+  }
 }
