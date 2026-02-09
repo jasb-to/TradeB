@@ -327,11 +327,25 @@ export class TradingStrategies {
     }
 
     const atr1h = indicators1h.atr || 0
+    
+    // Use Chandelier Stop as TP (more adaptive than fixed ATR multiples)
+    const chandelierStop = TechnicalAnalysis.calculateChandelierStop(candles1h, 22, 3)
+    
+    // Stop Loss: Fixed ATR multiple (tighter risk)
     const stopLoss = direction === "LONG" ? currentPrice - atr1h * 1.5 : currentPrice + atr1h * 1.5
-    const takeProfit = direction === "LONG" ? currentPrice + atr1h * 2.0 : currentPrice - atr1h * 2.0
-    const riskReward = (atr1h * 2.0) / (atr1h * 1.5)
+    
+    // Take Profit: Use Chandelier Stop (volatility-adjusted exit)
+    // For LONG: Chandelier Long Stop is the TP level
+    // For SHORT: Chandelier Short Stop is the TP level
+    const takeProfit = direction === "LONG" ? chandelierStop.long : chandelierStop.short
+    
+    // Fallback to ATR multiple if chandelier calculation fails
+    const chandelierTP = direction === "LONG" ? currentPrice + (chandelierStop.long - currentPrice) : currentPrice - (currentPrice - chandelierStop.short)
+    const finalTP = Math.abs(chandelierTP - currentPrice) > atr1h * 0.5 ? chandelierTP : (direction === "LONG" ? currentPrice + atr1h * 2.0 : currentPrice - atr1h * 2.0)
+    
+    const riskReward = Math.abs(finalTP - currentPrice) / Math.abs(stopLoss - currentPrice)
 
-    console.log(`[v0] SIGNAL: ${direction} ${setupTier} @ ${currentPrice.toFixed(2)} | Conf ${confidence}% | HTF ${htfPolarity.trend}`)
+    console.log(`[v0] SIGNAL: ${direction} ${setupTier} @ ${currentPrice.toFixed(2)} | Conf ${confidence}% | HTF ${htfPolarity.trend} | TP via Chandelier: ${finalTP.toFixed(2)}`)
 
     return {
       type: "ENTRY",
@@ -341,8 +355,8 @@ export class TradingStrategies {
       entryPrice: currentPrice,
       stopLoss,
       takeProfit1: direction === "LONG" ? currentPrice + atr1h * 1.0 : currentPrice - atr1h * 1.0,
-      takeProfit2: direction === "LONG" ? currentPrice + atr1h * 2.0 : currentPrice - atr1h * 2.0,
-      takeProfit: direction === "LONG" ? currentPrice + atr1h * 2.0 : currentPrice - atr1h * 2.0,
+      takeProfit2: finalTP,
+      takeProfit: finalTP,
       riskReward,
       setupQuality: setupTier || "STANDARD",
       htfTrend: htfPolarity.trend,
@@ -352,7 +366,7 @@ export class TradingStrategies {
         `${marketRegime} market (ADX ${adx1h.toFixed(1)})`,
         `HTF Polarity: ${htfPolarity.trend} (${htfPolarity.reason})`,
         `Weighted MTF Score: ${alignmentScore}`,
-        `Risk:Reward ${riskReward.toFixed(2)}:1 (min 1.33:1)`,
+        `Risk:Reward ${riskReward.toFixed(2)}:1 | TP via Chandelier Stop (adaptive to volatility)`,
       ],
       indicators: {
         adx: adx1h,

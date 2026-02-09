@@ -394,6 +394,44 @@ export class TechnicalAnalysis {
     return "RANGING"
   }
 
+  /**
+   * Calculate Chandelier Stop (volatility-adjusted trailing stop)
+   * For LONG: Stop = Highest High over period - (ATR × multiple)
+   * For SHORT: Stop = Lowest Low over period + (ATR × multiple)
+   */
+  static calculateChandelierStop(
+    candles: Candle[],
+    period: number = 22,
+    atrMultiple: number = 3
+  ): { long: number; short: number } {
+    if (candles.length < period) {
+      const lastClose = candles[candles.length - 1]?.close ?? 0
+      return { long: lastClose, short: lastClose }
+    }
+
+    const recentCandles = candles.slice(-period)
+    const atr = this.calculateATR(candles, 14)
+
+    // Find highest high and lowest low over the period
+    let highestHigh = recentCandles[0]?.high ?? 0
+    let lowestLow = recentCandles[0]?.low ?? 0
+
+    for (const candle of recentCandles) {
+      highestHigh = Math.max(highestHigh, candle.high)
+      lowestLow = Math.min(lowestLow, candle.low)
+    }
+
+    // Chandelier Stop = Highest High - (ATR × multiple) for LONG
+    // Chandelier Stop = Lowest Low + (ATR × multiple) for SHORT
+    const chandelierLong = highestHigh - atr * atrMultiple
+    const chandelierShort = lowestLow + atr * atrMultiple
+
+    return {
+      long: chandelierLong,
+      short: chandelierShort,
+    }
+  }
+
   static calculateAllIndicators(candles: Candle[], config?: any): TechnicalIndicators {
     if (!candles || candles.length < 50) {
       console.log(`[v0] Insufficient candles for indicator calculation: ${candles?.length || 0}`)
