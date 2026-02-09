@@ -149,21 +149,28 @@ export async function GET() {
         timestamp: c.time || Date.now(),
       })) || []
       
+      console.log(`[v0] Daily candles normalized: ${dailyCandlesNormalized.length} candles, first=${dailyCandlesNormalized[0]?.close || 'NONE'}, last=${dailyCandlesNormalized[dailyCandlesNormalized.length - 1]?.close || 'NONE'}`)
+      
       const vwapResultDaily = dailyCandlesNormalized && dailyCandlesNormalized.length > 0
         ? TechnicalAnalysis.calculateVWAP(dailyCandlesNormalized)
         : { value: 0, bias: "FLAT" }
       const vwapValueDaily = typeof vwapResultDaily === "object" ? vwapResultDaily.value : vwapResultDaily
       
-      console.log(`[v0] XAU Daily VWAP Calculated: ${vwapValueDaily.toFixed(2)} from ${dailyCandlesNormalized.length} daily candles`)
+      console.log(`[v0] XAU Daily VWAP Calculated: ${typeof vwapValueDaily === 'number' ? vwapValueDaily.toFixed(2) : 'INVALID'} from ${dailyCandlesNormalized.length} daily candles, closePrice=${closePrice}, fallback=${closePrice || 0}`)
 
       // Build indicators object - stochRSI is full structured object (value + state)
       // SAFETY: Ensure all indicators have numeric values (never undefined)
+      // VWAP: Use daily VWAP if calculated, else use current price as fallback anchor
+      const finalVWAPValue = typeof vwapValueDaily === "number" && vwapValueDaily > 0 
+        ? vwapValueDaily 
+        : (typeof closePrice === "number" && closePrice > 0 ? closePrice : 0)
+      
       const indicators = {
         adx: typeof adxValue === "number" ? adxValue : 0,
         atr: typeof atrValue === "number" ? atrValue : 0,
         rsi: typeof rsiValue === "number" ? rsiValue : 50,
         stochRSI: stochRSIResult, // FULL OBJECT: { value: number | null, state: string }
-        vwap: vwapValueDaily > 0 ? vwapValueDaily : (closePrice || 0),
+        vwap: finalVWAPValue,
         ema20: 0,
         ema50: 0,
         ema200: 0,

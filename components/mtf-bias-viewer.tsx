@@ -83,8 +83,20 @@ export function MTFBiasViewer({ signal }: MTFBiasViewerProps) {
   const dailyVWAP = signal?.indicators?.vwap ?? 0
   const currentPrice = signal?.lastCandle?.close ?? 0
   
+  console.log("[v0] MTFBiasViewer - Data validation:", {
+    hasSignal: !!signal,
+    hasIndicators: !!signal?.indicators,
+    vwapValue: dailyVWAP,
+    vwapType: typeof dailyVWAP,
+    currentPrice: currentPrice,
+    priceType: typeof currentPrice,
+  })
+  
   const getVWAPBias = () => {
-    if (!dailyVWAP || dailyVWAP === 0 || !currentPrice || currentPrice === 0) return "N/A"
+    // Strict validation: both values must be valid numbers and non-zero
+    if (typeof dailyVWAP !== "number" || dailyVWAP <= 0 || typeof currentPrice !== "number" || currentPrice <= 0) {
+      return "N/A"
+    }
     const threshold = 0.002 // 0.2% threshold
     if (currentPrice > dailyVWAP * (1 + threshold)) return "BULLISH"
     if (currentPrice < dailyVWAP * (1 - threshold)) return "BEARISH"
