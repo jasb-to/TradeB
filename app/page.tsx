@@ -18,18 +18,23 @@ export default function GoldTradingDashboard() {
   const [signalXAU, setSignalXAU] = useState<Signal | null>(null)
   const [signalXAG, setSignalXAG] = useState<Signal | null>(null)
   const [loading, setLoading] = useState(true)
-  const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
+  const [lastUpdate, setLastUpdate] = useState<number | null>(null)
   const [secondsAgo, setSecondsAgo] = useState(0)
   const [marketClosed, setMarketClosed] = useState(false)
   const [marketMessage, setMarketMessage] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [testingTelegram, setTestingTelegram] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Only run effects after mount to prevent hydration mismatch
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
   // XAU is always the main display, XAG runs in background
   const signal = signalXAU
-
   const handleManualRefresh = async () => {
     setRefreshing(true)
     try {
@@ -54,7 +59,7 @@ export default function GoldTradingDashboard() {
         setSignalXAG(xagData.signal)
       }
 
-      setLastUpdate(new Date())
+      setLastUpdate(Date.now())
       setSecondsAgo(0)
       
       toast({
@@ -144,7 +149,7 @@ export default function GoldTradingDashboard() {
         }
       }
       
-      setLastUpdate(new Date())
+      setLastUpdate(Date.now())
       setSecondsAgo(0)
     } catch (error) {
       console.error("[v0] XAU polling error:", error)
@@ -242,9 +247,11 @@ export default function GoldTradingDashboard() {
         
         if (xauData.success && xauData.signal) {
           setSignalXAU(xauData.signal)
-          setLastUpdate(new Date())
-          setSecondsAgo(0)
         }
+        
+        setLastUpdate(Date.now())
+        setSecondsAgo(0)
+      }
 
         // Poll XAG in background (every cycle)
         fetchXAG()
@@ -297,12 +304,11 @@ export default function GoldTradingDashboard() {
               variant="outline"
               size="sm"
               className="gap-2 bg-transparent"
-              suppressHydrationWarning
             >
               <Send className={`w-4 h-4 ${testingTelegram ? "animate-spin" : ""}`} />
               {testingTelegram ? "Testing..." : "Test Telegram"}
             </Button>
-            {lastUpdate && (
+            {isMounted && lastUpdate && (
               <Badge variant="outline" className="gap-1 text-xs">
                 <Clock className="w-3 h-3" />
                 {secondsAgo}s ago
