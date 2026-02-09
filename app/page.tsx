@@ -12,6 +12,7 @@ import { GoldSignalPanel } from "@/components/gold-signal-panel"
 import { IndicatorCards } from "@/components/indicator-cards"
 import { EntryChecklist } from "@/components/entry-checklist"
 import { GoldPriceDisplay } from "@/components/gold-price-display"
+import { GitHubPushButton } from "@/components/github-push-button"
 
 export default function GoldTradingDashboard() {
   const { toast } = useToast()
@@ -315,6 +316,7 @@ export default function GoldTradingDashboard() {
               <Send className={`w-4 h-4 ${testingTelegram ? "animate-spin" : ""}`} />
               {testingTelegram ? "Testing..." : "Test Telegram"}
             </Button>
+            <GitHubPushButton />
             {isMounted && lastUpdate && (
               <Badge variant="outline" className="gap-1 text-xs">
                 <Clock className="w-3 h-3" />
