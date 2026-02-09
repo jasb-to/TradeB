@@ -140,17 +140,47 @@ export class TradingStrategies {
     }
 
     // ── TIER B GATE ──────────────────────────────────────────────────────
-    // B-tier allows HTF NEUTRAL because Daily+4H structural divergence is
-    // common during momentum phases; the trade is driven by 1H+15M alignment
-    // instead. Reduced position sizing (50-60%) compensates for the weaker
-    // HTF backing. Counter-trend is still hard-blocked above (line 89-126).
-    //
-    // Rules (Gold & Silver identical):
-    //   1. 1H + 15M must align in the same direction
-    //   2. Daily must NOT oppose the direction (NEUTRAL is acceptable)
-    //   3. ADX >= 15 (lowered from 18 to capture valid momentum earlier)
-    //   4. VWAP must support direction on 1H
-    if (htfPolarity.trend === "NEUTRAL" && direction !== "NEUTRAL") {
+    // FEATURE FLAG CHECK: Only evaluate B-tier if enabled
+    if (!FEATURE_FLAGS.ENABLE_B_TIER && htfPolarity.trend === "NEUTRAL" && direction !== "NEUTRAL") {
+      // B-tier is disabled - reject any HTF neutral setup silently
+      return {
+        type: "NO_TRADE",
+        direction: "NONE",
+        alertLevel: 0,
+        confidence: 0,
+        htfTrend: "NEUTRAL",
+        timeframeAlignment: timeframeAlignment,
+        lastCandle: {
+          close: currentPrice,
+          timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
+        },
+        reasons: ["B-tier trades disabled (HTF neutral) - only A/A+ with HTF bias allowed"],
+        timestamp: Date.now(),
+        strategy: "BREAKOUT_CHANDELIER",
+        indicators: {
+          adx: indicators1h.adx || 0,
+          atr: indicators1h.atr || 0,
+          rsi: indicators1h.rsi || 50,
+          stochRSI: indicators1h.stochRSI || 50,
+          vwap: indicators1h.vwap || 0,
+          ema20: indicators1h.ema20 || 0,
+          ema50: indicators1h.ema50 || 0,
+          ema200: indicators1h.ema200 || 0,
+          bollingerUpper: 0,
+          bollingerLower: 0,
+          chandelierStop: 0,
+          chandelierLongStop: 0,
+          chandelierShortStop: 0,
+          chandelierStop4H: 0,
+          macd: { macd: 0, signal: 0, histogram: 0 },
+          divergence: { bullish: false, bearish: false, strength: 0 },
+          volumeSpike: false,
+        },
+      }
+    }
+
+    // B-tier evaluation (only if ENABLE_B_TIER is true)
+    if (FEATURE_FLAGS.ENABLE_B_TIER && htfPolarity.trend === "NEUTRAL" && direction !== "NEUTRAL") {
       const price1h = data1h[data1h.length - 1]?.close || 0
       const vwap1h = indicators1h.vwap || 0
 
@@ -188,7 +218,7 @@ export class TradingStrategies {
             close: currentPrice,
             timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
           },
-          reasons: [`HTF neutral + B-tier gate failed: ${failReasons.join("; ")}`],
+          reasons: [`B-tier gate failed: ${failReasons.join("; ")}`],
           timestamp: Date.now(),
           strategy: "BREAKOUT_CHANDELIER",
           indicators: {
