@@ -44,11 +44,11 @@ export async function GET() {
       })
       const result15m = await dataFetcher.fetchCandles("15m", 200).catch(err => {
         console.warn("[v0] 15m fetch failed (non-critical):", err.message)
-        return { candles: [] }
+        return { candles: [] as any[], source: "oanda" as const }
       })
       const result5m = await dataFetcher.fetchCandles("5m", 200).catch(err => {
         console.warn("[v0] 5m fetch failed (non-critical):", err.message)
-        return { candles: [] }
+        return { candles: [] as any[], source: "oanda" as const }
       })
 
       const data15m = result15m.candles || []
