@@ -447,6 +447,36 @@ export async function GET() {
         console.log(`[v0] ALERT BLOCKED for ${symbol} by entryDecision: ${entryDecision.blockedReasons.join(" | ")}`)
       }
 
+      // VALIDATION: Ensure response completeness before sending
+      const validateSignalResponse = () => {
+        const validations = {
+          hasIndicators: !!enhancedSignal.indicators,
+          hasVWAP: enhancedSignal.indicators?.vwap !== undefined && enhancedSignal.indicators?.vwap !== null,
+          hasStochRSI: !!enhancedSignal.indicators?.stochRSI,
+          stochRSIHasState: (enhancedSignal.indicators?.stochRSI as any)?.state !== undefined,
+          hasEntryDecision: !!enhancedSignal.entryDecision,
+          hasCriteria: (enhancedSignal.entryDecision?.criteria?.length || 0) === 7,
+          hasLastCandle: !!enhancedSignal.lastCandle,
+          tierValid: ["A+", "A", "B", "NO_TRADE"].includes(enhancedSignal.entryDecision?.tier || ""),
+          scoreValid: enhancedSignal.entryDecision?.score >= 0 && enhancedSignal.entryDecision?.score <= 9,
+        };
+
+        const allValid = Object.values(validations).every(v => v);
+
+        console.log(`[v0] Signal Response Validation: ${allValid ? "✓ PASS" : "✗ FAIL"}`, {
+          ...validations,
+          vwapValue: enhancedSignal.indicators?.vwap,
+          stochRSIState: (enhancedSignal.indicators?.stochRSI as any)?.state,
+          criteriaCount: enhancedSignal.entryDecision?.criteria?.length,
+          tier: enhancedSignal.entryDecision?.tier,
+          score: enhancedSignal.entryDecision?.score,
+        });
+
+        return allValid;
+      };
+
+      validateSignalResponse();
+
       return NextResponse.json({
         success: true,
         signal: enhancedSignal,
