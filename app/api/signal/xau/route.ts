@@ -132,12 +132,13 @@ export async function GET() {
       const vwapValue = typeof vwapResult === "object" ? vwapResult.value : vwapResult
 
       // Build indicators object - stochRSI is full structured object (value + state)
+      // SAFETY: Ensure all indicators have numeric values (never undefined)
       const indicators = {
-        adx: adxValue || 0,
-        atr: atrValue || 0,
-        rsi: rsiValue || 50,
+        adx: typeof adxValue === "number" ? adxValue : 0,
+        atr: typeof atrValue === "number" ? atrValue : 0,
+        rsi: typeof rsiValue === "number" ? rsiValue : 50,
         stochRSI: stochRSIResult, // FULL OBJECT: { value: number | null, state: string }
-        vwap: vwapValue > 0 ? vwapValue : closePrice,
+        vwap: vwapValue > 0 ? vwapValue : (closePrice || 0),
         ema20: 0,
         ema50: 0,
         ema200: 0,

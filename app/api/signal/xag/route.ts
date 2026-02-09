@@ -91,12 +91,14 @@ export async function GET() {
 
       // Stoch RSI is NOT an entry gate. Informational only.
       // STRICT: Pass full structured object, NEVER fallback to 0
+      // SAFETY: Ensure all indicators have numeric values (never undefined)
       const indicators = {
         ...signal.indicators,
-        atr: signal.indicators?.atr || 0,
-        rsi: signal.indicators?.rsi || 0,
+        adx: typeof signal.indicators?.adx === "number" ? signal.indicators.adx : 0,
+        atr: typeof signal.indicators?.atr === "number" ? signal.indicators.atr : 0,
+        rsi: typeof signal.indicators?.rsi === "number" ? signal.indicators.rsi : 50,
         stochRSI: signal.indicators?.stochRSI ?? { value: null, state: "CALCULATING" },
-        vwap: vwapResult.value > 0 ? vwapResult.value : closePrice,
+        vwap: vwapResult.value > 0 ? vwapResult.value : (closePrice || 0),
         vwapBias: vwapResult.bias,
       }
 
