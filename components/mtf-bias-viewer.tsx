@@ -78,6 +78,17 @@ export function MTFBiasViewer({ signal }: MTFBiasViewerProps) {
     return "Alignment data processing..."
   }
 
+  // Get VWAP bias from indicators
+  const vwap = signal?.indicators?.vwap ?? 0
+  const currentPrice = signal?.lastCandle?.close ?? 0
+  const getVWAPBias = () => {
+    if (vwap === 0 || currentPrice === 0) return "N/A"
+    if (currentPrice > vwap * 1.002) return "BULLISH"
+    if (currentPrice < vwap * 0.998) return "BEARISH"
+    return "NEUTRAL"
+  }
+  const vwapBias = getVWAPBias()
+
   return (
     <div className="space-y-3">
       {/* Multi-timeframe alignment badges - from canonical backend source */}
@@ -94,6 +105,24 @@ export function MTFBiasViewer({ signal }: MTFBiasViewerProps) {
         ))}
       </div>
 
+      {/* VWAP Bias Badge */}
+      {vwap > 0 && (
+        <Badge
+          className={`border font-mono text-sm px-3 py-2 flex items-center gap-2 w-full justify-center ${
+            vwapBias === "BULLISH" 
+              ? "bg-green-950/50 text-green-200 border-green-700/50"
+              : vwapBias === "BEARISH"
+                ? "bg-red-950/50 text-red-200 border-red-700/50"
+                : "bg-gray-900/50 text-gray-200 border-gray-700/50"
+          }`}
+        >
+          <span className="text-xs">VWAP Bias</span>
+          <span className="font-bold">${vwap.toFixed(2)}</span>
+          <span>|</span>
+          <span>{vwapBias}</span>
+        </Badge>
+      )}
+
       {/* Market regime badge */}
       <Badge
         className={`${getTrendColor()} border font-mono text-sm px-3 py-2 flex items-center gap-2 w-full justify-center`}
@@ -106,7 +135,7 @@ export function MTFBiasViewer({ signal }: MTFBiasViewerProps) {
       <div className="text-xs text-slate-400 p-2 bg-slate-900/30 rounded border border-slate-700/30 flex gap-2">
         <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
         <span>
-          <strong>Bias requires confirmed EMA structure:</strong> Bias requires close {">"} EMA20 {">"} EMA50 with RSI alignment. Strong momentum or volatility may exist without clear structural bias. See higher-timeframe trend direction for context.
+          <strong>Bias requires confirmed EMA structure:</strong> Bias requires close {">"} EMA20 {">"} EMA50 with RSI alignment. VWAP anchors daily support/resistance. Strong momentum or volatility may exist without clear structural bias.
         </span>
       </div>
     </div>
