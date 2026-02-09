@@ -604,7 +604,7 @@ export class TradingStrategies {
     const isGold = signal.indicators?.atr !== undefined // XAU/XAG detected by presence of indicators
     
     const criteria: EntryDecisionCriteria[] = []
-    let score = 0
+    let rawScore = 0
 
     // Criterion 1: Daily bias aligned (MANDATORY)
     const dailyAligned = signal.mtfBias?.daily === signal.direction
@@ -614,7 +614,7 @@ export class TradingStrategies {
       passed: dailyAligned,
       reason: dailyAligned ? `Daily ${signal.direction}` : `Daily ${signal.mtfBias?.daily || "NO_CLEAR_BIAS"} ≠ signal ${signal.direction}`,
     })
-    if (dailyAligned) score += 3 // HTF alignment carries more weight
+    if (dailyAligned) rawScore += 2 // Reduced from 3 to fit within 9-point scale
 
     // Criterion 2: 4H bias aligned (MANDATORY)
     const h4Aligned = signal.mtfBias?.["4h"] === signal.direction
@@ -624,7 +624,7 @@ export class TradingStrategies {
       passed: h4Aligned,
       reason: h4Aligned ? `4H ${signal.direction}` : `4H ${signal.mtfBias?.["4h"] || "NO_CLEAR_BIAS"}`,
     })
-    if (h4Aligned) score += 3 // HTF alignment carries more weight
+    if (h4Aligned) rawScore += 2 // Reduced from 3 to fit within 9-point scale
     
     // Criterion 3: 1H alignment (CONFIRMATORY, NOT BLOCKING)
     // 5% LOOSENING: 1H is now +1 score (confirmatory) instead of mandatory gate
@@ -635,7 +635,7 @@ export class TradingStrategies {
       passed: h1Aligned,
       reason: h1Aligned ? `1H ${signal.direction}` : `1H ${signal.mtfBias?.["1h"] || "NO_CLEAR_BIAS"} (non-blocking)`,
     })
-    if (h1Aligned) score += 1 // Non-blocking confirmation bonus
+    if (h1Aligned) rawScore += 1 // Non-blocking confirmation bonus
 
     // Criterion 4: ADX strength gate
     // B-tier ADX lowered to 15 (from 18) to allow valid momentum trades
@@ -651,16 +651,16 @@ export class TradingStrategies {
       key: "adx_strength",
       label: `ADX ≥ ${adxThreshold.toFixed(1)} (${setupQuality} threshold)`,
       passed: adxPassed,
-      reason: `ADX ${adx.toFixed(1)} ${adxPassed ? "��" : "✗"}`,
+      reason: `ADX ${adx.toFixed(1)} ${adxPassed ? "✓" : "✗"}`,
     })
-    if (adxPassed) score += 1
+    if (adxPassed) rawScore += 1
 
     // Bonus: ADX at elevated level (0.5 points) - FOR TIER B ONLY
     // Awards partial credit when ADX > 25 on Tier B entries (1H momentum-driven trades)
     // Does NOT apply to A/A+ trades (they need higher ADX baseline already)
     const adxElevated = adx > 25 && setupQuality === "B"
     if (adxElevated) {
-      score += 0.5
+      rawScore += 0.5
       criteria.push({
         key: "adx_elevated",
         label: "ADX elevated (0.5 bonus - Tier B)",
@@ -668,6 +668,107 @@ export class TradingStrategies {
         reason: `ADX ${adx.toFixed(1)} > 25 (strong 1H momentum)`,
       })
     }
+
+    // Criterion 5: ATR volatility filter (softened by ~5%)
+    const atr = signal.indicators?.atr || 0
+    const atrThreshold = 2.375 // 2.5 * 0.95
+    const atrPassed = atr >= atrThreshold
+    criteria.push({
+      key: "atr_volatility",
+      label: `ATR ≥ ${atrThreshold.toFixed(2)} (volatility)`,
+      passed: atrPassed,
+      reason: `ATR ${atr.toFixed(2)} ${atrPassed ? "✓" : "✗"}`,
+    })
+    if (atrPassed) rawScore += 1
+
+    // Criterion 6: Momentum confirmation (StochRSI state-based)
+    // Lower timeframes used for timing, not permission
+    const stochRsi = signal.indicators?.stochRSI
+    let stochPassed = false
+    let stochReason = "No data"
+    if (stochRsi && typeof stochRsi === "object" && "state" in stochRsi) {
+      const state = (stochRsi as any).state
+      const value = (stochRsi as any).value
+      stochPassed = state === "MOMENTUM_UP" || state === "MOMENTUM_DOWN"
+      stochReason = value !== null ? `${state} (${value.toFixed(0)})` : "Calculating..."
+    }
+    criteria.push({
+      key: "momentum_confirm",
+      label: "StochRSI confirms momentum (timing)",
+      passed: stochPassed,
+      reason: stochReason,
+    })
+    if (stochPassed) rawScore += 0.5 // Reduced from 1 to fit within 9-point scale
+
+    // Criterion 7: HTF polarity (directional integrity)
+    // TIER B ALLOWANCE: HTF NEUTRAL is allowed if Daily+4H align
+    const htfTrendMatch = !signal.htfTrend || signal.htfTrend === "NEUTRAL" || signal.htfTrend === signal.direction
+    const tierBAllowance = signal.htfTrend === "NEUTRAL" && dailyAligned && h4Aligned
+    criteria.push({
+      key: "htf_polarity",
+      label: "HTF polarity matches direction",
+      passed: htfTrendMatch || tierBAllowance,
+      reason: htfTrendMatch ? `HTF ${signal.direction}` : tierBAllowance ? `HTF NEUTRAL (Tier B allowed)` : `HTF ${signal.htfTrend} ≠ ${signal.direction}`,
+    })
+    if (htfTrendMatch || tierBAllowance) rawScore += 0.5 // Reduced from 1 to fit within 9-point scale
+
+    // NORMALIZE SCORE TO 9-POINT SCALE
+    // Maximum possible: 2+2+1+1+0.5+1+0.5+0.5 = 8.5
+    // Round to 1 decimal place and cap at 9
+    const score = Math.min(Math.round(rawScore * 10) / 10, 9)
+
+    // Use the signal's setupQuality (from determineSetupTier) as the single
+    // authoritative tier.  buildEntryDecision scores the checklist criteria
+    // but does NOT independently re-derive the tier -- that caused the A vs A+
+    // mismatch between Telegram alerts and the UI.
+    const signalTier = signal.setupQuality as "A+" | "A" | "B" | "STANDARD" | undefined
+    let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
+    if (signalTier === "A+") tier = "A+"
+    else if (signalTier === "A") tier = "A"
+    else if (signalTier === "B") tier = "B"
+
+    // Alert level based on tier
+    let alertLevel: 0 | 1 | 2 | 3 = 0
+    if (tier === "A+") alertLevel = 3
+    else if (tier === "A") alertLevel = 2
+    else if (tier === "B") alertLevel = 1
+
+    // Blocking reasons: Tier-dependent gating
+    const blockedReasons: string[] = []
+    
+    // A/A+ tiers: Require Daily+4H alignment (strict)
+    if (tier === "A" || tier === "A+") {
+      if (!dailyAligned) blockedReasons.push("Daily not aligned")
+      if (!h4Aligned) blockedReasons.push("4H not aligned")
+    }
+    
+    // B tier: NO Daily/4H requirement - 1H drives the trade
+    // Only block if HTF is actively counter-trend (not neutral/mixed)
+    if (signal.htfTrend && signal.htfTrend !== "NEUTRAL" && signal.htfTrend !== signal.direction) {
+      blockedReasons.push("Counter-trend detected")
+    }
+
+    const allowed = tier !== "NO_TRADE" && blockedReasons.length === 0
+
+    if (tier === "B" && allowed) {
+      console.log(`[v0] 🔵 TIER B APPROVED: 1H momentum-driven | Daily=${signal.mtfBias?.daily || "?"} 4H=${signal.mtfBias?.["4h"] || "?"} 1H=${signal.mtfBias?.["1h"] || "?"}`)
+    }
+    
+    console.log(`[v0] ENTRY DECISION: ${allowed ? "✓ APPROVED" : "✗ REJECTED"} | Tier ${tier} | Score ${score.toFixed(1)}/9`)
+    if (blockedReasons.length > 0) {
+      console.log(`[v0] BLOCKED: ${blockedReasons.join(", ")}`)
+    }
+
+    return {
+      allowed,
+      tier,
+      score,
+      criteria,
+      blockedReasons,
+      alertLevel,
+      confidence: signal.confidence || 0,
+    }
+  }
 
     // Criterion 5: ATR volatility filter (softened by ~5%)
     const atr = signal.indicators?.atr || 0
