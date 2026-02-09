@@ -114,16 +114,16 @@ export async function GET() {
         timestamp: c.time || Date.now(),
       }))
 
-      // Calculate indicators from raw candle data using TechnicalAnalysis
-      const adxValue = TechnicalAnalysis.calculateADX(data1hCandles, 14)
-      const atrValue = TechnicalAnalysis.calculateATR(data1hCandles, 14)
-      const rsiValue = TechnicalAnalysis.calculateRSI(data1hCandles, 14)
+      // Calculate indicators from normalized candle data using TechnicalAnalysis
+      const adxValue = TechnicalAnalysis.calculateADX(normalizedCandles, 14)
+      const atrValue = TechnicalAnalysis.calculateATR(normalizedCandles, 14)
+      const rsiValue = TechnicalAnalysis.calculateRSI(normalizedCandles, 14)
       
-      console.log(`[v0] XAU Indicators Calculated: ADX=${adxValue.toFixed(2)} ATR=${atrValue.toFixed(2)} RSI=${rsiValue.toFixed(2)} | Candle Count=${data1hCandles.length}`)
+      console.log(`[v0] XAU Indicators Calculated: ADX=${adxValue.toFixed(2)} ATR=${atrValue.toFixed(2)} RSI=${rsiValue.toFixed(2)} | Candle Count=${normalizedCandles.length}`)
       
       // Stoch RSI is NOT an entry gate. Informational only.
       // STRICT: Pass full structured object, NEVER fallback to 50
-      const stochRSIResult = TechnicalAnalysis.calculateStochasticRSI(data1hCandles, 14, 3)
+      const stochRSIResult = TechnicalAnalysis.calculateStochasticRSI(normalizedCandles, 14, 3)
       
       // Calculate VWAP from normalized candles
       const vwapResult = normalizedCandles && normalizedCandles.length > 0
