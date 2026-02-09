@@ -1,7 +1,7 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle2, X, AlertCircle } from "lucide-react"
+import { CheckCircle2, X } from "lucide-react"
 import type { Signal } from "@/types/trading"
 
 interface EntryChecklistProps {
@@ -38,21 +38,6 @@ export function EntryChecklist({ signal }: EntryChecklistProps) {
   const passCount = entryDecision.criteria.filter((c) => c.passed).length
   const totalCount = entryDecision.criteria.length
   
-  // Validate tier/score consistency
-  // Score range: 0-9 (normalized)
-  // A+: >= 7
-  // A: 6 <= score < 7
-  // B: 4.5 <= score < 6
-  // NO_TRADE: < 4.5
-  const isScoreValid = 
-    (entryDecision.tier === "A+" && entryDecision.score >= 7) ||
-    (entryDecision.tier === "A" && entryDecision.score >= 6 && entryDecision.score < 7) ||
-    (entryDecision.tier === "B" && entryDecision.score >= 4.5 && entryDecision.score < 6) ||
-    (entryDecision.tier === "NO_TRADE" && entryDecision.score < 4.5);
-  
-  // Consistency check: allowed should match tier and blocked reasons
-  const isAllowanceValid = !entryDecision.allowed || entryDecision.blockedReasons.length === 0;
-
   return (
     <Card className="bg-slate-900/40 border-slate-700/50">
       <CardHeader>
@@ -64,18 +49,6 @@ export function EntryChecklist({ signal }: EntryChecklistProps) {
         </CardTitle>
         <div className="text-xs text-slate-400 mt-2 space-y-1">
           <p>Tier: {entryDecision.tier} | Score: {entryDecision.score.toFixed(1)}/9</p>
-          {!isScoreValid && (
-            <p className="text-red-400 flex items-center gap-1">
-              <AlertCircle className="w-3 h-3" />
-              Score/Tier mismatch detected
-            </p>
-          )}
-          {!isAllowanceValid && (
-            <p className="text-yellow-400 flex items-center gap-1">
-              <AlertCircle className="w-3 h-3" />
-              Consistency warning: Allowed flag mismatch
-            </p>
-          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-2">

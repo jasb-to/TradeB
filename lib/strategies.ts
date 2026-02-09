@@ -1,6 +1,9 @@
 // Trading Strategies - VWAP fix, tier unification, weight key alignment (Feb 2026)
 import type { Candle, Signal, TechnicalIndicators, TradingConfig, EntryDecision, EntryDecisionCriteria, TimeframeAlignment, AlignmentState } from "../types/trading"
 import { TechnicalAnalysis } from "./indicators"
+import { FEATURE_FLAGS } from "./default-config"
+import { ExitSignalManager } from "./exit-signal-manager"
+import { EarlyReversalWarningSystem } from "./early-reversal-warning"
 
 interface ChopAnalysis {
   isChoppy: boolean
@@ -257,9 +260,27 @@ export class TradingStrategies {
     }
 
     let confidence = 0
+    
+    // B-TIER REJECTION (Feature Flag)
+    if (setupTier === "B" && !FEATURE_FLAGS.ENABLE_B_TIER) {
+      console.log(`[v0] B-tier trade rejected (ENABLE_B_TIER=${FEATURE_FLAGS.ENABLE_B_TIER})`)
+      return {
+        type: "NO_TRADE",
+        direction: "NONE",
+        alertLevel: 0,
+        confidence: 0,
+        reasons: ["B-tier trades disabled - only A/A+ allowed"],
+        timeframeAlignment: timeframeAlignment,
+        lastCandle: {
+          close: currentPrice,
+          timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
+        },
+      }
+    }
+    
     if (adx1h >= 25) confidence = setupTier === "A+" ? 95 : 85
     else if (adx1h >= 20) confidence = setupTier === "A+" ? 75 : 70
-    else if (setupTier === "B") confidence = 65 // Changed from 45 to 65-75 range
+    else if (setupTier === "B") confidence = 65 // B-tier (if enabled)
     else confidence = setupTier === "A+" ? 50 : 45
 
     const ltfConfirm = direction !== "NEUTRAL" ? this.checkLTFConfirmation(data5m, data15m, indicators5m, indicators15m, direction) : false
@@ -327,11 +348,25 @@ export class TradingStrategies {
     }
 
     const atr1h = indicators1h.atr || 0
+    
+    // Use Chandelier Stop as TP (more adaptive than fixed ATR multiples)
+    const chandelierStop = TechnicalAnalysis.calculateChandelierStop(candles1h, 22, 3)
+    
+    // Stop Loss: Fixed ATR multiple (tighter risk)
     const stopLoss = direction === "LONG" ? currentPrice - atr1h * 1.5 : currentPrice + atr1h * 1.5
-    const takeProfit = direction === "LONG" ? currentPrice + atr1h * 2.0 : currentPrice - atr1h * 2.0
-    const riskReward = (atr1h * 2.0) / (atr1h * 1.5)
+    
+    // Take Profit: Use Chandelier Stop (volatility-adjusted exit)
+    // For LONG: Chandelier Long Stop is the TP level
+    // For SHORT: Chandelier Short Stop is the TP level
+    const takeProfit = direction === "LONG" ? chandelierStop.long : chandelierStop.short
+    
+    // Fallback to ATR multiple if chandelier calculation fails
+    const chandelierTP = direction === "LONG" ? currentPrice + (chandelierStop.long - currentPrice) : currentPrice - (currentPrice - chandelierStop.short)
+    const finalTP = Math.abs(chandelierTP - currentPrice) > atr1h * 0.5 ? chandelierTP : (direction === "LONG" ? currentPrice + atr1h * 2.0 : currentPrice - atr1h * 2.0)
+    
+    const riskReward = Math.abs(finalTP - currentPrice) / Math.abs(stopLoss - currentPrice)
 
-    console.log(`[v0] SIGNAL: ${direction} ${setupTier} @ ${currentPrice.toFixed(2)} | Conf ${confidence}% | HTF ${htfPolarity.trend}`)
+    console.log(`[v0] SIGNAL: ${direction} ${setupTier} @ ${currentPrice.toFixed(2)} | Conf ${confidence}% | HTF ${htfPolarity.trend} | TP via Chandelier: ${finalTP.toFixed(2)}`)
 
     return {
       type: "ENTRY",
@@ -341,8 +376,8 @@ export class TradingStrategies {
       entryPrice: currentPrice,
       stopLoss,
       takeProfit1: direction === "LONG" ? currentPrice + atr1h * 1.0 : currentPrice - atr1h * 1.0,
-      takeProfit2: direction === "LONG" ? currentPrice + atr1h * 2.0 : currentPrice - atr1h * 2.0,
-      takeProfit: direction === "LONG" ? currentPrice + atr1h * 2.0 : currentPrice - atr1h * 2.0,
+      takeProfit2: finalTP,
+      takeProfit: finalTP,
       riskReward,
       setupQuality: setupTier || "STANDARD",
       htfTrend: htfPolarity.trend,
@@ -352,7 +387,7 @@ export class TradingStrategies {
         `${marketRegime} market (ADX ${adx1h.toFixed(1)})`,
         `HTF Polarity: ${htfPolarity.trend} (${htfPolarity.reason})`,
         `Weighted MTF Score: ${alignmentScore}`,
-        `Risk:Reward ${riskReward.toFixed(2)}:1 (min 1.33:1)`,
+        `Risk:Reward ${riskReward.toFixed(2)}:1 | TP via Chandelier Stop (adaptive to volatility)`,
       ],
       indicators: {
         adx: adx1h,
@@ -717,15 +752,33 @@ export class TradingStrategies {
     // Round to 1 decimal place and cap at 9
     const score = Math.min(Math.round(rawScore * 10) / 10, 9)
 
-    // Use the signal's setupQuality (from determineSetupTier) as the single
-    // authoritative tier.  buildEntryDecision scores the checklist criteria
-    // but does NOT independently re-derive the tier -- that caused the A vs A+
-    // mismatch between Telegram alerts and the UI.
+    // VALIDATE TIER vs SCORE CONSISTENCY
+    // The tier must align with the score ranges:
+    // A+: score >= 7
+    // A: 6 <= score < 7
+    // B: 4.5 <= score < 6
+    // NO_TRADE: score < 4.5
+    // If setupQuality doesn't match the score range, reconcile it.
     const signalTier = signal.setupQuality as "A+" | "A" | "B" | "STANDARD" | undefined
     let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
-    if (signalTier === "A+") tier = "A+"
-    else if (signalTier === "A") tier = "A"
-    else if (signalTier === "B") tier = "B"
+    
+    // Determine tier from score first
+    if (score >= 7) tier = "A+"
+    else if (score >= 6) tier = "A"
+    else if (score >= 4.5) tier = "B"
+    else tier = "NO_TRADE"
+    
+    // Log if setupQuality differed from score-derived tier
+    if (signalTier && signalTier !== "STANDARD") {
+      const expectedTier = tier
+      if (signalTier === "A+" && expectedTier !== "A+") {
+        console.warn(`[v0] TIER MISMATCH: setupQuality was "A+" but score ${score} derives tier "${expectedTier}"`)
+      } else if (signalTier === "A" && expectedTier !== "A") {
+        console.warn(`[v0] TIER MISMATCH: setupQuality was "A" but score ${score} derives tier "${expectedTier}"`)
+      } else if (signalTier === "B" && expectedTier !== "B") {
+        console.warn(`[v0] TIER MISMATCH: setupQuality was "B" but score ${score} derives tier "${expectedTier}"`)
+      }
+    }
 
     // Alert level based on tier
     let alertLevel: 0 | 1 | 2 | 3 = 0
@@ -847,5 +900,51 @@ export class TradingStrategies {
         volumeSpike: false,
       }
     }
+  }
+
+  /**
+   * Evaluate if an active trade should exit (HARD STOPS ONLY)
+   * 
+   * Only automatic exits:
+   * - Stop Loss hit
+   * - Take Profit 1 hit
+   * - Take Profit 2 hit
+   * 
+   * All other logic is advisory-only via EarlyReversalWarningSystem
+   */
+  public async evaluateExitForTrade(trade: any, candles1h: Candle[], candles15m: Candle[], candles5m: Candle[]): Promise<Signal | null> {
+    const currentPrice = candles1h[candles1h.length - 1]?.close || 0
+    
+    // Use simplified ExitSignalManager for hard stops only
+    return ExitSignalManager.checkForExit(trade, currentPrice)
+  }
+
+  /**
+   * Evaluate reversal warnings (ADVISORY ONLY)
+   * Non-blocking alerts when 2+ reversal conditions detected
+   * Will only trigger once per trade (must reset on SL/TP hit)
+   */
+  public async evaluateReversalWarning(
+    trade: any,
+    candles1h: Candle[],
+    candles15m: Candle[],
+    symbol: string,
+    initialADX: number
+  ): Promise<any | null> {
+    const currentPrice = candles1h[candles1h.length - 1]?.close || 0
+    
+    // Check if already warned for this trade
+    if (trade.earlyReversalWarned) {
+      return null
+    }
+
+    return EarlyReversalWarningSystem.evaluateReversalRisk(
+      trade,
+      currentPrice,
+      candles1h,
+      candles15m,
+      initialADX,
+      symbol
+    )
   }
 }
