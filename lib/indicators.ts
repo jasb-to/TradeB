@@ -685,9 +685,9 @@ export class TechnicalAnalysis {
     }
 
     const adx = this.calculateADX(candles, 14)
-    const atr = this.calculateATR(candles, 14)
-    const rsi = this.calculateRSI(candles, 14)
-    const stochRSI = this.calculateStochasticRSI(candles, 14, 3)
+  const atr = this.calculateATR(candles, 14)
+  const rsi = this.calculateRSI(candles, 14)
+  const stochRSI = this.calculateStochasticRSI(candles, 14, 5)
     const ema20 = this.calculateEMA(
       candles.map((c) => c.close),
       20,
