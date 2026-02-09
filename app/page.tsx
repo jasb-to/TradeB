@@ -248,11 +248,10 @@ export default function GoldTradingDashboard() {
         if (xauData.success && xauData.signal) {
           setSignalXAU(xauData.signal)
         }
+        
+        setLastUpdate(Date.now())
+        setSecondsAgo(0)
       }
-      
-      setLastUpdate(Date.now())
-      setSecondsAgo(0)
-        }
 
         // Poll XAG in background (every cycle)
         fetchXAG()
