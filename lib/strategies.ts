@@ -271,6 +271,10 @@ export class TradingStrategies {
         confidence: confidence,
         pendingReason: `Waiting for 5M/15M confirmation on ${direction} entry`,
         timeframeAlignment: timeframeAlignment,
+        lastCandle: {
+          close: currentPrice,
+          timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
+        },
         strategyRequirements: {
           dailyAligned: dailyAligned,
           htfAligned: htfAligned,
@@ -354,6 +358,14 @@ export class TradingStrategies {
         rsi: indicators1h.rsi,
         stochRSI: indicators1h.stochRSI,
         atr: atr1h,
+        vwap: indicators1h.vwap || 0,
+        ema20: indicators1h.ema20 || 0,
+        ema50: indicators1h.ema50 || 0,
+        ema200: indicators1h.ema200 || 0,
+      },
+      lastCandle: {
+        close: currentPrice,
+        timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
       },
       mtfBias: biases as any,
       timeframeAlignment: timeframeAlignment,

@@ -103,7 +103,7 @@ export function IndicatorCards({ signal }: IndicatorCardsProps) {
   const currentPrice = signal?.lastCandle?.close ?? 0
   const adxStatus = getADXStatus(adx)
   const atrStatus = getATRStatus(atr)
-  const stochRsi = stochRsiData.value ?? 0 // Declare stochRsi variable
+  const stochRsi = stochRsiData.value ?? 0
   const stochStatus = getStochStatusFromState(stochRsiData)
   const vwapStatus = getVWAPStatus(vwap, currentPrice)
 
