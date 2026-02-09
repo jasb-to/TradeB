@@ -39,6 +39,11 @@ export function EntryChecklist({ signal }: EntryChecklistProps) {
   const totalCount = entryDecision.criteria.length
   
   // Validate tier/score consistency
+  // Score range: 0-9 (normalized)
+  // A+: >= 7
+  // A: 6 <= score < 7
+  // B: 4.5 <= score < 6
+  // NO_TRADE: < 4.5
   const isScoreValid = 
     (entryDecision.tier === "A+" && entryDecision.score >= 7) ||
     (entryDecision.tier === "A" && entryDecision.score >= 6 && entryDecision.score < 7) ||
