@@ -737,13 +737,30 @@ export class TradingStrategies {
 
     // Criterion 7: HTF polarity (directional integrity)
     // STRICT REQUIREMENT: With B-tier disabled, only A/A+ allowed
-    // HTF polarity MUST match signal direction - NO NEUTRAL ALLOWANCE
-    const htfTrendMatch = signal.htfTrend === signal.direction
+    // HTF polarity MUST match signal direction - NO NEUTRAL or NONE ALLOWANCE
+    const htfAligned = signal.htfTrend === signal.direction
+    const htfUndefined = !signal.htfTrend || signal.htfTrend === undefined
+    const htfNeutral = signal.htfTrend === "NEUTRAL"
+    
+    // Only pass if explicitly aligned (not NEUTRAL, not NONE/undefined)
+    const htfTrendMatch = htfAligned && !htfUndefined && !htfNeutral
+    
+    let htfReason = ""
+    if (htfTrendMatch) {
+      htfReason = `HTF ${signal.direction} (directional integrity verified)`
+    } else if (htfUndefined) {
+      htfReason = `HTF not evaluated — alignment required for A/A+`
+    } else if (htfNeutral) {
+      htfReason = `HTF neutral — strict mode requires directional alignment`
+    } else {
+      htfReason = `HTF ${signal.htfTrend} ≠ ${signal.direction}`
+    }
+    
     criteria.push({
       key: "htf_polarity",
       label: "HTF polarity matches direction",
       passed: htfTrendMatch,
-      reason: htfTrendMatch ? `HTF ${signal.direction} (directional integrity verified)` : `HTF ${signal.htfTrend} ≠ ${signal.direction}`,
+      reason: htfReason,
     })
     if (htfTrendMatch) rawScore += 0.5 // Reduced from 1 to fit within 9-point scale
 
