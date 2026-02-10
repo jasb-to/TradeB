@@ -72,7 +72,14 @@ export function EntryChecklist({ signal }: EntryChecklistProps) {
               )}
               {criterion.key === "htf_polarity" && criterion.passed && (
                 <p className="text-xs text-slate-600 italic">
-                  Directional integrity verified
+                  Directional integrity verified (HTF matches direction)
+                </p>
+              )}
+              {criterion.key === "htf_polarity" && !criterion.passed && (
+                <p className="text-xs text-red-600 italic">
+                  {criterion.reason.includes("not evaluated") && "HTF not evaluated — alignment required for A/A+"}
+                  {criterion.reason.includes("neutral") && "HTF neutral — strict mode requires directional alignment"}
+                  {criterion.reason.includes("≠") && criterion.reason}
                 </p>
               )}
             </div>

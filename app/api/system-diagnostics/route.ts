@@ -10,7 +10,7 @@ import { SignalCache } from "@/lib/signal-cache"
  * - Cron execution state (last hit, frequency, duration)
  * - Per-symbol execution tracking (XAU_USD, XAG_USD)
  * - Current strategy state (HTF polarity, biases, entry score)
- * - Outcome counters (trades, near-misses, B-trades)
+ * - Outcome counters (trades, near-misses)
  * - Operational verdict
  */
 
