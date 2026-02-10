@@ -370,13 +370,15 @@ export class TechnicalAnalysis {
     if (macd.macd < macd.signal && macd.histogram < 0) bearishScore += 2
     else if (macd.macd < macd.signal) bearishScore += 1
 
-    // 4. StochRSI (0-2 points)
-    const stochRSIValue = stochRSI.value ?? 50 // Use value property, fallback to 50 if null
-    if (stochRSIValue > 70) bullishScore += 2
-    else if (stochRSIValue > 50) bullishScore += 1
-
-    if (stochRSIValue < 30) bearishScore += 2
-    else if (stochRSIValue < 50) bearishScore += 1
+    // 4. StochRSI State (0-2 points) - INFORMATIONAL ONLY, not entry gate
+    // Use the calculated STATE from calculateStochasticRSI, not raw thresholds
+    // MOMENTUM_UP (>60) = bullish confirmation
+    // MOMENTUM_DOWN (<40) = bearish confirmation
+    // COMPRESSION (40-60) = neutral confirmation (no bias)
+    const stochRSIState = stochRSI.state
+    if (stochRSIState === "MOMENTUM_UP") bullishScore += 2
+    if (stochRSIState === "MOMENTUM_DOWN") bearishScore += 2
+    // COMPRESSION adds no bias (already neutral)
 
     // 5. ADX (0-2 points for trend strength confirmation)
     if (adx >= 23) {
