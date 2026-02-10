@@ -63,13 +63,16 @@ export function EntryChecklist({ signal }: EntryChecklistProps) {
               <span className={criterion.passed ? "text-green-300" : "text-red-300"}>
                 {i + 1}. {criterion.label}
               </span>
-              <p className="text-xs text-slate-500">{criterion.reason}</p>
-              {/* Additional context for problematic criteria */}
+              {/* Only show reason if NOT htf_polarity (HTF has custom logic below) */}
+              {criterion.key !== "htf_polarity" && !criterion.passed && (
+                <p className="text-xs text-slate-500">{criterion.reason}</p>
+              )}
               {criterion.key === "momentum_confirm" && !criterion.passed && (
                 <p className="text-xs text-slate-600 italic">
                   Timing confirmation • Non-blocking
                 </p>
               )}
+              {/* HTF Polarity custom messaging - ONE message only */}
               {criterion.key === "htf_polarity" && criterion.passed && (
                 <p className="text-xs text-slate-600 italic">
                   Directional integrity verified (HTF matches direction)
@@ -77,9 +80,7 @@ export function EntryChecklist({ signal }: EntryChecklistProps) {
               )}
               {criterion.key === "htf_polarity" && !criterion.passed && (
                 <p className="text-xs text-red-600 italic">
-                  {criterion.reason.includes("not evaluated") && "HTF not evaluated — alignment required for A/A+"}
-                  {criterion.reason.includes("neutral") && "HTF neutral — strict mode requires directional alignment"}
-                  {criterion.reason.includes("≠") && criterion.reason}
+                  {criterion.reason}
                 </p>
               )}
             </div>
