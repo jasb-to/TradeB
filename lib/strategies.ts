@@ -736,16 +736,16 @@ export class TradingStrategies {
     if (stochPassed) rawScore += 0.5 // Reduced from 1 to fit within 9-point scale
 
     // Criterion 7: HTF polarity (directional integrity)
-    // TIER B ALLOWANCE: HTF NEUTRAL is allowed if Daily+4H align
-    const htfTrendMatch = !signal.htfTrend || signal.htfTrend === "NEUTRAL" || signal.htfTrend === signal.direction
-    const tierBAllowance = signal.htfTrend === "NEUTRAL" && dailyAligned && h4Aligned
+    // STRICT REQUIREMENT: With B-tier disabled, only A/A+ allowed
+    // HTF polarity MUST match signal direction - NO NEUTRAL ALLOWANCE
+    const htfTrendMatch = signal.htfTrend === signal.direction
     criteria.push({
       key: "htf_polarity",
       label: "HTF polarity matches direction",
-      passed: htfTrendMatch || tierBAllowance,
-      reason: htfTrendMatch ? `HTF ${signal.direction}` : tierBAllowance ? `HTF NEUTRAL (Tier B allowed)` : `HTF ${signal.htfTrend} ≠ ${signal.direction}`,
+      passed: htfTrendMatch,
+      reason: htfTrendMatch ? `HTF ${signal.direction} (directional integrity verified)` : `HTF ${signal.htfTrend} ≠ ${signal.direction}`,
     })
-    if (htfTrendMatch || tierBAllowance) rawScore += 0.5 // Reduced from 1 to fit within 9-point scale
+    if (htfTrendMatch) rawScore += 0.5 // Reduced from 1 to fit within 9-point scale
 
     // NORMALIZE SCORE TO 9-POINT SCALE
     // Maximum possible: 2+2+1+1+0.5+1+0.5+0.5 = 8.5

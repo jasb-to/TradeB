@@ -302,6 +302,9 @@ export function SignalCard({ signal }: SignalCardProps) {
                     <strong>ADX:</strong> &gt;23 (Strong Trend/A+) | 21-23 (Developing Trend) | &lt;21 (Ranging)
                   </p>
                   <p>
+                    <strong>HTF Polarity:</strong> Must match direction - only A/A+ with directional integrity allowed
+                  </p>
+                  <p>
                     <strong>Stochastic RSI:</strong> &lt;30 (Oversold/Buy) | &gt;70 (Overbought/Sell) | 40-60 (Neutral)
                   </p>
                 </div>
