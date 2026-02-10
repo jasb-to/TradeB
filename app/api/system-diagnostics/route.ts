@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { CronHeartbeat } from "@/lib/cron-heartbeat"
 import { NearMissTracker } from "@/lib/near-miss-tracker"
-import { BTradeTracker } from "@/lib/b-trade-tracker"
 import { SignalCache } from "@/lib/signal-cache"
 
 /**
@@ -11,7 +10,7 @@ import { SignalCache } from "@/lib/signal-cache"
  * - Cron execution state (last hit, frequency, duration)
  * - Per-symbol execution tracking (XAU_USD, XAG_USD)
  * - Current strategy state (HTF polarity, biases, entry score)
- * - Outcome counters (trades, near-misses, B-trades)
+ * - Outcome counters (trades, near-misses)
  * - Operational verdict
  */
 
@@ -37,8 +36,6 @@ export async function GET(request: Request) {
 
   // Get diagnostic data
   const nearMissAllStates = NearMissTracker.getAllStates()
-  const bTradeXauStats = BTradeTracker.getStats("XAU_USD")
-  const bTradeXagStats = BTradeTracker.getStats("XAG_USD")
 
   // Calculate operational verdict
   const isCronHealthy = timeSinceLastCron ? timeSinceLastCron < 10 * 60 * 1000 : false // Must have run in last 10 min
@@ -111,7 +108,6 @@ export async function GET(request: Request) {
 
     outcomesLast24h: {
       nearMissesRecorded: nearMissAllStates.reduce((sum, s) => sum + s.stats.count24h, 0),
-      bSetupsRecorded: (bTradeXauStats.count24h || 0) + (bTradeXagStats.count24h || 0),
       nearMissesBySymbol: nearMissAllStates.map((s) => ({
         symbol: s.symbol,
         count24h: s.stats.count24h,
@@ -119,24 +115,6 @@ export async function GET(request: Request) {
         directionalBias: s.stats.longVsShort,
         avgScoreGap: s.stats.avgScoreGap?.toFixed(2) || "0.00",
       })),
-      bTradesBySymbol: [
-        {
-          symbol: "XAU_USD",
-          count24h: bTradeXauStats.count24h || 0,
-          mostCommonBlocker: bTradeXauStats.mostCommonBlocker,
-          directionalBias: bTradeXauStats.directionalBias,
-          upgradedToA: bTradeXauStats.upgradedToA || 0,
-          upgradedToAPlus: bTradeXauStats.upgradedToAPlus || 0,
-        },
-        {
-          symbol: "XAG_USD",
-          count24h: bTradeXagStats.count24h || 0,
-          mostCommonBlocker: bTradeXagStats.mostCommonBlocker,
-          directionalBias: bTradeXagStats.directionalBias,
-          upgradedToA: bTradeXagStats.upgradedToA || 0,
-          upgradedToAPlus: bTradeXagStats.upgradedToAPlus || 0,
-        },
-      ],
     },
 
     diagnosticSummary: {

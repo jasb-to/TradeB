@@ -1,20 +1,11 @@
 import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
 
 /**
- * Middleware to ensure static assets, icons, and favicons bypass any
+ * Proxy configuration to ensure static assets, icons, and favicons bypass any
  * authentication or authorization checks.
  *
  * FIXES: GET 401 /icon-light-32x32.png spam in logs
  */
-export function middleware(request: NextRequest) {
-  // All requests that reach this middleware pass through unmodified.
-  // The `config.matcher` below ensures this middleware only runs on
-  // routes that actually need it (API routes), and explicitly EXCLUDES
-  // static assets, icons, and public files.
-  return NextResponse.next()
-}
-
 export const config = {
   matcher: [
     /*
@@ -28,4 +19,12 @@ export const config = {
      */
     "/((?!_next/static|_next/image|favicon\\.ico|icon.*|apple-icon.*|.*\\.svg$|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.gif$|.*\\.webp$|.*\\.ico$).*)",
   ],
+}
+
+export default async function middleware(request) {
+  // All requests that reach this middleware pass through unmodified.
+  // The `config.matcher` above ensures this middleware only runs on
+  // routes that actually need it (API routes), and explicitly EXCLUDES
+  // static assets, icons, and public files.
+  return NextResponse.next()
 }
