@@ -405,9 +405,17 @@ export class TradingStrategies {
       confidence,
       entryPrice: currentPrice,
       stopLoss,
-      takeProfit1: direction === "LONG" ? currentPrice + atr1h * 1.0 : currentPrice - atr1h * 1.0,
-      takeProfit2: finalTP,
-      takeProfit: finalTP,
+      // B TIER: Hard TP1 only (no TP2 ladder)
+      // For B tier (score 5.90-5.99), TP1 is the exit target, not a partial take
+      takeProfit1: setupTier === "B" 
+        ? finalTP  // B TIER: TP1 = full exit
+        : (direction === "LONG" ? currentPrice + atr1h * 1.0 : currentPrice - atr1h * 1.0),  // A/A+: TP1 = partial
+      takeProfit2: setupTier === "B" 
+        ? undefined  // B TIER: No TP2
+        : finalTP,  // A/A+: TP2 = full exit
+      takeProfit: setupTier === "B"
+        ? finalTP  // B TIER: takeProfit = TP1 (full exit)
+        : finalTP,  // A/A+: takeProfit = TP2 (full exit after TP1 scale)
       riskReward,
       setupQuality: setupTier || "STANDARD",
       htfTrend: htfPolarity.trend,
@@ -417,7 +425,9 @@ export class TradingStrategies {
         `${marketRegime} market (ADX ${adx1h.toFixed(1)})`,
         `HTF Polarity: ${htfPolarity.trend} (${htfPolarity.reason})`,
         `Weighted MTF Score: ${alignmentScore}`,
-        `Risk:Reward ${riskReward.toFixed(2)}:1 | TP via Chandelier Stop (adaptive to volatility)`,
+        setupTier === "B"
+          ? `Risk:Reward ${riskReward.toFixed(2)}:1 | B TIER: Hard TP1 exit only`
+          : `Risk:Reward ${riskReward.toFixed(2)}:1 | TP via Chandelier Stop (adaptive to volatility)`,
       ],
       indicators: {
         adx: adx1h,

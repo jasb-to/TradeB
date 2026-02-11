@@ -59,19 +59,27 @@ You will now receive:
     const emoji = signal.direction === "LONG" ? "📈" : signal.direction === "SHORT" ? "📉" : "⚪";
     const confidence = signal.confidence || 0;
     const confidenceBadge = confidence >= 80 ? "🟢" : confidence >= 70 ? "🟡" : "🔴";
+    
+    // B TIER: Use independent branding with explicit "B TIER SETUP" header
+    const isBTier = signal.setupQuality === "B";
     const setupTier = signal.setupQuality === "A+" ? "A+ PREMIUM SETUP" 
       : signal.setupQuality === "A" ? "A SETUP"
-      : "B SETUP";
+      : "B TIER SETUP";
     const setupDescription = signal.setupQuality === "A+" 
       ? "(High confidence - ADX strong, perfect alignment)"
       : signal.setupQuality === "A" 
       ? "(Good setup - Solid trend confirmation)"
-      : "(Momentum trade - 1H/15M aligned, reduced position size)";
+      : "(B TIER: 1H/15M aligned momentum - Reduced position size)";
 
     const entryPrice = signal.entryPrice?.toFixed(2) || "N/A";
     const stopLoss = signal.stopLoss?.toFixed(2) || "N/A";
     const tp1 = signal.takeProfit1?.toFixed(2) || "N/A";
     const tp2 = signal.takeProfit2?.toFixed(2) || "N/A";
+    
+    // B TIER: Hard TP1 only - no TP2, no runners, no scaling
+    const tp1Instruction = isBTier 
+      ? "HARD TP1 ONLY - Full position closes at TP1 level"
+      : "TP2 for full exit (50% at TP1, 50% at TP2)";
     
     // HTF Trend context (Gold only)
     const trendContext = signal.htfTrend 
@@ -83,7 +91,9 @@ You will now receive:
     const expiryTime = new Date(Date.now() + entryWindowMin * 60000).toISOString();
 
     // Build message with HARDENED safety rules explicit
-    const message = `${emoji} ENTRY SIGNAL ALERT - ONE TRADE ONLY
+    const headerEmoji = isBTier ? "🚨" : emoji;
+    const headerText = isBTier ? `${headerEmoji} B TIER SETUP – ${symbol}` : `${emoji} ENTRY SIGNAL ALERT - ONE TRADE ONLY`;
+    const message = `${headerText}
 ═══════════════════════════════════════
 SETUP TIER: ${setupTier}
 ${setupDescription}
@@ -96,17 +106,23 @@ Strategy: ${signal.strategy || "Breakout Chandelier"}
 ${trendContext}📊 TRADE LEVELS:
 Entry: $${entryPrice}
 Stop Loss: $${stopLoss}
-TP1: $${tp1}
-TP2: $${tp2}
+TP1: $${tp1}${isBTier ? " (FULL EXIT)" : ""}
+${!isBTier ? `TP2: $${tp2}` : ""}
 
 ⚠️ Risk:Reward: ${signal.riskReward?.toFixed(2) || "N/A"}:1
 
-📌 EARLY HTF CONTINUATION ENTRY
+${isBTier ? `🚨 B TIER EXIT RULE
+   ${tp1Instruction}
+   • No TP2 ladder
+   • No scaling out
+   • Hard exit at TP1 level only
+
+` : `📌 EARLY HTF CONTINUATION ENTRY
    • Designed for multi-day hold (1–3 days)
    • Lower timeframes used for timing, not permission
    • Higher probability = earlier participation in trend
 
-🚫 ONE-TRADE-ONLY SETUP
+`}🚫 ONE-TRADE-ONLY SETUP
    • NO scaling in
    • NO re-entries after stop loss
    • Only 1 active trade allowed
@@ -127,10 +143,28 @@ Alert Level: ${this.getAlertLevelBadge(signal.alertLevel)}
     await this.sendMessage(message, false);
   }
 
-  async sendTP1Alert(symbol: string, entryPrice: number, tp1Price: number, currentPrice: number): Promise<void> {
+  async sendTP1Alert(symbol: string, entryPrice: number, tp1Price: number, currentPrice: number, isBTier: boolean = false): Promise<void> {
     const priceGain = ((currentPrice - entryPrice) / entryPrice * 100).toFixed(2)
 
-    const message = `✅ TP1 REACHED - SCALE OUT
+    if (isBTier) {
+      // B TIER: Hard TP1 closes entire position
+      const message = `🚨 B TIER TP1 - FULL POSITION CLOSED
+═══════════════════════════════════════
+Symbol: ${symbol}
+Entry Price: $${entryPrice.toFixed(2)}
+TP1 Level (Full Exit): $${tp1Price.toFixed(2)}
+Exit Price: $${currentPrice.toFixed(2)}
+Profit: +${priceGain}%
+
+✅ B TIER Trade Closed at Target
+Position fully exited at TP1 level (no TP2 ladder for B tier)
+
+⏰ Time: ${new Date().toISOString()}
+═══════════════════════════════════════`
+      await this.sendMessage(message, false)
+    } else {
+      // A/A+ TIER: TP1 scales 50%, hold 50% for TP2
+      const message = `✅ TP1 REACHED - SCALE OUT
 ═══════════════════════════
 Symbol: ${symbol}
 Entry Price: $${entryPrice.toFixed(2)}
@@ -144,8 +178,8 @@ Profit: +${priceGain}%
 
 ⏰ Time: ${new Date().toISOString()}
 ═══════════════════════════`
-
-    await this.sendMessage(message, false)
+      await this.sendMessage(message, false)
+    }
   }
 
   async sendDirectionChangeAlert(symbol: string, message: string): Promise<void> {
