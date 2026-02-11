@@ -209,8 +209,11 @@ export async function GET(request: Request) {
     const takeProfit2 = signal.direction === "LONG" ? entryPrice + atr * 2.5 : entryPrice - atr * 2.5
 
     // Enhance signal with last candle data and trade setup for client display
+    // CRITICAL: Must explicitly preserve structuralTier - the spread operator may not include optional fields
+    console.log(`[v0] Before enhance: signal.structuralTier=${signal.structuralTier}`)
     const enhancedSignal = {
       ...signal,
+      structuralTier: signal.structuralTier,  // Explicitly preserve tier
       mtfBias,
       entryPrice: signal.direction ? entryPrice : undefined,
       stopLoss: signal.direction ? stopLoss : undefined,
@@ -228,6 +231,8 @@ export async function GET(request: Request) {
           }
         : undefined,
     }
+    
+    console.log(`[v0] After enhance: enhancedSignal.structuralTier=${enhancedSignal.structuralTier}`)
 
     // Build entry decision for checklist display - WRAPPED in try-catch to prevent 500s
     let entryDecision: any = { approved: false, tier: "NO_TRADE", score: 0, checklist: [] }
