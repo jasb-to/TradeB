@@ -190,8 +190,11 @@ export async function GET(request: Request) {
     // STEP 3: CRITICAL - Force set structuralTier if missing or undefined
     // The issue: even though evaluateSignals sets structuralTier in return statements,
     // it might not be included in the actual object. Reconstruct it now from signal properties.
+    console.log(`[v0] BEFORE recovery: structuralTier=${(signal as any).structuralTier} typeof=${typeof (signal as any).structuralTier}`)
+    
     if (!((signal as any).structuralTier) || (signal as any).structuralTier === "undefined") {
       const reasonsStr = (signal.reasons || []).join(" | ")
+      console.log(`[v0] RECOVERY TRIGGERED: reasonsStr=${reasonsStr.substring(0, 100)}...`)
       
       // Primary detection: Look for TIER B PASS in reasons
       if (reasonsStr.includes("TIER B PASS")) {
@@ -210,6 +213,9 @@ export async function GET(request: Request) {
       } else {
         (signal as any).structuralTier = "NO_TRADE"
       }
+      console.log(`[v0] AFTER recovery: structuralTier=${(signal as any).structuralTier}`)
+    } else {
+      console.log(`[v0] RECOVERY SKIPPED: structuralTier already set to ${(signal as any).structuralTier}`)
     }
 
     // Calculate ATR-based trade setup for LONG/SHORT signals
