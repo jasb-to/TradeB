@@ -816,8 +816,6 @@ export class TradingStrategies {
     // B: 4.5 <= score < 6
     // NO_TRADE: score < 4.5
     // If setupQuality doesn't match the score range, reconcile it.
-    const signalTier = signal.setupQuality as "A+" | "A" | "B" | "STANDARD" | undefined
-    let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
     
   // Determine tier from setupQuality first, then validate against score
   // setupQuality is the actual tier determined during signal generation
@@ -850,14 +848,14 @@ export class TradingStrategies {
     }
   }
 
-    // Alert level based on tier
-    let alertLevel: 0 | 1 | 2 | 3 = 0
-    if (tier === "A+") alertLevel = 3
-    else if (tier === "A") alertLevel = 2
-    else if (tier === "B") alertLevel = 1
+  // Alert level based on tier
+  let alertLevel: 0 | 1 | 2 | 3 = 0
+  if (tier === "A+") alertLevel = 3
+  else if (tier === "A") alertLevel = 2
+  else if (tier === "B") alertLevel = 1
 
-    // Blocking reasons: Tier-dependent gating
-    const blockedReasons: string[] = []
+  // Blocking reasons: Tier-dependent gating
+  const blockedReasons: string[] = []
     
     // A/A+ tiers: Require Daily+4H alignment (strict)
     if (tier === "A" || tier === "A+") {
