@@ -187,17 +187,17 @@ export async function GET(request: Request) {
     // STEP 2: Log raw signal for diagnostics
     console.log(`[v0] 🔥 SIGNAL CURRENT ROUTE HIT - signal.type=${signal.type} direction=${signal.direction}`)
     
-    // STEP 3: CRITICAL - Force set structuralTier if missing
-    // The issue: evaluateSignals returns structuralTier in return statements,
-    // but it's not being included in the object. Reconstruct it now.
-    if (typeof (signal as any).structuralTier !== "string") {
+    // STEP 3: CRITICAL - Force set structuralTier if missing or undefined
+    // The issue: even though evaluateSignals sets structuralTier in return statements,
+    // it might not be included in the actual object. Reconstruct it now from signal properties.
+    if (!((signal as any).structuralTier) || (signal as any).structuralTier === "undefined") {
       const reasonsStr = (signal.reasons || []).join(" | ")
       
       // Primary detection: Look for TIER B PASS in reasons
       if (reasonsStr.includes("TIER B PASS")) {
         (signal as any).structuralTier = "B"
-        console.log(`[v0] ✓ B tier detected from reasons`)
-      } else if (signal.type === "ENTRY" && reasonsStr.includes("Score")) {
+        console.log(`[v0] ✓ B tier recovered from reasons`)
+      } else if (signal.type === "ENTRY") {
         // Infer from reasons text for A/A+ tiers
         if (reasonsStr.includes("A+ Setup") || reasonsStr.includes("A+ Setup:")) {
           (signal as any).structuralTier = "A+"
@@ -206,16 +206,10 @@ export async function GET(request: Request) {
         } else {
           (signal as any).structuralTier = "NO_TRADE"
         }
-        console.log(`[v0] Entry tier set from reasons: ${(signal as any).structuralTier}`)
-      } else if (signal.type === "ENTRY") {
-        // Fallback for ENTRY without clear tier in reasons
-        (signal as any).structuralTier = signal.confidence >= 75 ? "A+" : signal.confidence >= 70 ? "A" : "B"
-        console.log(`[v0] Entry tier inferred from confidence: ${(signal as any).structuralTier}`)
+        console.log(`[v0] Entry tier recovered from reasons: ${(signal as any).structuralTier}`)
       } else {
         (signal as any).structuralTier = "NO_TRADE"
       }
-    } else {
-      console.log(`[v0] Signal has structuralTier: ${(signal as any).structuralTier}`)
     }
 
     // Calculate ATR-based trade setup for LONG/SHORT signals
