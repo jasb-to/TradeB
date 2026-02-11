@@ -414,6 +414,9 @@ export async function GET() {
       // Check if we should send an alert for this signal using the CANONICAL ENTRY DECISION
       const alertCheck = SignalCache.canAlertSetup(enhancedSignal, symbol)
       console.log(`[v0] XAU Alert Check: ${alertCheck.reason}`)
+      
+      // Check for tier upgrade on active IN_TRADE states
+      const tierUpgraded = SignalCache.hastierUpgraded(symbol, entryDecision.tier)
 
       // CRITICAL: Only send alert if entryDecision.allowed === true AND market is open
       if (!isMarketClosed && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.alertLevel >= 2) {
@@ -433,10 +436,59 @@ export async function GET() {
               throw new Error(`ENTRY DESYNC DETECTED: Alert sent for ${symbol} but entryDecision.allowed=false!`)
             }
             
-            // Record in state machine
+            // Record in state machine and track tier
             SignalCache.recordAlertSent(enhancedSignal, symbol)
             SignalCache.setTradeState(symbol, "IN_TRADE", "ENTRY alert sent")
+            SignalCache.updateTier(symbol, entryDecision.tier)
             console.log(`[v0] TELEGRAM ALERT SENT for ${symbol}`)
+          } catch (telegramError) {
+            console.error("[v0] Failed to send Telegram alert:", telegramError)
+          }
+        }
+      } else if (!isMarketClosed && tierUpgraded && entryDecision.allowed) {
+        // TIER UPGRADE: Send scaling alert
+        if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
+          try {
+            const { TelegramNotifier } = await import("@/lib/telegram")
+            const notifier = new TelegramNotifier(
+              process.env.TELEGRAM_BOT_TOKEN,
+              process.env.TELEGRAM_CHAT_ID,
+              "https://xptswitch.vercel.app"
+            )
+            
+            const oldTier = (SignalCache as any).getTradeState?.(symbol)?.lastTier || "?"
+            console.log(`[v0] SENDING TIER UPGRADE ALERT: ${symbol} upgraded to ${entryDecision.tier}`)
+            
+            const tierUpgradeMessage = `
+🚀 TIER UPGRADE ALERT - ${symbol}
+═══════════════════════════════════════
+Your ${symbol} trade has UPGRADED to a higher tier!
+
+Previous Tier: ${oldTier}
+NEW Tier: ${entryDecision.tier} (Score ${entryDecision.score.toFixed(1)}/9)
+
+📊 ACTION REQUIRED:
+• Increase position size: Add capital to match new tier
+• Update Stop Loss: Tighten to entry price
+• Update TP Levels: Use new levels in dashboard
+
+Current Entry: $${enhancedSignal.entryPrice?.toFixed(2) || "N/A"}
+New SL: $${enhancedSignal.stopLoss?.toFixed(2) || "N/A"}
+New TP1: $${enhancedSignal.takeProfit1?.toFixed(2) || "N/A"}
+${entryDecision.tier !== "B" ? `New TP2: $${enhancedSignal.takeProfit2?.toFixed(2) || "N/A"}` : "(B tier = TP1-only exit)"}
+
+⏰ Time: ${new Date().toISOString()}
+═══════════════════════════════════════
+            `
+            
+            await notifier.sendMessage(tierUpgradeMessage, false)
+            SignalCache.updateTier(symbol, entryDecision.tier)
+            console.log(`[v0] TIER UPGRADE ALERT SENT: ${oldTier} → ${entryDecision.tier}`)
+          } catch (telegramError) {
+            console.error("[v0] Failed to send tier upgrade alert:", telegramError)
+          }
+        }
+      }
           } catch (telegramError) {
             console.error("[v0] Failed to send Telegram alert:", telegramError)
           }

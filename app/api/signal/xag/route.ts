@@ -186,6 +186,7 @@ export async function GET() {
       // ENTRY ALERTS: Check all rules before sending
       if (entryDecision.allowed && entryDecision.alertLevel >= 2) {
         const alertCheck = SignalCache.canAlertSetup(enhancedSignal, symbol)
+        const tierUpgraded = SignalCache.hastierUpgraded(symbol, entryDecision.tier)
 
         if (alertCheck.allowed && process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
           try {
@@ -196,11 +197,51 @@ export async function GET() {
             console.log("[v0] SILVER: Sending entry alert - tier " + entryDecision.tier + " all rules passed")
             await notifier.sendSilverAlert(enhancedSignal)
             
-            // Record alert sent in state machine
+            // Record alert sent in state machine and track tier
             SignalCache.recordAlertSent(enhancedSignal, symbol)
             SignalCache.setTradeState(symbol, "IN_TRADE", "ENTRY alert sent")
+            SignalCache.updateTier(symbol, entryDecision.tier)
           } catch (telegramError) {
             console.error("[v0] SILVER: Failed to send alert:", telegramError)
+          }
+        } else if (tierUpgraded && process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
+          // TIER UPGRADE: Send scaling alert for silver
+          try {
+            const notifier = new SilverNotifier(
+              process.env.TELEGRAM_BOT_TOKEN,
+              process.env.TELEGRAM_CHAT_ID,
+            )
+            
+            const oldTier = (SignalCache as any).getTradeState?.(symbol)?.lastTier || "?"
+            console.log(`[v0] SILVER: SENDING TIER UPGRADE ALERT - upgraded to ${entryDecision.tier}`)
+            
+            const tierUpgradeMessage = `
+🚀 TIER UPGRADE ALERT - ${symbol}
+═══════════════════════════════════════
+Your ${symbol} trade has UPGRADED to a higher tier!
+
+Previous Tier: ${oldTier}
+NEW Tier: ${entryDecision.tier} (Score ${entryDecision.score.toFixed(1)}/9)
+
+📊 ACTION REQUIRED:
+• Increase position size: Add capital to match new tier
+• Update Stop Loss: Tighten to entry price
+• Update TP Levels: Use new levels in dashboard
+
+Current Entry: $${enhancedSignal.entryPrice?.toFixed(2) || "N/A"}
+New SL: $${enhancedSignal.stopLoss?.toFixed(2) || "N/A"}
+New TP1: $${enhancedSignal.takeProfit1?.toFixed(2) || "N/A"}
+${entryDecision.tier !== "B" ? `New TP2: $${enhancedSignal.takeProfit2?.toFixed(2) || "N/A"}` : "(B tier = TP1-only exit)"}
+
+⏰ Time: ${new Date().toISOString()}
+═══════════════════════════════════════
+            `
+            
+            await notifier.sendMessage(tierUpgradeMessage, false)
+            SignalCache.updateTier(symbol, entryDecision.tier)
+            console.log(`[v0] SILVER: TIER UPGRADE ALERT SENT: ${oldTier} → ${entryDecision.tier}`)
+          } catch (telegramError) {
+            console.error("[v0] SILVER: Failed to send tier upgrade alert:", telegramError)
           }
         } else {
           console.log(`[v0] SILVER ENTRY ALERT BLOCKED: ${alertCheck.reason}`)

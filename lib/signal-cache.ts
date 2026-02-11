@@ -19,6 +19,7 @@ interface TradeStateData {
   entryWindowStart: number | null
   entryWindowExpiry: number | null
   lastAlertedSetupHash: string | null
+  lastTier: "A+" | "A" | "B" | "NO_TRADE" | null // Track tier for upgrade alerts
 }
 
 const CACHE_DURATION = 30000 // 30 second cache
@@ -63,6 +64,7 @@ function getTradeState(symbol: string): TradeStateData {
       entryWindowStart: null,
       entryWindowExpiry: null,
       lastAlertedSetupHash: null,
+      lastTier: null,
     })
   }
   return tradeStates.get(symbol)!
@@ -514,6 +516,26 @@ export const SignalCache = {
     tradeStates.set(symbol, state)
     alertStates.set(symbol, alertState)
     console.log(`[v0] Updated tradeStates and alertStates maps for ${symbol}`)
+  },
+
+  // NEW: Check if tier has upgraded (for scaling alerts)
+  hastierUpgraded: (symbol: string, currentTier: "A+" | "A" | "B" | "NO_TRADE"): boolean => {
+    const state = getTradeState(symbol)
+    const upgraded = state.lastTier !== null && 
+      state.lastTier !== currentTier && 
+      state.state === "IN_TRADE"
+    
+    if (upgraded) {
+      console.log(`[v0] TIER UPGRADE DETECTED for ${symbol}: ${state.lastTier} → ${currentTier}`)
+    }
+    
+    return upgraded
+  },
+
+  // NEW: Update the tier for upgrade tracking
+  updateTier: (symbol: string, tier: "A+" | "A" | "B" | "NO_TRADE"): void => {
+    const state = getTradeState(symbol)
+    state.lastTier = tier
   },
 
   // NEW: Get detailed state information for debugging
