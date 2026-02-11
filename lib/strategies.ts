@@ -809,42 +809,19 @@ export class TradingStrategies {
     const score = Math.min(Math.round(rawScore * 10) / 10, 9)
 
     // VALIDATE TIER vs SCORE CONSISTENCY
-    // The tier must align with the score ranges:
-    // A+: score >= 7
-    // A: 6 <= score < 7
-    // B: 4.5 <= score < 6
-    // NO_TRADE: score < 4.5
-    // If setupQuality doesn't match the score range, reconcile it.
+    // Tier is determined PURELY from score - no setupQuality reference
+    // Score ranges: A+ >= 7, A = 6-6.99, B = 4.5-5.99, NO_TRADE < 4.5
     
-    // Determine tier from setupQuality first, then validate against score
-    // setupQuality is the actual tier determined during signal generation
-    const signalTier = signal.setupQuality as "A+" | "A" | "B" | "STANDARD" | undefined
     let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
     
-    // Use setupQuality as primary source of truth
-    if (signalTier === "A+") {
+    if (score >= 7) {
       tier = "A+"
-    } else if (signalTier === "A") {
+    } else if (score >= 6) {
       tier = "A"
-    } else if (signalTier === "B") {
+    } else if (score >= 4.5) {
       tier = "B"
     } else {
-      // Fallback to score-based determination if setupQuality not set
-      if (score >= 7) tier = "A+"
-      else if (score >= 6) tier = "A"
-      else if (score >= 4.5) tier = "B"
-      else tier = "NO_TRADE"
-    }
-    
-    // Validate score is within expected range for the tier (warning only, don't override)
-    if (signalTier && signalTier !== "STANDARD") {
-      if (signalTier === "A+" && score < 7) {
-        console.warn(`[v0] TIER MISMATCH: setupQuality is "A+" but score ${score} is below 7`)
-      } else if (signalTier === "A" && (score < 6 || score >= 7)) {
-        console.warn(`[v0] TIER MISMATCH: setupQuality is "A" but score ${score} is outside 6-7 range`)
-      } else if (signalTier === "B" && (score < 4.5 || score >= 6)) {
-        console.warn(`[v0] TIER MISMATCH: setupQuality is "B" but score ${score} is outside 4.5-6 range`)
-      }
+      tier = "NO_TRADE"
     }
 
     // Alert level based on tier

@@ -216,12 +216,25 @@ export async function GET(request: Request) {
       console.log(`[v0] DEBUG: Entering alert flow - type=${enhancedSignal.type} direction=${enhancedSignal.direction} alertLevel=${enhancedSignal.alertLevel}`)
       console.log(`[v0] DEBUG: entryDecision.allowed=${entryDecision.allowed} market_closed=${marketStatus.isClosed}`)
       
-      const alertCheck = SignalCache.canAlertSetup(enhancedSignal, symbol)
-      console.log(`[v0] Alert Check: ${alertCheck.reason}`)
+      let alertCheck: any = null
+      let tierUpgraded = false
       
-      const tierUpgraded = SignalCache.hastierUpgraded(symbol, entryDecision.tier)
+      try {
+        alertCheck = SignalCache.canAlertSetup(enhancedSignal, symbol)
+        console.log(`[v0] Alert Check: ${alertCheck.reason}`)
+      } catch (checkError) {
+        console.error("[v0] Error in canAlertSetup:", checkError)
+        alertCheck = { allowed: false, reason: `canAlertSetup error: ${checkError}` }
+      }
+      
+      try {
+        tierUpgraded = SignalCache.hastierUpgraded(symbol, entryDecision.tier)
+      } catch (tierError) {
+        console.error("[v0] Error in hastierUpgraded:", tierError)
+        tierUpgraded = false
+      }
 
-      if (!marketStatus.isClosed && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.alertLevel >= 2) {
+      if (!marketStatus.isClosed && alertCheck && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.alertLevel >= 2) {
         if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
           try {
             const { TelegramNotifier } = await import("@/lib/telegram")
