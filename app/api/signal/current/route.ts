@@ -184,9 +184,16 @@ export async function GET(request: Request) {
       data5m.candles,
     )
     
+    // [DIAG] Route Entry
+    console.log(`[DIAG] SIGNAL ROUTE HIT - symbol=${symbol} time=${new Date().toISOString()} marketOpen=${!marketStatus.isClosed}`)
+    
+    // [DIAG] Raw Signal
+    console.log(`[DIAG] RAW SIGNAL type=${signal.type} direction=${signal.direction} confidence=${signal.confidence} hasStructuralTier=${(signal as any).hasOwnProperty("structuralTier")}`)
+    
     // STEP 2: GUARANTEED FIX - Force structuralTier on signal immediately
     // evaluateSignals may return objects where structuralTier is not included as a property
     // We must add it to the signal object before any spreading or type checking
+    let injectedTier = false
     if (!(signal as any).hasOwnProperty("structuralTier") || !signal.structuralTier) {
       const reasons = signal.reasons || []
       const reasonsStr = reasons.join(" | ")
@@ -199,12 +206,17 @@ export async function GET(request: Request) {
       } else {
         (signal as any).structuralTier = "NO_TRADE"
       }
+      injectedTier = true
     }
     
     // Ensure it's always defined for later use
     if (!(signal as any).structuralTier) {
       (signal as any).structuralTier = signal.type === "ENTRY" ? "A+" : "NO_TRADE"
+      injectedTier = true
     }
+    
+    // [DIAG] StructuralTier Injection
+    console.log(`[DIAG] STRUCTURAL TIER INJECTED injected=${injectedTier} tier=${(signal as any).structuralTier}`)
 
     // Calculate ATR-based trade setup for LONG/SHORT signals
     const atr = signal.indicators?.atr || 1.0
@@ -213,6 +225,9 @@ export async function GET(request: Request) {
     const takeProfit1 = signal.direction === "LONG" ? entryPrice + atr * 1.5 : entryPrice - atr * 1.5
     const takeProfit2 = signal.direction === "LONG" ? entryPrice + atr * 2.5 : entryPrice - atr * 2.5
 
+    // [DIAG] Before Enhancement
+    console.log(`[DIAG] BEFORE ENHANCE structuralTier=${(signal as any).structuralTier}`)
+    
     // Enhance signal with last candle data and trade setup for client display
     // CRITICAL: Must explicitly preserve structuralTier - the spread operator may not include optional fields
     const enhancedSignal = {
@@ -236,6 +251,9 @@ export async function GET(request: Request) {
         : undefined,
     }
 
+    // [DIAG] After Enhancement
+    console.log(`[DIAG] AFTER ENHANCE structuralTier=${enhancedSignal.structuralTier}`)
+
     // Build entry decision for checklist display - WRAPPED in try-catch to prevent 500s
     let entryDecision: any = { approved: false, tier: "NO_TRADE", score: 0, checklist: [] }
     try {
@@ -248,6 +266,9 @@ export async function GET(request: Request) {
       console.error("[v0] CRITICAL: buildEntryDecision crashed:", decisionError)
       entryDecision = { approved: false, tier: "NO_TRADE", score: 0, checklist: [], error: String(decisionError) }
     }
+    
+    // [DIAG] Entry Decision
+    console.log(`[DIAG] ENTRY DECISION approved=${entryDecision.approved} tier=${entryDecision.tier} score=${entryDecision.score}`)
     
     enhancedSignal.entryDecision = entryDecision
 
@@ -269,126 +290,106 @@ export async function GET(request: Request) {
       let alertCheck: any = null
       let tierUpgraded = false
       
-      try {
-        alertCheck = SignalCache.canAlertSetup(enhancedSignal, symbol, signalFingerprint)
-      } catch (checkError) {
-        console.error("[v0] Error in canAlertSetup:", checkError)
-        alertCheck = { allowed: false, reason: `canAlertSetup error: ${checkError}` }
-      }
+      // [DIAG] Market Hours Check
+      const now = new Date()
+      const ukHours = now.toLocaleString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
+      const isMarketClosed = marketStatus.isClosed || (now.getUTCHours() === 22) // 22:00-23:00 UTC = 10 PM-11 PM UK time
       
-      try {
-        tierUpgraded = SignalCache.hastierUpgraded(symbol, entryDecision.tier)
-      } catch (tierError) {
-        console.error("[v0] Error in hastierUpgraded:", tierError)
-        tierUpgraded = false
-      }
+      if (isMarketClosed) {
+        console.log(`[DIAG] ALERT SKIPPED - MARKET CLOSED ukTime=${ukHours}`)
+      } else {
+        try {
+          alertCheck = SignalCache.canAlertSetup(enhancedSignal, symbol, signalFingerprint)
+        } catch (checkError) {
+          console.error("[v0] Error in canAlertSetup:", checkError)
+          alertCheck = { allowed: false, reason: `canAlertSetup error: ${checkError}` }
+        }
+        
+        try {
+          tierUpgraded = SignalCache.hastierUpgraded(symbol, entryDecision.tier)
+        } catch (tierError) {
+          console.error("[v0] Error in hastierUpgraded:", tierError)
+          tierUpgraded = false
+        }
 
-      console.log(`[v0] DEBUG: Entering alert flow`)
-      console.log(`[v0] Alert fingerprint: ${signalFingerprint}, tier: ${entryDecision.tier}`)
+        // [DIAG] Alert Check
+        console.log(`[DIAG] ALERT CHECK allowed=${alertCheck?.allowed} reason=${alertCheck?.reason} tierUpgraded=${tierUpgraded}`)
 
-      if (!marketStatus.isClosed && alertCheck && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.alertLevel >= 2) {
-        if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
+        if (!isMarketClosed && alertCheck && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.alertLevel >= 2) {
+          const normalizedSymbol = symbol === "XAU_USD" ? "XAU" : symbol === "XAG_USD" ? "XAG" : symbol
+          const telegramPayload = {
+            symbol: normalizedSymbol,
+            tier: entryDecision.tier,
+            score: entryDecision.score,
+            direction: enhancedSignal.direction,
+            entryPrice: enhancedSignal.entryPrice,
+            takeProfit: enhancedSignal.takeProfit2,
+            stopLoss: enhancedSignal.stopLoss,
+            timestamp: new Date().toISOString(),
+          }
+          
+          // [DIAG] Telegram Payload
+          console.log(`[DIAG] TELEGRAM PAYLOAD ${JSON.stringify(telegramPayload)}`)
+          
+          // Send to Telegram
           try {
-            // STEP 1: Create normalized alert object - single source of truth
-            const cleanSymbol = (symbol || "UNKNOWN").toUpperCase().replace(/_USD/g, "")
-            const alertTier = entryDecision.tier || "NO_TRADE"
-            
-            // Enforce tier fallback
-            const validTiers = ["A+", "A", "B", "NO_TRADE"]
-            const finalTier = validTiers.includes(alertTier) ? alertTier : "NO_TRADE"
-            
-            const alertPayload = {
-              symbol: cleanSymbol,
-              direction: (enhancedSignal.direction || "N/A").toUpperCase(),
-              tier: finalTier,
-              score: entryDecision.score ?? 0,
-              entry: enhancedSignal.entryPrice ?? null,
-              confidence: Math.round((enhancedSignal.confidence ?? 0) * 100) / 100,
-              tp1: enhancedSignal.takeProfit1 ?? null,
-              tp2: enhancedSignal.takeProfit2 ?? null,
-              sl: enhancedSignal.stopLoss ?? null
+            const telegramResponse = await fetch("https://api.telegram.org/bot" + process.env.TELEGRAM_BOT_TOKEN + "/sendMessage", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chat_id: process.env.TELEGRAM_CHAT_ID,
+                text: `🔥 ${normalizedSymbol} ${enhancedSignal.direction} Entry\nTier: ${entryDecision.tier}\nScore: ${entryDecision.score}/9\nEntry: ${enhancedSignal.entryPrice?.toFixed(2)}\nTP: ${enhancedSignal.takeProfit2?.toFixed(2)}\nSL: ${enhancedSignal.stopLoss?.toFixed(2)}`,
+              }),
+            })
+
+            if (telegramResponse.ok) {
+              // [DIAG] Alert Sent
+              console.log(`[DIAG] ALERT SENT symbol=${normalizedSymbol} tier=${entryDecision.tier}`)
+            } else {
+              console.error("[v0] Telegram send failed:", await telegramResponse.text())
             }
-            
-            console.log(`[v0] Alert Payload: ${JSON.stringify(alertPayload)}`)
-            
-            const { TelegramNotifier } = await import("@/lib/telegram")
-            const notifier = new TelegramNotifier(
-              process.env.TELEGRAM_BOT_TOKEN,
-              process.env.TELEGRAM_CHAT_ID,
-              "https://xptswitch.vercel.app"
-            )
-            console.log(`[v0] SENDING TELEGRAM ALERT: ${alertPayload.direction} ${alertPayload.symbol} Tier ${alertPayload.tier}`)
-            await notifier.sendSignalAlert(alertPayload)
-            
-            SignalCache.recordAlertSent(enhancedSignal, symbol, signalFingerprint, entryDecision.tier)
-            SignalCache.setTradeState(symbol, "IN_TRADE", "ENTRY alert sent")
-            SignalCache.updateTier(symbol, entryDecision.tier)
-            console.log(`[v0] TELEGRAM ALERT SENT for ${symbol}`)
           } catch (telegramError) {
-            console.error("[v0] Failed to send Telegram alert:", telegramError)
+            console.error("[v0] Error sending Telegram alert:", telegramError)
           }
         } else {
-          console.log(`[v0] Telegram not configured - BOT_TOKEN=${!!process.env.TELEGRAM_BOT_TOKEN} CHAT_ID=${!!process.env.TELEGRAM_CHAT_ID}`)
+          let skipReason = ""
+          if (isMarketClosed) skipReason = "Market closed"
+          else if (!alertCheck?.allowed) skipReason = `Fingerprint check: ${alertCheck?.reason}`
+          else if (!entryDecision.allowed) skipReason = "Entry decision not approved"
+          else if (enhancedSignal.type !== "ENTRY") skipReason = `Not ENTRY signal (type=${enhancedSignal.type})`
+          else if (enhancedSignal.alertLevel < 2) skipReason = `Alert level too low (${enhancedSignal.alertLevel} < 2)`
+          
+          console.log(`[DIAG] ALERT SKIPPED reason=${skipReason}`)
         }
-      } else if (!marketStatus.isClosed && tierUpgraded && entryDecision.allowed) {
-        if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
-          try {
-            // Tier upgrade alert - also use normalized payload
-            const cleanSymbol = (symbol || "UNKNOWN").toUpperCase().replace(/_USD/g, "")
-            const alertTier = entryDecision.tier || "NO_TRADE"
-            const validTiers = ["A+", "A", "B", "NO_TRADE"]
-            const finalTier = validTiers.includes(alertTier) ? alertTier : "NO_TRADE"
-            
-            const upgradePayload = {
-              symbol: cleanSymbol,
-              direction: (enhancedSignal.direction || "N/A").toUpperCase(),
-              tier: finalTier,
-              score: entryDecision.score ?? 0,
-              entry: enhancedSignal.entryPrice ?? null,
-              tp1: enhancedSignal.takeProfit1 ?? null,
-              tp2: enhancedSignal.takeProfit2 ?? null,
-              sl: enhancedSignal.stopLoss ?? null
-            }
-            
-            const { TelegramNotifier } = await import("@/lib/telegram")
-            const notifier = new TelegramNotifier(
-              process.env.TELEGRAM_BOT_TOKEN,
-              process.env.TELEGRAM_CHAT_ID,
-              "https://xptswitch.vercel.app"
-            )
-            
-            const oldTier = (SignalCache as any).getTradeState?.(symbol)?.lastAlertedTier || "?"
-            console.log(`[v0] SENDING TIER UPGRADE ALERT: ${cleanSymbol} upgraded to ${finalTier}`)
-            
-            const tierUpgradeMessage = `
-🚀 TIER UPGRADE ALERT - ${cleanSymbol}
-═══════════════════════════════════════
-Your ${cleanSymbol} trade has UPGRADED to a higher tier!
+      }
+      
+      // [DIAG] Cache Status
+      const cacheState = SignalCache.getState()
+      console.log(`[DIAG] ALERT CACHE STATUS lastFingerprint=${cacheState.lastFingerprint} lastAlertedTier=${cacheState.lastAlertedTier} symbol=${symbol}`)
+    } catch (alertError) {
+      console.error("[v0] Error in alert flow:", alertError)
+    }
 
-Previous Tier: ${oldTier}
-NEW Tier: ${finalTier} (Score ${(entryDecision.score ?? 0).toFixed(1)}/9)
+    // [DIAG] Final Response
+    console.log(`[DIAG] RESPONSE SENT symbol=${symbol} type=${enhancedSignal.type} tier=${enhancedSignal.entryDecision?.tier}`)
 
-📊 ACTION REQUIRED:
-• Increase position size: Add capital to match new tier
-• Update Stop Loss: Tighten to entry price
-• Update TP Levels: Use new levels in dashboard
-
-Current Entry: $${(upgradePayload.entry ?? 0).toFixed(2)}
-New SL: $${(upgradePayload.sl ?? 0).toFixed(2)}
-New TP1: $${(upgradePayload.tp1 ?? 0).toFixed(2)}
-${finalTier !== "B" ? `New TP2: $${(upgradePayload.tp2 ?? 0).toFixed(2)}` : "(B tier = TP1-only exit)"}
-
-⏰ Time: ${new Date().toISOString()}
-═══════════════════════════════════════
-            `
-            
-            await notifier.sendMessage(tierUpgradeMessage, false)
-            SignalCache.updateTier(symbol, finalTier)
-            console.log(`[v0] TIER UPGRADE ALERT SENT: ${oldTier} → ${finalTier}`)
-          } catch (telegramError) {
-            console.error("[v0] Failed to send tier upgrade alert:", telegramError)
-          }
-        }
+    return NextResponse.json({
+      success: true,
+      signal: enhancedSignal,
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error) {
+    console.error("[v0] Error in signal route:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+        symbol,
+      },
+      { status: 500 },
+    )
+  }
+}
       } else {
         // Alert conditions not met - log why (for diagnostics)
         if (marketStatus.isClosed) {
