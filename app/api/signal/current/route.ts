@@ -19,6 +19,7 @@ let lastValidTimestamps: { [key: string]: string | null } = {
 
 export async function GET(request: Request) {
   try {
+    console.log("🔥 SIGNAL CURRENT ROUTE HIT")
     const { searchParams } = new URL(request.url)
     const symbol = (searchParams.get("symbol") || "XAU_USD") as "XAU_USD" | "XAG_USD"
 
@@ -309,6 +310,25 @@ ${entryDecision.tier !== "B" ? `New TP2: $${enhancedSignal.takeProfit2?.toFixed(
       }
     } catch (alertError) {
       console.error("[v0] Alert flow error:", alertError)
+    }
+
+    // FORCED TELEGRAM TEST: Bypass all conditions to test if telegram works
+    if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
+      try {
+        const { TelegramNotifier } = await import("@/lib/telegram")
+        const testNotifier = new TelegramNotifier(
+          process.env.TELEGRAM_BOT_TOKEN,
+          process.env.TELEGRAM_CHAT_ID,
+          "https://xptswitch.vercel.app"
+        )
+        console.log("🔥 FORCED TELEGRAM SEND ATTEMPTING")
+        await testNotifier.sendMessage(`Test: Signal ${symbol} ${enhancedSignal.direction} - Tier ${(enhancedSignal as any).structuralTier || "?"} - Score ${entryDecision.score}`, false)
+        console.log("🔥 FORCED TELEGRAM SEND SUCCESS")
+      } catch (forceError) {
+        console.error("🔥 FORCED TELEGRAM SEND FAILED:", forceError)
+      }
+    } else {
+      console.log("🔥 TELEGRAM NOT CONFIGURED: BOT_TOKEN=" + !!process.env.TELEGRAM_BOT_TOKEN + " CHAT_ID=" + !!process.env.TELEGRAM_CHAT_ID)
     }
 
     return NextResponse.json({
