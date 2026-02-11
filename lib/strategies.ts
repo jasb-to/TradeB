@@ -419,15 +419,15 @@ export class TradingStrategies {
         : finalTP,  // A/A+: takeProfit = TP2 (full exit after TP1 scale)
       riskReward,
       htfTrend: htfPolarity.trend,
-      structuralTier: setupTier || "STANDARD",  // Store the determined tier for buildEntryDecision to use
+      structuralTier: setupTier === "B" ? "B" : setupTier === "A" ? "A" : setupTier === "A+" ? "A+" : "NO_TRADE",
       strategy: "BREAKOUT_CHANDELIER",
       reasons: [
-        `${setupTier || "STANDARD"} Setup: Score ${alignmentScore}/10 (Daily + 4H + 1H aligned)`,
+        `Alignment Score: ${alignmentScore}/10 (Daily + 4H + 1H aligned)`,
         `${marketRegime} market (ADX ${adx1h.toFixed(1)})`,
         `HTF Polarity: ${htfPolarity.trend} (${htfPolarity.reason})`,
         `Weighted MTF Score: ${alignmentScore}`,
         setupTier === "B"
-          ? `Risk:Reward ${riskReward.toFixed(2)}:1 | B TIER: Hard TP1 exit only`
+          ? `Risk:Reward ${riskReward.toFixed(2)}:1 | Exit at hard TP1 only`
           : `Risk:Reward ${riskReward.toFixed(2)}:1 | TP via Chandelier Stop (adaptive to volatility)`,
       ],
       indicators: {
