@@ -100,6 +100,7 @@ export class TradingStrategies {
         counterTrendBlocked: true,
         htfTrend: htfPolarity.trend,
         timeframeAlignment: timeframeAlignment,
+        structuralTier: "NO_TRADE",
         // Include lastCandle so VWAP bias and price display work in the UI
         lastCandle: {
           close: currentPrice,
@@ -150,6 +151,7 @@ export class TradingStrategies {
         confidence: 0,
         htfTrend: "NEUTRAL",
         timeframeAlignment: timeframeAlignment,
+        structuralTier: "NO_TRADE",
         lastCandle: {
           close: currentPrice,
           timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
@@ -214,6 +216,7 @@ export class TradingStrategies {
           confidence: 0,
           htfTrend: "NEUTRAL",
           timeframeAlignment: timeframeAlignment,
+          structuralTier: "NO_TRADE",
           lastCandle: {
             close: currentPrice,
             timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
@@ -260,6 +263,7 @@ export class TradingStrategies {
         alertLevel: 0,
         confidence: 0,
         timeframeAlignment: timeframeAlignment,
+        structuralTier: "NO_TRADE",
         lastCandle: {
           close: currentPrice,
           timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
@@ -301,6 +305,7 @@ export class TradingStrategies {
         confidence: 0,
         reasons: ["B-tier trades disabled - only A/A+ allowed"],
         timeframeAlignment: timeframeAlignment,
+        structuralTier: "NO_TRADE",
         lastCandle: {
           close: currentPrice,
           timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
@@ -814,7 +819,6 @@ export class TradingStrategies {
     // Score does NOT override or upgrade tier - it only gates approval
     // A B-tier signal (HTF neutral + 1H/15M aligned) stays B tier regardless of score
     const structuralTier = (signal as any).structuralTier as "A+" | "A" | "B" | "STANDARD" | "NO_TRADE" | undefined
-    console.log(`[v0] DEBUG buildEntryDecision: structuralTier=${structuralTier}`)
     let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
     
     if (structuralTier === "A+") {
