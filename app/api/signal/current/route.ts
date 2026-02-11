@@ -269,14 +269,36 @@ export async function GET(request: Request) {
       if (!marketStatus.isClosed && alertCheck && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.alertLevel >= 2) {
         if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
           try {
+            // STEP 1: Create normalized alert object - single source of truth
+            const cleanSymbol = (symbol || "UNKNOWN").toUpperCase().replace(/_USD/g, "")
+            const alertTier = entryDecision.tier || "NO_TRADE"
+            
+            // Enforce tier fallback
+            const validTiers = ["A+", "A", "B", "NO_TRADE"]
+            const finalTier = validTiers.includes(alertTier) ? alertTier : "NO_TRADE"
+            
+            const alertPayload = {
+              symbol: cleanSymbol,
+              direction: (enhancedSignal.direction || "N/A").toUpperCase(),
+              tier: finalTier,
+              score: entryDecision.score ?? 0,
+              entry: enhancedSignal.entryPrice ?? null,
+              confidence: Math.round((enhancedSignal.confidence ?? 0) * 100) / 100,
+              tp1: enhancedSignal.takeProfit1 ?? null,
+              tp2: enhancedSignal.takeProfit2 ?? null,
+              sl: enhancedSignal.stopLoss ?? null
+            }
+            
+            console.log(`[v0] Alert Payload: ${JSON.stringify(alertPayload)}`)
+            
             const { TelegramNotifier } = await import("@/lib/telegram")
             const notifier = new TelegramNotifier(
               process.env.TELEGRAM_BOT_TOKEN,
               process.env.TELEGRAM_CHAT_ID,
               "https://xptswitch.vercel.app"
             )
-            console.log(`[v0] SENDING TELEGRAM ALERT: ${enhancedSignal.type} ${enhancedSignal.direction} for ${symbol}`)
-            await notifier.sendSignalAlert(enhancedSignal)
+            console.log(`[v0] SENDING TELEGRAM ALERT: ${alertPayload.direction} ${alertPayload.symbol} Tier ${alertPayload.tier}`)
+            await notifier.sendSignalAlert(alertPayload)
             
             SignalCache.recordAlertSent(enhancedSignal, symbol, signalFingerprint, entryDecision.tier)
             SignalCache.setTradeState(symbol, "IN_TRADE", "ENTRY alert sent")
@@ -291,6 +313,23 @@ export async function GET(request: Request) {
       } else if (!marketStatus.isClosed && tierUpgraded && entryDecision.allowed) {
         if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
           try {
+            // Tier upgrade alert - also use normalized payload
+            const cleanSymbol = (symbol || "UNKNOWN").toUpperCase().replace(/_USD/g, "")
+            const alertTier = entryDecision.tier || "NO_TRADE"
+            const validTiers = ["A+", "A", "B", "NO_TRADE"]
+            const finalTier = validTiers.includes(alertTier) ? alertTier : "NO_TRADE"
+            
+            const upgradePayload = {
+              symbol: cleanSymbol,
+              direction: (enhancedSignal.direction || "N/A").toUpperCase(),
+              tier: finalTier,
+              score: entryDecision.score ?? 0,
+              entry: enhancedSignal.entryPrice ?? null,
+              tp1: enhancedSignal.takeProfit1 ?? null,
+              tp2: enhancedSignal.takeProfit2 ?? null,
+              sl: enhancedSignal.stopLoss ?? null
+            }
+            
             const { TelegramNotifier } = await import("@/lib/telegram")
             const notifier = new TelegramNotifier(
               process.env.TELEGRAM_BOT_TOKEN,
@@ -298,34 +337,34 @@ export async function GET(request: Request) {
               "https://xptswitch.vercel.app"
             )
             
-            const oldTier = (SignalCache as any).getTradeState?.(symbol)?.lastTier || "?"
-            console.log(`[v0] SENDING TIER UPGRADE ALERT: ${symbol} upgraded to ${entryDecision.tier}`)
+            const oldTier = (SignalCache as any).getTradeState?.(symbol)?.lastAlertedTier || "?"
+            console.log(`[v0] SENDING TIER UPGRADE ALERT: ${cleanSymbol} upgraded to ${finalTier}`)
             
             const tierUpgradeMessage = `
-🚀 TIER UPGRADE ALERT - ${symbol}
+🚀 TIER UPGRADE ALERT - ${cleanSymbol}
 ═══════════════════════════════════════
-Your ${symbol} trade has UPGRADED to a higher tier!
+Your ${cleanSymbol} trade has UPGRADED to a higher tier!
 
 Previous Tier: ${oldTier}
-NEW Tier: ${entryDecision.tier} (Score ${entryDecision.score.toFixed(1)}/9)
+NEW Tier: ${finalTier} (Score ${(entryDecision.score ?? 0).toFixed(1)}/9)
 
 📊 ACTION REQUIRED:
 • Increase position size: Add capital to match new tier
 • Update Stop Loss: Tighten to entry price
 • Update TP Levels: Use new levels in dashboard
 
-Current Entry: $${enhancedSignal.entryPrice?.toFixed(2) || "N/A"}
-New SL: $${enhancedSignal.stopLoss?.toFixed(2) || "N/A"}
-New TP1: $${enhancedSignal.takeProfit1?.toFixed(2) || "N/A"}
-${entryDecision.tier !== "B" ? `New TP2: $${enhancedSignal.takeProfit2?.toFixed(2) || "N/A"}` : "(B tier = TP1-only exit)"}
+Current Entry: $${(upgradePayload.entry ?? 0).toFixed(2)}
+New SL: $${(upgradePayload.sl ?? 0).toFixed(2)}
+New TP1: $${(upgradePayload.tp1 ?? 0).toFixed(2)}
+${finalTier !== "B" ? `New TP2: $${(upgradePayload.tp2 ?? 0).toFixed(2)}` : "(B tier = TP1-only exit)"}
 
 ⏰ Time: ${new Date().toISOString()}
 ═══════════════════════════════════════
             `
             
             await notifier.sendMessage(tierUpgradeMessage, false)
-            SignalCache.updateTier(symbol, entryDecision.tier)
-            console.log(`[v0] TIER UPGRADE ALERT SENT: ${oldTier} → ${entryDecision.tier}`)
+            SignalCache.updateTier(symbol, finalTier)
+            console.log(`[v0] TIER UPGRADE ALERT SENT: ${oldTier} → ${finalTier}`)
           } catch (telegramError) {
             console.error("[v0] Failed to send tier upgrade alert:", telegramError)
           }
