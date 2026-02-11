@@ -185,6 +185,9 @@ export async function GET(request: Request) {
     )
     
     // STEP 2: CRITICAL FIX - Ensure structuralTier exists before spreading into enhancedSignal
+    // Debug: Log exactly what structuralTier is
+    console.log(`[v0] RECOVERY DEBUG: signal.structuralTier=${signal.structuralTier} (type: ${typeof signal.structuralTier})`)
+    
     // If evaluateSignals didn't return structuralTier, recover it from the signal's properties
     if (!signal.structuralTier || signal.structuralTier === "undefined") {
       const reasons = signal.reasons || []
@@ -193,12 +196,17 @@ export async function GET(request: Request) {
       // Detect B tier from the reasons array
       if (reasonsStr.includes("TIER B PASS")) {
         signal.structuralTier = "B" as any
+        console.log(`[v0] RECOVERY: B tier detected from reasons`)
       } else if (signal.type === "ENTRY") {
         signal.structuralTier = "A+" as any // Default ENTRY signals to A+ for recovery
+        console.log(`[v0] RECOVERY: ENTRY signal defaulted to A+`)
       } else {
         signal.structuralTier = "NO_TRADE" as any
+        console.log(`[v0] RECOVERY: Defaulted to NO_TRADE`)
       }
-      console.log(`[v0] structuralTier recovered: ${signal.structuralTier} from type=${signal.type}`)
+      console.log(`[v0] RECOVERY RESULT: structuralTier now=${signal.structuralTier}`)
+    } else {
+      console.log(`[v0] RECOVERY SKIPPED: structuralTier already=${signal.structuralTier}`)
     }
 
     // Calculate ATR-based trade setup for LONG/SHORT signals
