@@ -849,7 +849,6 @@ export class TradingStrategies {
       console.warn(`[v0] TIER MISMATCH: setupQuality is "B" but score ${score} is outside 4.5-6 range`)
     }
   }
-    }
 
     // Alert level based on tier
     let alertLevel: 0 | 1 | 2 | 3 = 0
