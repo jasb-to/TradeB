@@ -850,9 +850,13 @@ export class TradingStrategies {
 
     // Alert level based on tier
     let alertLevel: 0 | 1 | 2 | 3 = 0
-    if (tier === "A+") alertLevel = 3
-    else if (tier === "A") alertLevel = 2
-    else if (tier === "B") alertLevel = 1
+    if (tier === "A+") {
+      alertLevel = 3
+    } else if (tier === "A") {
+      alertLevel = 2
+    } else if (tier === "B") {
+      alertLevel = 1
+    }
 
     // Blocking reasons: Tier-dependent gating
     const blockedReasons: string[] = []
