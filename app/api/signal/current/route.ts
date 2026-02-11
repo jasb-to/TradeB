@@ -185,7 +185,31 @@ export async function GET(request: Request) {
     )
     
     console.log(`[v0] 🔥 SIGNAL CURRENT ROUTE HIT`)
-    console.log(`[v0] Raw signal.type=${signal.type} signal.structuralTier=${(signal as any).structuralTier}`)
+    console.log(`[v0] Raw signal keys: ${Object.keys(signal).join(", ")}`)
+    console.log(`[v0] Raw signal.type=${signal.type} signal.structuralTier=${(signal as any).structuralTier} signal.direction=${signal.direction}`)
+    
+    // CRITICAL FIX: If structuralTier is missing, derive it from the signal properties
+    if (!(signal as any).structuralTier) {
+      // Reconstruct tier from signal properties - check reasons array for B tier marker
+      const reasonsStr = (signal.reasons || []).join(" | ")
+      
+      if (reasonsStr.includes("TIER B PASS")) {
+        (signal as any).structuralTier = "B"
+        console.log(`[v0] Detected B tier from reasons: ${reasonsStr}`)
+      } else if (signal.type === "ENTRY") {
+        // For non-B ENTRY signals, infer from confidence and quality
+        if (signal.confidence >= 80 || reasonsStr.includes("A+")) {
+          (signal as any).structuralTier = "A+"
+        } else if (signal.confidence >= 70 || reasonsStr.includes("A Setup")) {
+          (signal as any).structuralTier = "A"
+        } else {
+          (signal as any).structuralTier = "NO_TRADE"
+        }
+      } else {
+        (signal as any).structuralTier = "NO_TRADE"
+      }
+      console.log(`[v0] Reconstructed structuralTier=${(signal as any).structuralTier} from signal.type=${signal.type} confidence=${signal.confidence}`)
+    }
 
     // Calculate ATR-based trade setup for LONG/SHORT signals
     const atr = signal.indicators?.atr || 1.0
@@ -195,10 +219,8 @@ export async function GET(request: Request) {
     const takeProfit2 = signal.direction === "LONG" ? entryPrice + atr * 2.5 : entryPrice - atr * 2.5
 
     // Enhance signal with last candle data and trade setup for client display
-    // CRITICAL: Explicitly preserve structuralTier since it might not spread correctly
     const enhancedSignal = {
       ...signal,
-      structuralTier: signal.structuralTier || "NO_TRADE",  // Force include structuralTier
       mtfBias,
       entryPrice: signal.direction ? entryPrice : undefined,
       stopLoss: signal.direction ? stopLoss : undefined,
@@ -255,8 +277,6 @@ export async function GET(request: Request) {
     
     // ALERTS: Send telegram notification if conditions met
     try {
-      console.log(`[v0] Enhanced signal check:type=${enhancedSignal.type} structuralTier=${(enhancedSignal as any).structuralTier}`)
-      
       let alertCheck: any = null
       let tierUpgraded = false
       
