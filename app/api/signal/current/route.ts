@@ -211,6 +211,9 @@ export async function GET(request: Request) {
     lastValidSignals[symbol] = enhancedSignal
     lastValidTimestamps[symbol] = new Date().toISOString()
 
+    // DEBUG: Confirm we reached alert section
+    console.log(`[v0] POST-CACHE: About to enter alert flow for ${symbol}`)
+    
     // ALERTS: Send telegram notification if conditions met
     try {
       console.log(`[v0] DEBUG: Entering alert flow - type=${enhancedSignal.type} direction=${enhancedSignal.direction} alertLevel=${enhancedSignal.alertLevel}`)
@@ -233,6 +236,9 @@ export async function GET(request: Request) {
         console.error("[v0] Error in hastierUpgraded:", tierError)
         tierUpgraded = false
       }
+
+      // Log all condition values for debugging
+      console.log(`[v0] Alert Conditions: market_closed=${marketStatus.isClosed} | alertCheck=${alertCheck?.allowed} | entryDecision.allowed=${entryDecision.allowed} | type=${enhancedSignal.type} | alertLevel=${enhancedSignal.alertLevel}`)
 
       if (!marketStatus.isClosed && alertCheck && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.alertLevel >= 2) {
         if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {

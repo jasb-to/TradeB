@@ -418,6 +418,7 @@ export class TradingStrategies {
         : finalTP,  // A/A+: takeProfit = TP2 (full exit after TP1 scale)
       riskReward,
       htfTrend: htfPolarity.trend,
+      structuralTier: setupTier || "STANDARD",  // Store the determined tier for buildEntryDecision to use
       strategy: "BREAKOUT_CHANDELIER",
       reasons: [
         `${setupTier || "STANDARD"} Setup: Score ${alignmentScore}/10 (Daily + 4H + 1H aligned)`,
@@ -808,20 +809,29 @@ export class TradingStrategies {
     // Round to 1 decimal place and cap at 9
     const score = Math.min(Math.round(rawScore * 10) / 10, 9)
 
-    // VALIDATE TIER vs SCORE CONSISTENCY
-    // Tier is determined PURELY from score - no setupQuality reference
-    // Score ranges: A+ >= 7, A = 6-6.99, B = 4.5-5.99, NO_TRADE < 4.5
-    
+    // Tier comes from signal's structural determination (HTF regime-based)
+    // Score does NOT override or upgrade tier - it only gates approval
+    // A B-tier signal (HTF neutral + 1H/15M aligned) stays B tier regardless of score
+    const structuralTier = (signal as any).structuralTier as "A+" | "A" | "B" | "STANDARD" | undefined
     let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
     
-    if (score >= 7) {
+    if (structuralTier === "A+") {
       tier = "A+"
-    } else if (score >= 6) {
+    } else if (structuralTier === "A") {
       tier = "A"
-    } else if (score >= 4.5) {
+    } else if (structuralTier === "B") {
       tier = "B"
     } else {
-      tier = "NO_TRADE"
+      // Fallback: determine from score only if no structural tier set
+      if (score >= 7) {
+        tier = "A+"
+      } else if (score >= 6) {
+        tier = "A"
+      } else if (score >= 4.5) {
+        tier = "B"
+      } else {
+        tier = "NO_TRADE"
+      }
     }
 
     // Alert level based on tier
