@@ -182,7 +182,7 @@ export function GoldSignalPanel({ signal, loading, onManualExit }: GoldSignalPan
       {signal.type !== "ENTRY" && signal.direction && signal.type === "PENDING" && signal.waiting && (
         <div className="space-y-4 p-4 bg-amber-900/30 border border-amber-700/50 rounded-lg">
           <div className="flex items-center justify-between">
-                <p className="text-amber-300 font-semibold">Setup Forming: {signal.entryDecision?.tier === "A+" ? "🔥 A+ PREMIUM" : "⭐ A SETUP"}</p>
+                <p className="text-amber-300 font-semibold">Setup Forming: {signal.entryDecision?.tier === "A+" ? "🔥 A+ PREMIUM" : signal.entryDecision?.tier === "A" ? "⭐ A SETUP" : signal.entryDecision?.tier === "B" ? "🚨 B TIER SETUP" : "STANDARD SETUP"}</p>
             <p className="text-amber-200/60 text-xs">(Awaiting LTF confirmation)</p>
           </div>
 
