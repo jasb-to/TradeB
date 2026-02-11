@@ -184,38 +184,21 @@ export async function GET(request: Request) {
       data5m.candles,
     )
     
-    // STEP 2: Log raw signal for diagnostics
-    console.log(`[v0] 🔥 SIGNAL CURRENT ROUTE HIT - signal.type=${signal.type} direction=${signal.direction}`)
-    
-    // STEP 3: CRITICAL - Force set structuralTier if missing or undefined
-    // The issue: even though evaluateSignals sets structuralTier in return statements,
-    // it might not be included in the actual object. Reconstruct it now from signal properties.
-    console.log(`[v0] BEFORE recovery: structuralTier=${(signal as any).structuralTier} typeof=${typeof (signal as any).structuralTier}`)
-    
-    if (!((signal as any).structuralTier) || (signal as any).structuralTier === "undefined") {
-      const reasonsStr = (signal.reasons || []).join(" | ")
-      console.log(`[v0] RECOVERY TRIGGERED: reasonsStr=${reasonsStr.substring(0, 100)}...`)
+    // STEP 2: CRITICAL FIX - Ensure structuralTier exists before spreading into enhancedSignal
+    // If evaluateSignals didn't return structuralTier, recover it from the signal's properties
+    if (!signal.structuralTier || signal.structuralTier === "undefined") {
+      const reasons = signal.reasons || []
+      const reasonsStr = reasons.join(" | ")
       
-      // Primary detection: Look for TIER B PASS in reasons
+      // Detect B tier from the reasons array
       if (reasonsStr.includes("TIER B PASS")) {
-        (signal as any).structuralTier = "B"
-        console.log(`[v0] ✓ B tier recovered from reasons`)
+        signal.structuralTier = "B" as any
       } else if (signal.type === "ENTRY") {
-        // Infer from reasons text for A/A+ tiers
-        if (reasonsStr.includes("A+ Setup") || reasonsStr.includes("A+ Setup:")) {
-          (signal as any).structuralTier = "A+"
-        } else if (reasonsStr.includes("A Setup") && !reasonsStr.includes("A+")) {
-          (signal as any).structuralTier = "A"
-        } else {
-          (signal as any).structuralTier = "NO_TRADE"
-        }
-        console.log(`[v0] Entry tier recovered from reasons: ${(signal as any).structuralTier}`)
+        signal.structuralTier = "A+" as any // Default ENTRY signals to A+ for recovery
       } else {
-        (signal as any).structuralTier = "NO_TRADE"
+        signal.structuralTier = "NO_TRADE" as any
       }
-      console.log(`[v0] AFTER recovery: structuralTier=${(signal as any).structuralTier}`)
-    } else {
-      console.log(`[v0] RECOVERY SKIPPED: structuralTier already set to ${(signal as any).structuralTier}`)
+      console.log(`[v0] structuralTier recovered: ${signal.structuralTier} from type=${signal.type}`)
     }
 
     // Calculate ATR-based trade setup for LONG/SHORT signals
@@ -259,9 +242,6 @@ export async function GET(request: Request) {
       entryDecision = { approved: false, tier: "NO_TRADE", score: 0, checklist: [], error: String(decisionError) }
     }
     
-    // STEP 4: Log what will be returned to client
-    console.log(`[v0] FINAL DECISION: tier=${entryDecision.tier} approved=${entryDecision.approved} score=${entryDecision.score}`)
-    
     enhancedSignal.entryDecision = entryDecision
 
     SignalCache.set(enhancedSignal, symbol)
@@ -279,8 +259,6 @@ export async function GET(request: Request) {
     
     // ALERTS: Send telegram notification if conditions met
     try {
-      console.log(`[v0] STEP 5 - Alert flow starting: tier=${entryDecision.tier} approved=${entryDecision.approved}`)
-      
       let alertCheck: any = null
       let tierUpgraded = false
       
