@@ -227,6 +227,8 @@ export const SignalCache = {
     }
 
     // STEP 2: Check fingerprint for NEW setup (NOT just setupHash)
+    // For B-tier, be more lenient on first alert - allow similar setups
+    // Only block if fingerprint is EXACTLY identical (same price + direction + alignment)
     if (signalFingerprint && state.lastFingerprint === signalFingerprint) {
       return { allowed: false, reason: `BLOCKED: Identical signal fingerprint - same setup (fp: ${signalFingerprint})` }
     }

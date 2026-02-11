@@ -212,14 +212,16 @@ export async function GET(request: Request) {
         : undefined,
     }
 
-    console.log(`[v0] DEBUG: After enhance - enhancedSignal.structuralTier=${(enhancedSignal as any).structuralTier}`)
+    // Ensure structuralTier is set on enhanced signal (FIX 1)
+    // If signal doesn't have structuralTier, it should be NO_TRADE by default
+    if (typeof (enhancedSignal as any).structuralTier !== "string") {
+      (enhancedSignal as any).structuralTier = "NO_TRADE"
+    }
 
     // Build entry decision for checklist display - WRAPPED in try-catch to prevent 500s
     let entryDecision: any = { approved: false, tier: "NO_TRADE", score: 0, checklist: [] }
     try {
-      console.log(`[v0] DEBUG: Before buildEntryDecision - signal.structuralTier=${(enhancedSignal as any).structuralTier}`)
       entryDecision = strategies.buildEntryDecision(enhancedSignal)
-      console.log(`[v0] DEBUG: After buildEntryDecision - returned tier=${entryDecision.tier}`)
       if (!entryDecision) {
         console.error("[v0] buildEntryDecision returned null/undefined - using defaults")
         entryDecision = { approved: false, tier: "NO_TRADE", score: 0, checklist: [] }
@@ -227,6 +229,15 @@ export async function GET(request: Request) {
     } catch (decisionError) {
       console.error("[v0] CRITICAL: buildEntryDecision crashed:", decisionError)
       entryDecision = { approved: false, tier: "NO_TRADE", score: 0, checklist: [], error: String(decisionError) }
+    }
+    
+    // FIX 1: Ensure entryDecision has all required fields before storing on signal
+    entryDecision = {
+      approved: entryDecision.approved ?? false,
+      tier: entryDecision.tier ?? (enhancedSignal as any).structuralTier ?? "NO_TRADE",
+      score: entryDecision.score ?? 0,
+      checklist: entryDecision.checklist ?? [],
+      ...entryDecision // spread remaining fields
     }
     enhancedSignal.entryDecision = entryDecision
 
@@ -243,18 +254,15 @@ export async function GET(request: Request) {
       enhancedSignal.timeframeAlignment || 0
     ].join("|")
     
-    console.log(`[v0] Signal Fingerprint for ${symbol}: ${signalFingerprint}`)
-    
     // ALERTS: Send telegram notification if conditions met
     try {
-      console.log(`[v0] Entering alert flow - direction=${enhancedSignal.direction} tier=${entryDecision.tier} alertLevel=${enhancedSignal.alertLevel}`)
+      console.log(`[v0] Alert flow: ${(enhancedSignal as any).structuralTier || entryDecision.tier} | Fingerprint: ${signalFingerprint}`)
       
       let alertCheck: any = null
       let tierUpgraded = false
       
       try {
         alertCheck = SignalCache.canAlertSetup(enhancedSignal, symbol, signalFingerprint)
-        console.log(`[v0] Alert Check: ${alertCheck.reason}`)
       } catch (checkError) {
         console.error("[v0] Error in canAlertSetup:", checkError)
         alertCheck = { allowed: false, reason: `canAlertSetup error: ${checkError}` }
@@ -266,9 +274,6 @@ export async function GET(request: Request) {
         console.error("[v0] Error in hastierUpgraded:", tierError)
         tierUpgraded = false
       }
-
-      // Log all condition values for debugging
-      console.log(`[v0] Alert Conditions: market_closed=${marketStatus.isClosed} | alertCheck=${alertCheck?.allowed} | entryDecision.allowed=${entryDecision.allowed} | type=${enhancedSignal.type} | alertLevel=${enhancedSignal.alertLevel}`)
 
       if (!marketStatus.isClosed && alertCheck && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.alertLevel >= 2) {
         if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
@@ -374,7 +379,7 @@ ${finalTier !== "B" ? `New TP2: $${(upgradePayload.tp2 ?? 0).toFixed(2)}` : "(B 
           }
         }
       } else {
-        console.log(`[v0] Alert conditions not met: market_closed=${marketStatus.isClosed} alertCheck.allowed=${alertCheck.allowed} entryDecision.allowed=${entryDecision.allowed} type=${enhancedSignal.type} alertLevel=${enhancedSignal.alertLevel}`)
+        // Alert conditions not met - no log needed (normal operation)
       }
     } catch (alertError) {
       console.error("[v0] Alert flow error:", alertError)

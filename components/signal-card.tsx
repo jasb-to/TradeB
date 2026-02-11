@@ -140,12 +140,12 @@ export function SignalCard({ signal }: SignalCardProps) {
                   signal.entryDecision?.tier === "A+" ? "bg-yellow-500 text-black" 
                   : signal.entryDecision?.tier === "A" ? "bg-blue-500 text-white"
                   : signal.entryDecision?.tier === "B" ? "bg-slate-600 text-white"
-                  : "bg-slate-600 text-white"
+                  : "bg-amber-600 text-white"
                 }>
                   {signal.entryDecision?.tier === "A+" ? "⭐ A+ Setup" 
                   : signal.entryDecision?.tier === "A" ? "A Setup"
                   : signal.entryDecision?.tier === "B" ? "🚨 B TIER SETUP"
-                  : "Standard Setup"}
+                  : "Tier: PENDING"}
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
@@ -155,7 +155,7 @@ export function SignalCard({ signal }: SignalCardProps) {
                   ? "A TIER: Good setup, 4+ TF aligned + ADX ≥21. Scaled exit at 1.5R."
                   : signal.entryDecision?.tier === "B"
                   ? "B TIER: 1H momentum-aligned. Hard TP1 exit only. Use 50% position size."
-                  : "Standard setup: 4+ TF aligned + ADX ≥21. Scaled exit at 1.5R."}
+                  : "Analyzing trade setup..."}
               </p>
             </div>
 
