@@ -183,6 +183,9 @@ export async function GET(request: Request) {
       data15m.candles,
       data5m.candles,
     )
+    
+    console.log(`[v0] 🔥 SIGNAL CURRENT ROUTE HIT`)
+    console.log(`[v0] Raw signal.type=${signal.type} signal.structuralTier=${(signal as any).structuralTier}`)
 
     // Calculate ATR-based trade setup for LONG/SHORT signals
     const atr = signal.indicators?.atr || 1.0
@@ -192,8 +195,10 @@ export async function GET(request: Request) {
     const takeProfit2 = signal.direction === "LONG" ? entryPrice + atr * 2.5 : entryPrice - atr * 2.5
 
     // Enhance signal with last candle data and trade setup for client display
+    // CRITICAL: Explicitly preserve structuralTier since it might not spread correctly
     const enhancedSignal = {
       ...signal,
+      structuralTier: signal.structuralTier || "NO_TRADE",  // Force include structuralTier
       mtfBias,
       entryPrice: signal.direction ? entryPrice : undefined,
       stopLoss: signal.direction ? stopLoss : undefined,
@@ -210,12 +215,6 @@ export async function GET(request: Request) {
             timestamp: last1hCandle.timestamp,
           }
         : undefined,
-    }
-
-    // Ensure structuralTier is set on enhanced signal (FIX 1)
-    // If signal doesn't have structuralTier, it should be NO_TRADE by default
-    if (typeof (enhancedSignal as any).structuralTier !== "string") {
-      (enhancedSignal as any).structuralTier = "NO_TRADE"
     }
 
     // Build entry decision for checklist display - WRAPPED in try-catch to prevent 500s
@@ -256,8 +255,7 @@ export async function GET(request: Request) {
     
     // ALERTS: Send telegram notification if conditions met
     try {
-      console.log(`[v0] 🔥 SIGNAL CURRENT ROUTE HIT`)
-      console.log(`[v0] Signal structuralTier: ${(enhancedSignal as any).structuralTier || "undefined"}`)
+      console.log(`[v0] Enhanced signal check:type=${enhancedSignal.type} structuralTier=${(enhancedSignal as any).structuralTier}`)
       
       let alertCheck: any = null
       let tierUpgraded = false
