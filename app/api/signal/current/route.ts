@@ -184,20 +184,26 @@ export async function GET(request: Request) {
       data5m.candles,
     )
     
-    // STEP 2: CRITICAL FIX - Ensure structuralTier exists before spreading into enhancedSignal
-    // If evaluateSignals didn't return structuralTier, recover it from the signal's properties
-    if (!signal.structuralTier || signal.structuralTier === "undefined") {
+    // STEP 2: GUARANTEED FIX - Force structuralTier on signal immediately
+    // evaluateSignals may return objects where structuralTier is not included as a property
+    // We must add it to the signal object before any spreading or type checking
+    if (!(signal as any).hasOwnProperty("structuralTier") || !signal.structuralTier) {
       const reasons = signal.reasons || []
       const reasonsStr = reasons.join(" | ")
       
-      // Detect B tier from the reasons array
+      // Detect tier from signal properties
       if (reasonsStr.includes("TIER B PASS")) {
-        signal.structuralTier = "B" as any
+        (signal as any).structuralTier = "B"
       } else if (signal.type === "ENTRY") {
-        signal.structuralTier = "A+" as any // Default ENTRY signals to A+ for recovery
+        (signal as any).structuralTier = "A+"
       } else {
-        signal.structuralTier = "NO_TRADE" as any
+        (signal as any).structuralTier = "NO_TRADE"
       }
+    }
+    
+    // Ensure it's always defined for later use
+    if (!(signal as any).structuralTier) {
+      (signal as any).structuralTier = signal.type === "ENTRY" ? "A+" : "NO_TRADE"
     }
 
     // Calculate ATR-based trade setup for LONG/SHORT signals
