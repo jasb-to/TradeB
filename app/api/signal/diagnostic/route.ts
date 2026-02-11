@@ -1,5 +1,6 @@
-import { strategies } from "@/lib/strategies"
+import { TradingStrategies } from "@/lib/strategies"
 import { SignalCache } from "@/lib/signal-cache"
+import { DEFAULT_TRADING_CONFIG } from "@/lib/config"
 
 export const dynamic = "force-dynamic"
 
@@ -11,6 +12,8 @@ export async function GET(req: Request) {
   diagnostics.push(`\n🔥 SIGNAL DIAGNOSTIC ROUTE - Symbol: ${symbol}`)
 
   try {
+    const strategies = new TradingStrategies(DEFAULT_TRADING_CONFIG)
+    
     // Step 1: Get market data
     diagnostics.push(`\n[STEP 1] Loading market data...`)
 
