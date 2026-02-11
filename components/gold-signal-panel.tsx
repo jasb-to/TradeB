@@ -69,15 +69,15 @@ export function GoldSignalPanel({ signal, loading, onManualExit }: GoldSignalPan
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-slate-400 text-xs">Setup Tier</p>
-              {signal.setupQuality === "A+" ? (
+              {signal.entryDecision?.tier === "A+" ? (
                 <Badge className="bg-yellow-900/60 border-yellow-700/60 text-yellow-200 font-bold">
                   🔥 A+ PREMIUM
                 </Badge>
-              ) : signal.setupQuality === "A" ? (
+              ) : signal.entryDecision?.tier === "A" ? (
                 <Badge className="bg-blue-900/60 border-blue-700/60 text-blue-200 font-bold">
                   ⭐ A SETUP
                 </Badge>
-              ) : signal.setupQuality === "B" ? (
+              ) : signal.entryDecision?.tier === "B" ? (
                 <Badge className="bg-slate-700/60 border-slate-600/60 text-slate-200 font-bold">
                   🚨 B TIER SETUP
                 </Badge>
@@ -93,13 +93,13 @@ export function GoldSignalPanel({ signal, loading, onManualExit }: GoldSignalPan
             </div>
           </div>
           
-          {signal.setupQuality === "A+" && (
+          {signal.entryDecision?.tier === "A+" && (
             <div className="p-2 bg-yellow-900/30 border border-yellow-700/50 rounded text-xs text-yellow-200">
               High confidence setup - Maximum capital allocation recommended
             </div>
           )}
 
-          {signal.setupQuality === "B" && (
+          {signal.entryDecision?.tier === "B" && (
             <div className="p-2 bg-slate-800/30 border border-slate-700/50 rounded text-xs text-slate-300">
               B TIER: 1H momentum-aligned entry • Hard TP1 exit only • Use 50% position size
             </div>
@@ -140,7 +140,7 @@ export function GoldSignalPanel({ signal, loading, onManualExit }: GoldSignalPan
                   <div className="bg-slate-900/40 rounded p-3">
                     <p className="text-slate-500 text-xs mb-1">TP 2</p>
                     <p className="text-lg font-bold text-green-400">${signal.takeProfit2.toFixed(2)}</p>
-                    <p className="text-xs text-slate-400 mt-1">{signal.setupQuality === "A+" ? "2R" : "1.5R"} (Trail)</p>
+                    <p className="text-xs text-slate-400 mt-1">{signal.entryDecision?.tier === "A+" ? "2R" : "1.5R"} (Trail)</p>
                   </div>
                 )}
               </div>
@@ -182,7 +182,7 @@ export function GoldSignalPanel({ signal, loading, onManualExit }: GoldSignalPan
       {signal.type !== "ENTRY" && signal.direction && signal.type === "PENDING" && signal.waiting && (
         <div className="space-y-4 p-4 bg-amber-900/30 border border-amber-700/50 rounded-lg">
           <div className="flex items-center justify-between">
-            <p className="text-amber-300 font-semibold">Setup Forming: {signal.setupQuality === "A+" ? "🔥 A+ PREMIUM" : "⭐ A SETUP"}</p>
+                <p className="text-amber-300 font-semibold">Setup Forming: {signal.entryDecision?.tier === "A+" ? "🔥 A+ PREMIUM" : "⭐ A SETUP"}</p>
             <p className="text-amber-200/60 text-xs">(Awaiting LTF confirmation)</p>
           </div>
 
