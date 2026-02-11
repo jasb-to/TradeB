@@ -819,22 +819,36 @@ export class TradingStrategies {
     const signalTier = signal.setupQuality as "A+" | "A" | "B" | "STANDARD" | undefined
     let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
     
-    // Determine tier from score first
+  // Determine tier from setupQuality first, then validate against score
+  // setupQuality is the actual tier determined during signal generation
+  const signalTier = signal.setupQuality as "A+" | "A" | "B" | "STANDARD" | undefined
+  let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
+  
+  // Use setupQuality as primary source of truth
+  if (signalTier === "A+") {
+    tier = "A+"
+  } else if (signalTier === "A") {
+    tier = "A"
+  } else if (signalTier === "B") {
+    tier = "B"
+  } else {
+    // Fallback to score-based determination if setupQuality not set
     if (score >= 7) tier = "A+"
     else if (score >= 6) tier = "A"
     else if (score >= 4.5) tier = "B"
     else tier = "NO_TRADE"
-    
-    // Log if setupQuality differed from score-derived tier
-    if (signalTier && signalTier !== "STANDARD") {
-      const expectedTier = tier
-      if (signalTier === "A+" && expectedTier !== "A+") {
-        console.warn(`[v0] TIER MISMATCH: setupQuality was "A+" but score ${score} derives tier "${expectedTier}"`)
-      } else if (signalTier === "A" && expectedTier !== "A") {
-        console.warn(`[v0] TIER MISMATCH: setupQuality was "A" but score ${score} derives tier "${expectedTier}"`)
-      } else if (signalTier === "B" && expectedTier !== "B") {
-        console.warn(`[v0] TIER MISMATCH: setupQuality was "B" but score ${score} derives tier "${expectedTier}"`)
-      }
+  }
+  
+  // Validate score is within expected range for the tier (warning only, don't override)
+  if (signalTier && signalTier !== "STANDARD") {
+    if (signalTier === "A+" && score < 7) {
+      console.warn(`[v0] TIER MISMATCH: setupQuality is "A+" but score ${score} is below 7`)
+    } else if (signalTier === "A" && (score < 6 || score >= 7)) {
+      console.warn(`[v0] TIER MISMATCH: setupQuality is "A" but score ${score} is outside 6-7 range`)
+    } else if (signalTier === "B" && (score < 4.5 || score >= 6)) {
+      console.warn(`[v0] TIER MISMATCH: setupQuality is "B" but score ${score} is outside 4.5-6 range`)
+    }
+  }
     }
 
     // Alert level based on tier
