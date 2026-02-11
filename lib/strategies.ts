@@ -380,7 +380,7 @@ export class TradingStrategies {
     const atr1h = indicators1h.atr || 0
     
     // Use Chandelier Stop as TP (more adaptive than fixed ATR multiples)
-    const chandelierStop = TechnicalAnalysis.calculateChandelierStop(candles1h, 22, 3)
+    const chandelierStop = TechnicalAnalysis.calculateChandelierStop(data1h, 22, 3)
     
     // Stop Loss: Fixed ATR multiple (tighter risk)
     const stopLoss = direction === "LONG" ? currentPrice - atr1h * 1.5 : currentPrice + atr1h * 1.5
