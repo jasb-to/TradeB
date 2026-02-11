@@ -817,45 +817,45 @@ export class TradingStrategies {
     // NO_TRADE: score < 4.5
     // If setupQuality doesn't match the score range, reconcile it.
     
-  // Determine tier from setupQuality first, then validate against score
-  // setupQuality is the actual tier determined during signal generation
-  const signalTier = signal.setupQuality as "A+" | "A" | "B" | "STANDARD" | undefined
-  let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
-  
-  // Use setupQuality as primary source of truth
-  if (signalTier === "A+") {
-    tier = "A+"
-  } else if (signalTier === "A") {
-    tier = "A"
-  } else if (signalTier === "B") {
-    tier = "B"
-  } else {
-    // Fallback to score-based determination if setupQuality not set
-    if (score >= 7) tier = "A+"
-    else if (score >= 6) tier = "A"
-    else if (score >= 4.5) tier = "B"
-    else tier = "NO_TRADE"
-  }
-  
-  // Validate score is within expected range for the tier (warning only, don't override)
-  if (signalTier && signalTier !== "STANDARD") {
-    if (signalTier === "A+" && score < 7) {
-      console.warn(`[v0] TIER MISMATCH: setupQuality is "A+" but score ${score} is below 7`)
-    } else if (signalTier === "A" && (score < 6 || score >= 7)) {
-      console.warn(`[v0] TIER MISMATCH: setupQuality is "A" but score ${score} is outside 6-7 range`)
-    } else if (signalTier === "B" && (score < 4.5 || score >= 6)) {
-      console.warn(`[v0] TIER MISMATCH: setupQuality is "B" but score ${score} is outside 4.5-6 range`)
+    // Determine tier from setupQuality first, then validate against score
+    // setupQuality is the actual tier determined during signal generation
+    const signalTier = signal.setupQuality as "A+" | "A" | "B" | "STANDARD" | undefined
+    let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
+    
+    // Use setupQuality as primary source of truth
+    if (signalTier === "A+") {
+      tier = "A+"
+    } else if (signalTier === "A") {
+      tier = "A"
+    } else if (signalTier === "B") {
+      tier = "B"
+    } else {
+      // Fallback to score-based determination if setupQuality not set
+      if (score >= 7) tier = "A+"
+      else if (score >= 6) tier = "A"
+      else if (score >= 4.5) tier = "B"
+      else tier = "NO_TRADE"
     }
-  }
+    
+    // Validate score is within expected range for the tier (warning only, don't override)
+    if (signalTier && signalTier !== "STANDARD") {
+      if (signalTier === "A+" && score < 7) {
+        console.warn(`[v0] TIER MISMATCH: setupQuality is "A+" but score ${score} is below 7`)
+      } else if (signalTier === "A" && (score < 6 || score >= 7)) {
+        console.warn(`[v0] TIER MISMATCH: setupQuality is "A" but score ${score} is outside 6-7 range`)
+      } else if (signalTier === "B" && (score < 4.5 || score >= 6)) {
+        console.warn(`[v0] TIER MISMATCH: setupQuality is "B" but score ${score} is outside 4.5-6 range`)
+      }
+    }
 
-  // Alert level based on tier
-  let alertLevel: 0 | 1 | 2 | 3 = 0
-  if (tier === "A+") alertLevel = 3
-  else if (tier === "A") alertLevel = 2
-  else if (tier === "B") alertLevel = 1
+    // Alert level based on tier
+    let alertLevel: 0 | 1 | 2 | 3 = 0
+    if (tier === "A+") alertLevel = 3
+    else if (tier === "A") alertLevel = 2
+    else if (tier === "B") alertLevel = 1
 
-  // Blocking reasons: Tier-dependent gating
-  const blockedReasons: string[] = []
+    // Blocking reasons: Tier-dependent gating
+    const blockedReasons: string[] = []
     
     // A/A+ tiers: Require Daily+4H alignment (strict)
     if (tier === "A" || tier === "A+") {
