@@ -363,9 +363,6 @@ export async function GET(request: Request) {
         }
       }
       
-      // [DIAG] Cache Status
-      const cacheState = SignalCache.getState()
-      console.log(`[DIAG] ALERT CACHE STATUS lastFingerprint=${cacheState.lastFingerprint} lastAlertedTier=${cacheState.lastAlertedTier} symbol=${symbol}`)
     } catch (alertError) {
       console.error("[v0] Error in alert flow:", alertError)
     }
