@@ -83,10 +83,10 @@ You will now receive:
       ? "(Good setup - Solid trend confirmation)"
       : "(B TIER: 1H/15M aligned momentum - Reduced position size)"
 
-    const entryStr = entry?.toFixed?.(2) || entry ?? "N/A"
-    const slStr = sl?.toFixed?.(2) || sl ?? "N/A"
-    const tp1Str = tp1?.toFixed?.(2) || tp1 ?? "N/A"
-    const tp2Str = tp2?.toFixed?.(2) || tp2 ?? "N/A"
+    const entryStr = (entry?.toFixed?.(2)) ?? "N/A"
+    const slStr = (sl?.toFixed?.(2)) ?? "N/A"
+    const tp1Str = (tp1?.toFixed?.(2)) ?? "N/A"
+    const tp2Str = (tp2?.toFixed?.(2)) ?? "N/A"
     
     const tp1Instruction = isBTier 
       ? "HARD TP1 ONLY - Full position closes at TP1 level"
