@@ -818,7 +818,7 @@ export class TradingStrategies {
     // Tier comes from signal's structural determination (HTF regime-based)
     // Score does NOT override or upgrade tier - it only gates approval
     // A B-tier signal (HTF neutral + 1H/15M aligned) stays B tier regardless of score
-    const structuralTier = (signal as any).structuralTier as "A+" | "A" | "B" | "STANDARD" | "NO_TRADE" | undefined
+    const structuralTier = (signal as any).structuralTier as "A+" | "A" | "B" | "NO_TRADE"
     let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
     
     if (structuralTier === "A+") {
@@ -827,8 +827,7 @@ export class TradingStrategies {
       tier = "A"
     } else if (structuralTier === "B") {
       tier = "B"
-    } else if (structuralTier === "STANDARD" || structuralTier === "NO_TRADE" || !structuralTier) {
-      // STANDARD is legacy, convert to NO_TRADE - no score-based override
+    } else {
       tier = "NO_TRADE"
     }
 

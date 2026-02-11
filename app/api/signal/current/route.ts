@@ -256,7 +256,8 @@ export async function GET(request: Request) {
     
     // ALERTS: Send telegram notification if conditions met
     try {
-      console.log(`[v0] Alert flow: ${(enhancedSignal as any).structuralTier || entryDecision.tier} | Fingerprint: ${signalFingerprint}`)
+      console.log(`[v0] 🔥 SIGNAL CURRENT ROUTE HIT`)
+      console.log(`[v0] Signal structuralTier: ${(enhancedSignal as any).structuralTier || "undefined"}`)
       
       let alertCheck: any = null
       let tierUpgraded = false
@@ -274,6 +275,9 @@ export async function GET(request: Request) {
         console.error("[v0] Error in hastierUpgraded:", tierError)
         tierUpgraded = false
       }
+
+      console.log(`[v0] DEBUG: Entering alert flow`)
+      console.log(`[v0] Alert fingerprint: ${signalFingerprint}, tier: ${entryDecision.tier}`)
 
       if (!marketStatus.isClosed && alertCheck && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.alertLevel >= 2) {
         if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
@@ -379,7 +383,18 @@ ${finalTier !== "B" ? `New TP2: $${(upgradePayload.tp2 ?? 0).toFixed(2)}` : "(B 
           }
         }
       } else {
-        // Alert conditions not met - no log needed (normal operation)
+        // Alert conditions not met - log why (for diagnostics)
+        if (marketStatus.isClosed) {
+          console.log(`[v0] Alert skipped: Market closed`)
+        } else if (!alertCheck?.allowed) {
+          console.log(`[v0] Alert skipped: Fingerprint/cooldown check failed - ${alertCheck?.reason}`)
+        } else if (!entryDecision.allowed) {
+          console.log(`[v0] Alert skipped: Entry decision not approved`)
+        } else if (enhancedSignal.type !== "ENTRY") {
+          console.log(`[v0] Alert skipped: Not ENTRY signal (type=${enhancedSignal.type})`)
+        } else if (enhancedSignal.alertLevel < 2) {
+          console.log(`[v0] Alert skipped: Alert level too low (${enhancedSignal.alertLevel} < 2)`)
+        }
       }
     } catch (alertError) {
       console.error("[v0] Alert flow error:", alertError)
