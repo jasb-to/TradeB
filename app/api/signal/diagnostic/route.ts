@@ -1,6 +1,6 @@
 import { TradingStrategies } from "@/lib/strategies"
 import { SignalCache } from "@/lib/signal-cache"
-import { DEFAULT_TRADING_CONFIG } from "@/lib/config"
+import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
 
 export const dynamic = "force-dynamic"
 
