@@ -73,9 +73,17 @@ export function GoldSignalPanel({ signal, loading, onManualExit }: GoldSignalPan
                 <Badge className="bg-yellow-900/60 border-yellow-700/60 text-yellow-200 font-bold">
                   🔥 A+ PREMIUM
                 </Badge>
-              ) : (
+              ) : signal.setupQuality === "A" ? (
                 <Badge className="bg-blue-900/60 border-blue-700/60 text-blue-200 font-bold">
                   ⭐ A SETUP
+                </Badge>
+              ) : signal.setupQuality === "B" ? (
+                <Badge className="bg-slate-700/60 border-slate-600/60 text-slate-200 font-bold">
+                  🚨 B TIER SETUP
+                </Badge>
+              ) : (
+                <Badge className="bg-slate-700/60 border-slate-600/60 text-slate-200 font-bold">
+                  STANDARD SETUP
                 </Badge>
               )}
             </div>
@@ -88,6 +96,12 @@ export function GoldSignalPanel({ signal, loading, onManualExit }: GoldSignalPan
           {signal.setupQuality === "A+" && (
             <div className="p-2 bg-yellow-900/30 border border-yellow-700/50 rounded text-xs text-yellow-200">
               High confidence setup - Maximum capital allocation recommended
+            </div>
+          )}
+
+          {signal.setupQuality === "B" && (
+            <div className="p-2 bg-slate-800/30 border border-slate-700/50 rounded text-xs text-slate-300">
+              B TIER: 1H momentum-aligned entry • Hard TP1 exit only • Use 50% position size
             </div>
           )}
 

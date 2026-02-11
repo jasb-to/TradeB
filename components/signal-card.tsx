@@ -136,13 +136,25 @@ export function SignalCard({ signal }: SignalCardProps) {
             <div className="bg-primary/10 p-3 rounded-lg border border-primary/30">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-semibold text-primary">Setup Quality</span>
-                <Badge className={signal.setupQuality === "A+" ? "bg-yellow-500 text-black" : "bg-blue-500 text-white"}>
-                  {signal.setupQuality === "A+" ? "⭐ A+ Setup" : "Standard Setup"}
+                <Badge className={
+                  signal.setupQuality === "A+" ? "bg-yellow-500 text-black" 
+                  : signal.setupQuality === "A" ? "bg-blue-500 text-white"
+                  : signal.setupQuality === "B" ? "bg-slate-600 text-white"
+                  : "bg-slate-600 text-white"
+                }>
+                  {signal.setupQuality === "A+" ? "⭐ A+ Setup" 
+                  : signal.setupQuality === "A" ? "A Setup"
+                  : signal.setupQuality === "B" ? "🚨 B TIER SETUP"
+                  : "Standard Setup"}
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {signal.setupQuality === "A+"
                   ? "Premium setup: 5+ TF aligned + ADX ≥23. Target 2R."
+                  : signal.setupQuality === "A"
+                  ? "A TIER: Good setup, 4+ TF aligned + ADX ≥21. Scaled exit at 1.5R."
+                  : signal.setupQuality === "B"
+                  ? "B TIER: 1H momentum-aligned. Hard TP1 exit only. Use 50% position size."
                   : "Standard setup: 4+ TF aligned + ADX ≥21. Scaled exit at 1.5R."}
               </p>
             </div>
@@ -180,7 +192,25 @@ export function SignalCard({ signal }: SignalCardProps) {
             </div>
 
             {/* Take Profit Targets */}
-            {signal.takeProfit1 && signal.takeProfit2 && (
+            {signal.setupQuality === "B" ? (
+              // B TIER: Hard TP1 only (no TP2)
+              signal.takeProfit1 && (
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="bg-green-500/10 p-3 rounded-lg border border-green-500/30">
+                    <p className="text-green-600 text-xs font-semibold mb-1">TP1 - FULL EXIT (B TIER)</p>
+                    <p className="text-xl font-bold text-green-500">${formatPrice(signal.takeProfit1)}</p>
+                    <p className="text-xs text-green-600/70 mt-1">
+                      +
+                      {formatPercentage(
+                        ((Number(signal.takeProfit1) - Number(signal.entryPrice)) / Number(signal.entryPrice)) * 100,
+                      )}
+                      % (Full Position Closes)
+                    </p>
+                  </div>
+                </div>
+              )
+            ) : signal.takeProfit1 && signal.takeProfit2 ? (
+              // A/A+ TIER: TP1 scale + TP2 trail
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-green-500/10 p-3 rounded-lg border border-green-500/30">
                   <p className="text-green-600 text-xs font-semibold mb-1">TP1 - TAKE 50%</p>
@@ -207,12 +237,14 @@ export function SignalCard({ signal }: SignalCardProps) {
                   </p>
                 </div>
               </div>
-            )}
+            ) : null}
 
             {/* Risk/Reward Ratio */}
             <div className="bg-accent/10 p-3 rounded-lg border border-accent/30 flex justify-between items-center">
               <span className="text-sm font-semibold">Expected Risk:Reward</span>
-              <span className="text-lg font-bold text-accent">{signal.setupQuality === "A+" ? "1:2.0" : "1:1.5"}</span>
+              <span className="text-lg font-bold text-accent">
+                {signal.setupQuality === "A+" ? "1:2.0" : signal.setupQuality === "B" ? "1:1.0" : "1:1.5"}
+              </span>
             </div>
 
             {signal.mtfBias && typeof signal.mtfBias === "object" && Object.keys(signal.mtfBias).length > 0 && (
