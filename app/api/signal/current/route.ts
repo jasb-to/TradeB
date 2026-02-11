@@ -120,7 +120,12 @@ export async function GET(request: Request) {
         // Ensure cached signal has entryDecision
         const cachedSignal = lastValidSignals[symbol]
         if (!cachedSignal.entryDecision) {
-          cachedSignal.entryDecision = strategies.buildEntryDecision(cachedSignal)
+          try {
+            cachedSignal.entryDecision = strategies.buildEntryDecision(cachedSignal)
+          } catch (err) {
+            console.error("[v0] buildEntryDecision failed for cached signal:", err)
+            cachedSignal.entryDecision = { approved: false, tier: "NO_TRADE", score: 0, checklist: [] }
+          }
         }
         return NextResponse.json({
           success: true,
@@ -146,7 +151,12 @@ export async function GET(request: Request) {
       const cached = SignalCache.get(symbol)
       if (cached) {
         if (!cached.entryDecision) {
-          cached.entryDecision = strategies.buildEntryDecision(cached)
+          try {
+            cached.entryDecision = strategies.buildEntryDecision(cached)
+          } catch (err) {
+            console.error("[v0] buildEntryDecision failed for cached entry:", err)
+            cached.entryDecision = { approved: false, tier: "NO_TRADE", score: 0, checklist: [] }
+          }
         }
         return NextResponse.json({
           success: true,
@@ -203,8 +213,18 @@ export async function GET(request: Request) {
         : undefined,
     }
 
-    // Build entry decision for checklist display
-    const entryDecision = strategies.buildEntryDecision(enhancedSignal)
+    // Build entry decision for checklist display - WRAPPED in try-catch to prevent 500s
+    let entryDecision: any = { approved: false, tier: "NO_TRADE", score: 0, checklist: [] }
+    try {
+      entryDecision = strategies.buildEntryDecision(enhancedSignal)
+      if (!entryDecision) {
+        console.error("[v0] buildEntryDecision returned null/undefined - using defaults")
+        entryDecision = { approved: false, tier: "NO_TRADE", score: 0, checklist: [] }
+      }
+    } catch (decisionError) {
+      console.error("[v0] CRITICAL: buildEntryDecision crashed:", decisionError)
+      entryDecision = { approved: false, tier: "NO_TRADE", score: 0, checklist: [], error: String(decisionError) }
+    }
     enhancedSignal.entryDecision = entryDecision
 
     SignalCache.set(enhancedSignal, symbol)

@@ -323,6 +323,7 @@ export class TradingStrategies {
         confidence: confidence,
         pendingReason: `Waiting for 5M/15M confirmation on ${direction} entry`,
         timeframeAlignment: timeframeAlignment,
+        structuralTier: "NO_TRADE",  // REQUIRED: All paths must have tier
         lastCandle: {
           close: currentPrice,
           timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
@@ -812,7 +813,7 @@ export class TradingStrategies {
     // Tier comes from signal's structural determination (HTF regime-based)
     // Score does NOT override or upgrade tier - it only gates approval
     // A B-tier signal (HTF neutral + 1H/15M aligned) stays B tier regardless of score
-    const structuralTier = (signal as any).structuralTier as "A+" | "A" | "B" | "STANDARD" | undefined
+    const structuralTier = (signal as any).structuralTier as "A+" | "A" | "B" | "STANDARD" | "NO_TRADE" | undefined
     let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
     
     if (structuralTier === "A+") {
@@ -821,21 +822,20 @@ export class TradingStrategies {
       tier = "A"
     } else if (structuralTier === "B") {
       tier = "B"
-    } else {
-      // Fallback: determine from score only if no structural tier set
-      if (score >= 7) {
-        tier = "A+"
-      } else if (score >= 6) {
-        tier = "A"
-      } else if (score >= 4.5) {
-        tier = "B"
-      } else {
-        tier = "NO_TRADE"
-      }
+    } else if (structuralTier === "STANDARD" || structuralTier === "NO_TRADE" || !structuralTier) {
+      // STANDARD is legacy, convert to NO_TRADE - no score-based override
+      tier = "NO_TRADE"
     }
 
     // Alert level based on tier
     let alertLevel: 0 | 1 | 2 | 3 = 0
+    
+    // DEFENSIVE: Ensure tier is never undefined
+    if (!tier) {
+      console.error("[v0] CRITICAL: Missing tier in buildEntryDecision - forcing NO_TRADE")
+      tier = "NO_TRADE"
+    }
+    
     if (tier === "A+") {
       alertLevel = 3
     } else if (tier === "A") {
