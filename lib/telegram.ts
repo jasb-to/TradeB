@@ -103,7 +103,7 @@ ${setupDescription}
 
 Symbol: ${cleanSymbol}
 Direction: ${direction}
-Score: ${score.toFixed(1)}/9 ${confidenceBadge}
+Score: ${scoreFormatted}/9 ${confidenceBadge}
 
 Entry: $${entryStr}
 SL: $${slStr}
@@ -156,10 +156,10 @@ Exit Rule: ${tp1Instruction}
       ? "(Good setup - Solid trend confirmation)"
       : "(B TIER: 1H/15M aligned momentum - Reduced position size)";
 
-    const entryPrice = signal.entryPrice?.toFixed(2) || "N/A";
-    const stopLoss = signal.stopLoss?.toFixed(2) || "N/A";
-    const tp1 = signal.takeProfit1?.toFixed(2) || "N/A";
-    const tp2 = signal.takeProfit2?.toFixed(2) || "N/A";
+    const entryPrice = signal.entryPrice != null && typeof signal.entryPrice === "number" ? signal.entryPrice.toFixed(2) : "N/A";
+    const stopLoss = signal.stopLoss != null && typeof signal.stopLoss === "number" ? signal.stopLoss.toFixed(2) : "N/A";
+    const tp1 = signal.takeProfit1 != null && typeof signal.takeProfit1 === "number" ? signal.takeProfit1.toFixed(2) : "N/A";
+    const tp2 = signal.takeProfit2 != null && typeof signal.takeProfit2 === "number" ? signal.takeProfit2.toFixed(2) : "N/A";
     
     // B TIER: Hard TP1 only - no TP2, no runners, no scaling
     const tp1Instruction = isBTier 
@@ -179,7 +179,7 @@ Exit Rule: ${tp1Instruction}
     const headerEmoji = isBTier ? "🚨" : emoji;
     const headerText = isBTier ? `${headerEmoji} B TIER SETUP – ${symbol}` : `${emoji} ENTRY SIGNAL ALERT - ONE TRADE ONLY`;
     const message = `${headerText}
-═══════════════════════════════════════
+═══════════════════════════════════���═══
 SETUP TIER: ${setupTier}
 ${setupDescription}
 
@@ -401,7 +401,7 @@ Reason: ${reason}
       case "NEAR_INVALIDATION":
         emoji = "⚠️"
         message = `${emoji} TRADE APPROACHING INVALIDATION
-═══════════════════════════════════════
+══════════════���════════════════════════
 Symbol: ${symbol}
 Status: NEAR INVALIDATION WARNING
 

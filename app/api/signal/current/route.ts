@@ -212,10 +212,14 @@ export async function GET(request: Request) {
         : undefined,
     }
 
+    console.log(`[v0] DEBUG: After enhance - enhancedSignal.structuralTier=${(enhancedSignal as any).structuralTier}`)
+
     // Build entry decision for checklist display - WRAPPED in try-catch to prevent 500s
     let entryDecision: any = { approved: false, tier: "NO_TRADE", score: 0, checklist: [] }
     try {
+      console.log(`[v0] DEBUG: Before buildEntryDecision - signal.structuralTier=${(enhancedSignal as any).structuralTier}`)
       entryDecision = strategies.buildEntryDecision(enhancedSignal)
+      console.log(`[v0] DEBUG: After buildEntryDecision - returned tier=${entryDecision.tier}`)
       if (!entryDecision) {
         console.error("[v0] buildEntryDecision returned null/undefined - using defaults")
         entryDecision = { approved: false, tier: "NO_TRADE", score: 0, checklist: [] }
