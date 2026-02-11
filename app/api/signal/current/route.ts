@@ -184,31 +184,38 @@ export async function GET(request: Request) {
       data5m.candles,
     )
     
-    console.log(`[v0] 🔥 SIGNAL CURRENT ROUTE HIT`)
-    console.log(`[v0] Raw signal keys: ${Object.keys(signal).join(", ")}`)
-    console.log(`[v0] Raw signal.type=${signal.type} signal.structuralTier=${(signal as any).structuralTier} signal.direction=${signal.direction}`)
+    // STEP 2: Log raw signal for diagnostics
+    console.log(`[v0] 🔥 SIGNAL CURRENT ROUTE HIT - signal.type=${signal.type} direction=${signal.direction}`)
     
-    // CRITICAL FIX: If structuralTier is missing, derive it from the signal properties
-    if (!(signal as any).structuralTier) {
-      // Reconstruct tier from signal properties - check reasons array for B tier marker
+    // STEP 3: CRITICAL - Force set structuralTier if missing
+    // The issue: evaluateSignals returns structuralTier in return statements,
+    // but it's not being included in the object. Reconstruct it now.
+    if (typeof (signal as any).structuralTier !== "string") {
       const reasonsStr = (signal.reasons || []).join(" | ")
       
+      // Primary detection: Look for TIER B PASS in reasons
       if (reasonsStr.includes("TIER B PASS")) {
         (signal as any).structuralTier = "B"
-        console.log(`[v0] Detected B tier from reasons: ${reasonsStr}`)
-      } else if (signal.type === "ENTRY") {
-        // For non-B ENTRY signals, infer from confidence and quality
-        if (signal.confidence >= 80 || reasonsStr.includes("A+")) {
+        console.log(`[v0] ✓ B tier detected from reasons`)
+      } else if (signal.type === "ENTRY" && reasonsStr.includes("Score")) {
+        // Infer from reasons text for A/A+ tiers
+        if (reasonsStr.includes("A+ Setup") || reasonsStr.includes("A+ Setup:")) {
           (signal as any).structuralTier = "A+"
-        } else if (signal.confidence >= 70 || reasonsStr.includes("A Setup")) {
+        } else if (reasonsStr.includes("A Setup") && !reasonsStr.includes("A+")) {
           (signal as any).structuralTier = "A"
         } else {
           (signal as any).structuralTier = "NO_TRADE"
         }
+        console.log(`[v0] Entry tier set from reasons: ${(signal as any).structuralTier}`)
+      } else if (signal.type === "ENTRY") {
+        // Fallback for ENTRY without clear tier in reasons
+        (signal as any).structuralTier = signal.confidence >= 75 ? "A+" : signal.confidence >= 70 ? "A" : "B"
+        console.log(`[v0] Entry tier inferred from confidence: ${(signal as any).structuralTier}`)
       } else {
         (signal as any).structuralTier = "NO_TRADE"
       }
-      console.log(`[v0] Reconstructed structuralTier=${(signal as any).structuralTier} from signal.type=${signal.type} confidence=${signal.confidence}`)
+    } else {
+      console.log(`[v0] Signal has structuralTier: ${(signal as any).structuralTier}`)
     }
 
     // Calculate ATR-based trade setup for LONG/SHORT signals
@@ -252,14 +259,9 @@ export async function GET(request: Request) {
       entryDecision = { approved: false, tier: "NO_TRADE", score: 0, checklist: [], error: String(decisionError) }
     }
     
-    // FIX 1: Ensure entryDecision has all required fields before storing on signal
-    entryDecision = {
-      approved: entryDecision.approved ?? false,
-      tier: entryDecision.tier ?? (enhancedSignal as any).structuralTier ?? "NO_TRADE",
-      score: entryDecision.score ?? 0,
-      checklist: entryDecision.checklist ?? [],
-      ...entryDecision // spread remaining fields
-    }
+    // STEP 4: Log what will be returned to client
+    console.log(`[v0] FINAL DECISION: tier=${entryDecision.tier} approved=${entryDecision.approved} score=${entryDecision.score}`)
+    
     enhancedSignal.entryDecision = entryDecision
 
     SignalCache.set(enhancedSignal, symbol)
@@ -277,6 +279,8 @@ export async function GET(request: Request) {
     
     // ALERTS: Send telegram notification if conditions met
     try {
+      console.log(`[v0] STEP 5 - Alert flow starting: tier=${entryDecision.tier} approved=${entryDecision.approved}`)
+      
       let alertCheck: any = null
       let tierUpgraded = false
       

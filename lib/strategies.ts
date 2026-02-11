@@ -819,6 +819,7 @@ export class TradingStrategies {
     // Score does NOT override or upgrade tier - it only gates approval
     // A B-tier signal (HTF neutral + 1H/15M aligned) stays B tier regardless of score
     const structuralTier = (signal as any).structuralTier as "A+" | "A" | "B" | "NO_TRADE"
+    console.log(`[v0] buildEntryDecision RECEIVED: structuralTier=${structuralTier} type=${signal.type}`)
     let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
     
     if (structuralTier === "A+") {
@@ -830,6 +831,8 @@ export class TradingStrategies {
     } else {
       tier = "NO_TRADE"
     }
+
+    console.log(`[v0] buildEntryDecision TIER: ${tier} SCORE: ${score} APPROVED: ${signal.type === "ENTRY" && tier !== "NO_TRADE"}`)
 
     // Alert level based on tier
     let alertLevel: 0 | 1 | 2 | 3 = 0
