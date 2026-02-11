@@ -211,6 +211,87 @@ export async function GET(request: Request) {
     lastValidSignals[symbol] = enhancedSignal
     lastValidTimestamps[symbol] = new Date().toISOString()
 
+    // ALERTS: Send telegram notification if conditions met
+    try {
+      console.log(`[v0] DEBUG: Entering alert flow - type=${enhancedSignal.type} direction=${enhancedSignal.direction} alertLevel=${enhancedSignal.alertLevel}`)
+      console.log(`[v0] DEBUG: entryDecision.allowed=${entryDecision.allowed} market_closed=${marketStatus.isClosed}`)
+      
+      const alertCheck = SignalCache.canAlertSetup(enhancedSignal, symbol)
+      console.log(`[v0] Alert Check: ${alertCheck.reason}`)
+      
+      const tierUpgraded = SignalCache.hastierUpgraded(symbol, entryDecision.tier)
+
+      if (!marketStatus.isClosed && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.alertLevel >= 2) {
+        if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
+          try {
+            const { TelegramNotifier } = await import("@/lib/telegram")
+            const notifier = new TelegramNotifier(
+              process.env.TELEGRAM_BOT_TOKEN,
+              process.env.TELEGRAM_CHAT_ID,
+              "https://xptswitch.vercel.app"
+            )
+            console.log(`[v0] SENDING TELEGRAM ALERT: ${enhancedSignal.type} ${enhancedSignal.direction} for ${symbol}`)
+            await notifier.sendSignalAlert(enhancedSignal)
+            
+            SignalCache.recordAlertSent(enhancedSignal, symbol)
+            SignalCache.setTradeState(symbol, "IN_TRADE", "ENTRY alert sent")
+            SignalCache.updateTier(symbol, entryDecision.tier)
+            console.log(`[v0] TELEGRAM ALERT SENT for ${symbol}`)
+          } catch (telegramError) {
+            console.error("[v0] Failed to send Telegram alert:", telegramError)
+          }
+        } else {
+          console.log(`[v0] Telegram not configured - BOT_TOKEN=${!!process.env.TELEGRAM_BOT_TOKEN} CHAT_ID=${!!process.env.TELEGRAM_CHAT_ID}`)
+        }
+      } else if (!marketStatus.isClosed && tierUpgraded && entryDecision.allowed) {
+        if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
+          try {
+            const { TelegramNotifier } = await import("@/lib/telegram")
+            const notifier = new TelegramNotifier(
+              process.env.TELEGRAM_BOT_TOKEN,
+              process.env.TELEGRAM_CHAT_ID,
+              "https://xptswitch.vercel.app"
+            )
+            
+            const oldTier = (SignalCache as any).getTradeState?.(symbol)?.lastTier || "?"
+            console.log(`[v0] SENDING TIER UPGRADE ALERT: ${symbol} upgraded to ${entryDecision.tier}`)
+            
+            const tierUpgradeMessage = `
+🚀 TIER UPGRADE ALERT - ${symbol}
+═══════════════════════════════════════
+Your ${symbol} trade has UPGRADED to a higher tier!
+
+Previous Tier: ${oldTier}
+NEW Tier: ${entryDecision.tier} (Score ${entryDecision.score.toFixed(1)}/9)
+
+📊 ACTION REQUIRED:
+• Increase position size: Add capital to match new tier
+• Update Stop Loss: Tighten to entry price
+• Update TP Levels: Use new levels in dashboard
+
+Current Entry: $${enhancedSignal.entryPrice?.toFixed(2) || "N/A"}
+New SL: $${enhancedSignal.stopLoss?.toFixed(2) || "N/A"}
+New TP1: $${enhancedSignal.takeProfit1?.toFixed(2) || "N/A"}
+${entryDecision.tier !== "B" ? `New TP2: $${enhancedSignal.takeProfit2?.toFixed(2) || "N/A"}` : "(B tier = TP1-only exit)"}
+
+⏰ Time: ${new Date().toISOString()}
+═══════════════════════════════════════
+            `
+            
+            await notifier.sendMessage(tierUpgradeMessage, false)
+            SignalCache.updateTier(symbol, entryDecision.tier)
+            console.log(`[v0] TIER UPGRADE ALERT SENT: ${oldTier} → ${entryDecision.tier}`)
+          } catch (telegramError) {
+            console.error("[v0] Failed to send tier upgrade alert:", telegramError)
+          }
+        }
+      } else {
+        console.log(`[v0] Alert conditions not met: market_closed=${marketStatus.isClosed} alertCheck.allowed=${alertCheck.allowed} entryDecision.allowed=${entryDecision.allowed} type=${enhancedSignal.type} alertLevel=${enhancedSignal.alertLevel}`)
+      }
+    } catch (alertError) {
+      console.error("[v0] Alert flow error:", alertError)
+    }
+
     return NextResponse.json({
       success: true,
       signal: enhancedSignal,
