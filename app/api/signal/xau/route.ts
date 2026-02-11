@@ -247,6 +247,16 @@ export async function GET() {
       const entryDecision = strategies.buildEntryDecision(enhancedSignal)
       enhancedSignal.entryDecision = entryDecision
       
+      // SYNC setupQuality from entryDecision tier (canonical source after decision evaluation)
+      // This ensures the UI displays the correct tier from the entry decision logic
+      if (entryDecision.tier === "A+") {
+        enhancedSignal.setupQuality = "A+"
+      } else if (entryDecision.tier === "A") {
+        enhancedSignal.setupQuality = "A"
+      } else if (entryDecision.tier === "B") {
+        enhancedSignal.setupQuality = "B"
+      }
+      
       // PATIENCE TRACKING - Update HTF polarity state (DIAGNOSTIC ONLY - NO LOGIC CHANGES)
       const htfPolarity = enhancedSignal.htfTrend || "NEUTRAL"
       PatienceTracker.updateHTFPolarity(symbol, htfPolarity as "LONG" | "SHORT" | "NEUTRAL")
