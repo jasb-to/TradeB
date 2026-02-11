@@ -37,18 +37,32 @@ export async function GET(req: Request) {
       }
     )).json()
 
-    diagnostics.push(`✓ Loaded ${dataDaily.candles?.length || 0} daily candles`)
-    diagnostics.push(`✓ Loaded ${data1h.candles?.length || 0} 1h candles`)
+    // Safe defaults for missing candles
+    const dailyCandles = dataDaily?.candles || []
+    const hourlyCandles = data1h?.candles || []
+
+    diagnostics.push(`✓ Loaded ${dailyCandles?.length ?? 0} daily candles`)
+    diagnostics.push(`✓ Loaded ${hourlyCandles?.length ?? 0} 1h candles`)
+
+    // Guard: Skip evaluation if candles are missing
+    if (!dailyCandles.length || !hourlyCandles.length) {
+      diagnostics.push(`\n❌ ERROR: Not enough market data to evaluate signals`)
+      diagnostics.push(`Daily candles: ${dailyCandles.length} | 1H candles: ${hourlyCandles.length}`)
+      return new Response(JSON.stringify(diagnostics, null, 2), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      })
+    }
 
     // Step 2: Evaluate signals
     diagnostics.push(`\n[STEP 2] Evaluating signals...`)
     const rawSignal = await strategies.evaluateSignals(
-      dataDaily.candles,
-      dataDaily.candles, // mock 8h
-      dataDaily.candles, // mock 4h
-      data1h.candles,
-      data1h.candles, // mock 15m
-      data1h.candles // mock 5m
+      dailyCandles,
+      dailyCandles, // mock 8h
+      dailyCandles, // mock 4h
+      hourlyCandles,
+      hourlyCandles, // mock 15m
+      hourlyCandles // mock 5m
     )
 
     diagnostics.push(`Raw signal object keys: ${Object.keys(rawSignal).join(", ")}`)
