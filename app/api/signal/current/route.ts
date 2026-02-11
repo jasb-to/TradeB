@@ -19,7 +19,6 @@ let lastValidTimestamps: { [key: string]: string | null } = {
 
 export async function GET(request: Request) {
   try {
-    console.log("🔥 SIGNAL CURRENT ROUTE HIT")
     const { searchParams } = new URL(request.url)
     const symbol = (searchParams.get("symbol") || "XAU_USD") as "XAU_USD" | "XAG_USD"
 
@@ -232,19 +231,25 @@ export async function GET(request: Request) {
     lastValidSignals[symbol] = enhancedSignal
     lastValidTimestamps[symbol] = new Date().toISOString()
 
-    // DEBUG: Confirm we reached alert section
-    console.log(`[v0] POST-CACHE: About to enter alert flow for ${symbol}`)
+    // Create stable signal fingerprint (NOT including timestamp or fluctuating confidence)
+    const signalFingerprint = [
+      enhancedSignal.direction,
+      (enhancedSignal as any).structuralTier || entryDecision.tier,
+      Math.round(enhancedSignal.entryPrice || 0),
+      enhancedSignal.timeframeAlignment || 0
+    ].join("|")
+    
+    console.log(`[v0] Signal Fingerprint for ${symbol}: ${signalFingerprint}`)
     
     // ALERTS: Send telegram notification if conditions met
     try {
-      console.log(`[v0] DEBUG: Entering alert flow - type=${enhancedSignal.type} direction=${enhancedSignal.direction} alertLevel=${enhancedSignal.alertLevel}`)
-      console.log(`[v0] DEBUG: entryDecision.allowed=${entryDecision.allowed} market_closed=${marketStatus.isClosed}`)
+      console.log(`[v0] Entering alert flow - direction=${enhancedSignal.direction} tier=${entryDecision.tier} alertLevel=${enhancedSignal.alertLevel}`)
       
       let alertCheck: any = null
       let tierUpgraded = false
       
       try {
-        alertCheck = SignalCache.canAlertSetup(enhancedSignal, symbol)
+        alertCheck = SignalCache.canAlertSetup(enhancedSignal, symbol, signalFingerprint)
         console.log(`[v0] Alert Check: ${alertCheck.reason}`)
       } catch (checkError) {
         console.error("[v0] Error in canAlertSetup:", checkError)
@@ -273,7 +278,7 @@ export async function GET(request: Request) {
             console.log(`[v0] SENDING TELEGRAM ALERT: ${enhancedSignal.type} ${enhancedSignal.direction} for ${symbol}`)
             await notifier.sendSignalAlert(enhancedSignal)
             
-            SignalCache.recordAlertSent(enhancedSignal, symbol)
+            SignalCache.recordAlertSent(enhancedSignal, symbol, signalFingerprint, entryDecision.tier)
             SignalCache.setTradeState(symbol, "IN_TRADE", "ENTRY alert sent")
             SignalCache.updateTier(symbol, entryDecision.tier)
             console.log(`[v0] TELEGRAM ALERT SENT for ${symbol}`)
@@ -330,25 +335,6 @@ ${entryDecision.tier !== "B" ? `New TP2: $${enhancedSignal.takeProfit2?.toFixed(
       }
     } catch (alertError) {
       console.error("[v0] Alert flow error:", alertError)
-    }
-
-    // FORCED TELEGRAM TEST: Bypass all conditions to test if telegram works
-    if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
-      try {
-        const { TelegramNotifier } = await import("@/lib/telegram")
-        const testNotifier = new TelegramNotifier(
-          process.env.TELEGRAM_BOT_TOKEN,
-          process.env.TELEGRAM_CHAT_ID,
-          "https://xptswitch.vercel.app"
-        )
-        console.log("🔥 FORCED TELEGRAM SEND ATTEMPTING")
-        await testNotifier.sendMessage(`Test: Signal ${symbol} ${enhancedSignal.direction} - Tier ${(enhancedSignal as any).structuralTier || "?"} - Score ${entryDecision.score}`, false)
-        console.log("🔥 FORCED TELEGRAM SEND SUCCESS")
-      } catch (forceError) {
-        console.error("🔥 FORCED TELEGRAM SEND FAILED:", forceError)
-      }
-    } else {
-      console.log("🔥 TELEGRAM NOT CONFIGURED: BOT_TOKEN=" + !!process.env.TELEGRAM_BOT_TOKEN + " CHAT_ID=" + !!process.env.TELEGRAM_CHAT_ID)
     }
 
     return NextResponse.json({

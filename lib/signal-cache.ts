@@ -20,6 +20,9 @@ interface TradeStateData {
   entryWindowExpiry: number | null
   lastAlertedSetupHash: string | null
   lastTier: "A+" | "A" | "B" | "NO_TRADE" | null // Track tier for upgrade alerts
+  lastFingerprint: string | null // STEP 2: Store signal fingerprint to detect new setups
+  lastAlertedTier: "A+" | "A" | "B" | "NO_TRADE" | null // Track which tier last sent alert
+  lastAlertTime: number | null // STEP 5: Track last alert time for 5-minute throttle
 }
 
 const CACHE_DURATION = 30000 // 30 second cache
@@ -65,6 +68,9 @@ function getTradeState(symbol: string): TradeStateData {
       entryWindowExpiry: null,
       lastAlertedSetupHash: null,
       lastTier: null,
+      lastFingerprint: null,
+      lastAlertedTier: null,
+      lastAlertTime: null,
     })
   }
   return tradeStates.get(symbol)!
@@ -206,13 +212,23 @@ export const SignalCache = {
     }
   },
 
-  canAlertSetup: (signal: Signal, symbol: string): { allowed: boolean; reason: string } => {
+  canAlertSetup: (signal: Signal, symbol: string, signalFingerprint?: string): { allowed: boolean; reason: string } => {
     const state = getTradeState(symbol)
     const setupHash = generateSetupHash(signal, symbol)
     const now = Date.now()
 
+    // STEP 5: Safety 5-minute throttle - prevent spam even if conditions pass
+    if (state.lastAlertTime && now - state.lastAlertTime < 5 * 60 * 1000) {
+      return { allowed: false, reason: `THROTTLED: Last alert sent ${Math.round((now - state.lastAlertTime) / 1000)}s ago, waiting for 5min cooldown` }
+    }
+
     if (state.state === "IN_TRADE") {
       return { allowed: false, reason: `BLOCKED: Trade already active for ${symbol}` }
+    }
+
+    // STEP 2: Check fingerprint for NEW setup (NOT just setupHash)
+    if (signalFingerprint && state.lastFingerprint === signalFingerprint) {
+      return { allowed: false, reason: `BLOCKED: Identical signal fingerprint - same setup (fp: ${signalFingerprint})` }
     }
 
     if (state.lastAlertedSetupHash === setupHash) {
@@ -227,15 +243,18 @@ export const SignalCache = {
       return { allowed: false, reason: `BLOCKED: Entry window expired for ${symbol}` }
     }
 
-    return { allowed: true, reason: "APPROVED: All conditions met" }
+    return { allowed: true, reason: "APPROVED: All conditions met - NEW SETUP" }
   },
 
-  recordAlertSent: (signal: Signal, symbol: string): void => {
+  recordAlertSent: (signal: Signal, symbol: string, signalFingerprint?: string, tier?: string): void => {
     const state = getTradeState(symbol)
     const setupHash = generateSetupHash(signal, symbol)
     state.lastAlertedSetupHash = setupHash
     state.lastTradedSetupHash = setupHash
-    console.log(`[v0] Alert recorded for ${symbol} (setupHash: ${setupHash})`)
+    state.lastFingerprint = signalFingerprint || null // STEP 2: Store fingerprint to prevent repeats
+    state.lastAlertedTier = (tier as any) || null // STEP 3: Store tier for upgrade detection
+    state.lastAlertTime = Date.now() // STEP 5: Record alert time for throttle
+    console.log(`[v0] Alert recorded for ${symbol} (setupHash: ${setupHash} | fingerprint: ${signalFingerprint} | tier: ${tier})`)
   },
 
   recordLoss: (symbol: string): void => {
@@ -521,12 +540,26 @@ export const SignalCache = {
   // NEW: Check if tier has upgraded (for scaling alerts)
   hastierUpgraded: (symbol: string, currentTier: "A+" | "A" | "B" | "NO_TRADE"): boolean => {
     const state = getTradeState(symbol)
-    const upgraded = state.lastTier !== null && 
-      state.lastTier !== currentTier && 
-      state.state === "IN_TRADE"
+    
+    // STEP 3: Tier ranking - A+ = 3, A = 2, B = 1, NO_TRADE = 0
+    const tierRank = (tier: string) => {
+      switch (tier) {
+        case "A+": return 3
+        case "A": return 2
+        case "B": return 1
+        case "NO_TRADE": return 0
+        default: return -1
+      }
+    }
+    
+    const currentRank = tierRank(currentTier)
+    const lastRank = tierRank(state.lastAlertedTier || "NO_TRADE")
+    
+    // UPGRADED only if: currentRank > lastRank (NO downgrades, NO same-tier repeats)
+    const upgraded = currentRank > lastRank && state.state === "IN_TRADE"
     
     if (upgraded) {
-      console.log(`[v0] TIER UPGRADE DETECTED for ${symbol}: ${state.lastTier} → ${currentTier}`)
+      console.log(`[v0] TIER UPGRADE DETECTED for ${symbol}: ${state.lastAlertedTier || "NO_TRADE"} (rank ${lastRank}) → ${currentTier} (rank ${currentRank})`)
     }
     
     return upgraded
