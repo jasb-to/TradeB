@@ -2,7 +2,7 @@ import type { TradingConfig } from "@/types/trading"
 
 // FEATURE FLAGS - System behavior control
 export const FEATURE_FLAGS = {
-  ENABLE_B_TIER: false, // B-tier trades DISABLED - only A/A+ allowed
+  ENABLE_B_TIER: true, // B-tier trades ENABLED - score 5.90-5.99 with hard TP1 only
   ENABLE_REVERSAL_WARNINGS: true, // Single advisory warning per trade
   ENABLE_CHANDELIER_EXIT: true, // Advisory chandelier monitoring (not auto-exit)
   ENABLE_HARD_STOPS_ONLY: true, // Only SL/TP1/TP2 auto-exit

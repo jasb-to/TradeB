@@ -139,6 +139,111 @@ export class TradingStrategies {
       direction = htfPolarity.trend as "LONG" | "SHORT"
     }
 
+    // ── TIER B GATE ──────────────────────────────────────────────────────
+    // FEATURE FLAG CHECK: Only evaluate B-tier if enabled
+    if (!FEATURE_FLAGS.ENABLE_B_TIER && htfPolarity.trend === "NEUTRAL" && direction !== "NEUTRAL") {
+      // B-tier is disabled - reject any HTF neutral setup silently
+      return {
+        type: "NO_TRADE",
+        direction: "NONE",
+        alertLevel: 0,
+        confidence: 0,
+        htfTrend: "NEUTRAL",
+        timeframeAlignment: timeframeAlignment,
+        lastCandle: {
+          close: currentPrice,
+          timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
+        },
+        reasons: ["B-tier trades disabled (HTF neutral) - only A/A+ with HTF bias allowed"],
+        timestamp: Date.now(),
+        strategy: "BREAKOUT_CHANDELIER",
+        indicators: {
+          adx: indicators1h.adx || 0,
+          atr: indicators1h.atr || 0,
+          rsi: indicators1h.rsi || 50,
+          stochRSI: indicators1h.stochRSI || 50,
+          vwap: indicators1h.vwap || 0,
+          ema20: indicators1h.ema20 || 0,
+          ema50: indicators1h.ema50 || 0,
+          ema200: indicators1h.ema200 || 0,
+          bollingerUpper: 0,
+          bollingerLower: 0,
+          chandelierStop: 0,
+          chandelierLongStop: 0,
+          chandelierShortStop: 0,
+          chandelierStop4H: 0,
+          macd: { macd: 0, signal: 0, histogram: 0 },
+          divergence: { bullish: false, bearish: false, strength: 0 },
+          volumeSpike: false,
+        },
+      }
+    }
+
+    // B-tier evaluation (only if ENABLE_B_TIER is true)
+    if (FEATURE_FLAGS.ENABLE_B_TIER && htfPolarity.trend === "NEUTRAL" && direction !== "NEUTRAL") {
+      const price1h = data1h[data1h.length - 1]?.close || 0
+      const vwap1h = indicators1h.vwap || 0
+
+      // B-tier primary alignment: 1H + 15M must agree on direction
+      const h1Aligned = biases["1h"] === direction
+      const m15Aligned = biases["15m"] === direction
+      const ltfAlignment = h1Aligned && m15Aligned
+
+      // B-tier HTF constraint: Daily must NOT oppose (NEUTRAL is fine)
+      const dailyNotOpposing = biases.daily === "NEUTRAL" || biases.daily === direction
+
+      // B-tier ADX floor: 15 (lowered from 18 for both Gold & Silver)
+      const adxMinimum = adx1h >= 15
+
+      // VWAP directional support on 1H
+      const vwapSupport = (direction === "LONG" && price1h > vwap1h) || (direction === "SHORT" && price1h < vwap1h)
+
+      if (ltfAlignment && dailyNotOpposing && adxMinimum && vwapSupport) {
+        console.log(`[v0] TIER B PASS: HTF neutral + 1H/15M aligned ${direction} | Daily=${biases.daily} ADX=${adx1h.toFixed(1)} VWAP=${vwapSupport ? "OK" : "FAIL"}`)
+      } else {
+        const failReasons: string[] = []
+        if (!ltfAlignment) failReasons.push(`1H+15M not aligned (1H=${biases["1h"]}, 15M=${biases["15m"]})`)
+        if (!dailyNotOpposing) failReasons.push(`Daily opposes (${biases.daily} vs ${direction})`)
+        if (!adxMinimum) failReasons.push(`ADX ${adx1h.toFixed(1)} < 15`)
+        if (!vwapSupport) failReasons.push("VWAP not supporting direction")
+        console.log(`[v0] TIER B FAIL: ${failReasons.join(" | ")}`)
+        return {
+          type: "NO_TRADE",
+          direction: "NONE",
+          alertLevel: 0,
+          confidence: 0,
+          htfTrend: "NEUTRAL",
+          timeframeAlignment: timeframeAlignment,
+          lastCandle: {
+            close: currentPrice,
+            timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
+          },
+          reasons: [`B-tier gate failed: ${failReasons.join("; ")}`],
+          timestamp: Date.now(),
+          strategy: "BREAKOUT_CHANDELIER",
+          indicators: {
+            adx: indicators1h.adx || 0,
+            atr: indicators1h.atr || 0,
+            rsi: indicators1h.rsi || 50,
+            stochRSI: indicators1h.stochRSI || 50,
+            vwap: indicators1h.vwap || 0,
+            ema20: indicators1h.ema20 || 0,
+            ema50: indicators1h.ema50 || 0,
+            ema200: indicators1h.ema200 || 0,
+            bollingerUpper: 0,
+            bollingerLower: 0,
+            chandelierStop: 0,
+            chandelierLongStop: 0,
+            chandelierShortStop: 0,
+            chandelierStop4H: 0,
+            macd: { macd: 0, signal: 0, histogram: 0 },
+            divergence: { bullish: false, bearish: false, strength: 0 },
+            volumeSpike: false,
+          },
+        }
+      }
+    }
+
     const setupTier = this.determineSetupTier(alignmentScore, adx1h, biases.daily, biases["4h"], biases["1h"], biases["15m"])
 
     const dailyAligned = biases.daily === direction
@@ -275,7 +380,7 @@ export class TradingStrategies {
     const atr1h = indicators1h.atr || 0
     
     // Use Chandelier Stop as TP (more adaptive than fixed ATR multiples)
-    const chandelierStop = TechnicalAnalysis.calculateChandelierStop(candles1h, 22, 3)
+    const chandelierStop = TechnicalAnalysis.calculateChandelierStop(data1h, 22, 3)
     
     // Stop Loss: Fixed ATR multiple (tighter risk)
     const stopLoss = direction === "LONG" ? currentPrice - atr1h * 1.5 : currentPrice + atr1h * 1.5
@@ -300,11 +405,18 @@ export class TradingStrategies {
       confidence,
       entryPrice: currentPrice,
       stopLoss,
-      takeProfit1: direction === "LONG" ? currentPrice + atr1h * 1.0 : currentPrice - atr1h * 1.0,
-      takeProfit2: finalTP,
-      takeProfit: finalTP,
+      // B TIER: Hard TP1 only (no TP2 ladder)
+      // For B tier (score 5.90-5.99), TP1 is the exit target, not a partial take
+      takeProfit1: setupTier === "B" 
+        ? finalTP  // B TIER: TP1 = full exit
+        : (direction === "LONG" ? currentPrice + atr1h * 1.0 : currentPrice - atr1h * 1.0),  // A/A+: TP1 = partial
+      takeProfit2: setupTier === "B" 
+        ? undefined  // B TIER: No TP2
+        : finalTP,  // A/A+: TP2 = full exit
+      takeProfit: setupTier === "B"
+        ? finalTP  // B TIER: takeProfit = TP1 (full exit)
+        : finalTP,  // A/A+: takeProfit = TP2 (full exit after TP1 scale)
       riskReward,
-      setupQuality: setupTier || "STANDARD",
       htfTrend: htfPolarity.trend,
       strategy: "BREAKOUT_CHANDELIER",
       reasons: [
@@ -312,7 +424,9 @@ export class TradingStrategies {
         `${marketRegime} market (ADX ${adx1h.toFixed(1)})`,
         `HTF Polarity: ${htfPolarity.trend} (${htfPolarity.reason})`,
         `Weighted MTF Score: ${alignmentScore}`,
-        `Risk:Reward ${riskReward.toFixed(2)}:1 | TP via Chandelier Stop (adaptive to volatility)`,
+        setupTier === "B"
+          ? `Risk:Reward ${riskReward.toFixed(2)}:1 | B TIER: Hard TP1 exit only`
+          : `Risk:Reward ${riskReward.toFixed(2)}:1 | TP via Chandelier Stop (adaptive to volatility)`,
       ],
       indicators: {
         adx: adx1h,
@@ -696,37 +810,52 @@ export class TradingStrategies {
 
     // VALIDATE TIER vs SCORE CONSISTENCY
     // The tier must align with the score ranges:
-    // A+: score >= 6.91 (reduced 1% from 7.0)
-    // A: 6 <= score < 6.91
+    // A+: score >= 7
+    // A: 6 <= score < 7
     // B: 4.5 <= score < 6
     // NO_TRADE: score < 4.5
     // If setupQuality doesn't match the score range, reconcile it.
+    
+    // Determine tier from setupQuality first, then validate against score
+    // setupQuality is the actual tier determined during signal generation
     const signalTier = signal.setupQuality as "A+" | "A" | "B" | "STANDARD" | undefined
     let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
     
-    // Determine tier from score first (A+ threshold reduced by 1%)
-    if (score >= 6.91) tier = "A+"
-    else if (score >= 6) tier = "A"
-    else if (score >= 4.5) tier = "B"
-    else tier = "NO_TRADE"
+    // Use setupQuality as primary source of truth
+    if (signalTier === "A+") {
+      tier = "A+"
+    } else if (signalTier === "A") {
+      tier = "A"
+    } else if (signalTier === "B") {
+      tier = "B"
+    } else {
+      // Fallback to score-based determination if setupQuality not set
+      if (score >= 7) tier = "A+"
+      else if (score >= 6) tier = "A"
+      else if (score >= 4.5) tier = "B"
+      else tier = "NO_TRADE"
+    }
     
-    // Log if setupQuality differed from score-derived tier
+    // Validate score is within expected range for the tier (warning only, don't override)
     if (signalTier && signalTier !== "STANDARD") {
-      const expectedTier = tier
-      if (signalTier === "A+" && expectedTier !== "A+") {
-        console.warn(`[v0] TIER MISMATCH: setupQuality was "A+" but score ${score} derives tier "${expectedTier}"`)
-      } else if (signalTier === "A" && expectedTier !== "A") {
-        console.warn(`[v0] TIER MISMATCH: setupQuality was "A" but score ${score} derives tier "${expectedTier}"`)
-      } else if (signalTier === "B" && expectedTier !== "B") {
-        console.warn(`[v0] TIER MISMATCH: setupQuality was "B" but score ${score} derives tier "${expectedTier}"`)
+      if (signalTier === "A+" && score < 7) {
+        console.warn(`[v0] TIER MISMATCH: setupQuality is "A+" but score ${score} is below 7`)
+      } else if (signalTier === "A" && (score < 6 || score >= 7)) {
+        console.warn(`[v0] TIER MISMATCH: setupQuality is "A" but score ${score} is outside 6-7 range`)
+      } else if (signalTier === "B" && (score < 4.5 || score >= 6)) {
+        console.warn(`[v0] TIER MISMATCH: setupQuality is "B" but score ${score} is outside 4.5-6 range`)
       }
     }
 
     // Alert level based on tier
     let alertLevel: 0 | 1 | 2 | 3 = 0
-    if (tier === "A+") alertLevel = 3
-    else if (tier === "A") alertLevel = 2
-    else if (tier === "B") alertLevel = 1
+    if (tier === "A+") {
+      alertLevel = 3
+    } else if (tier === "A") {
+      alertLevel = 2
+    } else if (tier === "B") {
+      alertLevel = 1
+    }
 
     // Blocking reasons: Tier-dependent gating
     const blockedReasons: string[] = []
