@@ -57,7 +57,7 @@ export function SignalCard({ signal }: SignalCardProps) {
       return <Badge className="bg-red-500 text-white border-red-600 animate-pulse">EXIT NOW - Close Position</Badge>
     }
     if (signal.alertLevel === 1) {
-      const qualityBadge = signal.setupQuality === "A+" ? "⭐ A+ " : ""
+      const qualityBadge = signal.entryDecision?.tier === "A+" ? "⭐ A+ " : ""
       return <Badge className="bg-green-500 text-white border-green-600 animate-pulse">{qualityBadge}ENTER NOW</Badge>
     }
     return (
@@ -137,23 +137,23 @@ export function SignalCard({ signal }: SignalCardProps) {
               <div className="flex justify-between items-center">
                 <span className="text-sm font-semibold text-primary">Setup Quality</span>
                 <Badge className={
-                  signal.setupQuality === "A+" ? "bg-yellow-500 text-black" 
-                  : signal.setupQuality === "A" ? "bg-blue-500 text-white"
-                  : signal.setupQuality === "B" ? "bg-slate-600 text-white"
+                  signal.entryDecision?.tier === "A+" ? "bg-yellow-500 text-black" 
+                  : signal.entryDecision?.tier === "A" ? "bg-blue-500 text-white"
+                  : signal.entryDecision?.tier === "B" ? "bg-slate-600 text-white"
                   : "bg-slate-600 text-white"
                 }>
-                  {signal.setupQuality === "A+" ? "⭐ A+ Setup" 
-                  : signal.setupQuality === "A" ? "A Setup"
-                  : signal.setupQuality === "B" ? "🚨 B TIER SETUP"
+                  {signal.entryDecision?.tier === "A+" ? "⭐ A+ Setup" 
+                  : signal.entryDecision?.tier === "A" ? "A Setup"
+                  : signal.entryDecision?.tier === "B" ? "🚨 B TIER SETUP"
                   : "Standard Setup"}
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {signal.setupQuality === "A+"
+                {signal.entryDecision?.tier === "A+"
                   ? "Premium setup: 5+ TF aligned + ADX ≥23. Target 2R."
-                  : signal.setupQuality === "A"
+                  : signal.entryDecision?.tier === "A"
                   ? "A TIER: Good setup, 4+ TF aligned + ADX ≥21. Scaled exit at 1.5R."
-                  : signal.setupQuality === "B"
+                  : signal.entryDecision?.tier === "B"
                   ? "B TIER: 1H momentum-aligned. Hard TP1 exit only. Use 50% position size."
                   : "Standard setup: 4+ TF aligned + ADX ≥21. Scaled exit at 1.5R."}
               </p>
@@ -192,7 +192,7 @@ export function SignalCard({ signal }: SignalCardProps) {
             </div>
 
             {/* Take Profit Targets */}
-            {signal.setupQuality === "B" ? (
+            {signal.entryDecision?.tier === "B" ? (
               // B TIER: Hard TP1 only (no TP2)
               signal.takeProfit1 && (
                 <div className="grid grid-cols-1 gap-3">
@@ -225,7 +225,7 @@ export function SignalCard({ signal }: SignalCardProps) {
                 </div>
                 <div className="bg-green-600/10 p-3 rounded-lg border border-green-600/30">
                   <p className="text-green-700 text-xs font-semibold mb-1">
-                    TP2 - TRAIL {signal.setupQuality === "A+" ? "2R" : "1.5R"}
+                    TP2 - TRAIL {signal.entryDecision?.tier === "A+" ? "2R" : "1.5R"}
                   </p>
                   <p className="text-xl font-bold text-green-600">${formatPrice(signal.takeProfit2)}</p>
                   <p className="text-xs text-green-700/70 mt-1">
@@ -233,7 +233,7 @@ export function SignalCard({ signal }: SignalCardProps) {
                     {formatPercentage(
                       ((Number(signal.takeProfit2) - Number(signal.entryPrice)) / Number(signal.entryPrice)) * 100,
                     )}
-                    % ({signal.setupQuality === "A+" ? "2R" : "1.5R"} Profit)
+                    % ({signal.entryDecision?.tier === "A+" ? "2R" : "1.5R"} Profit)
                   </p>
                 </div>
               </div>
@@ -243,7 +243,7 @@ export function SignalCard({ signal }: SignalCardProps) {
             <div className="bg-accent/10 p-3 rounded-lg border border-accent/30 flex justify-between items-center">
               <span className="text-sm font-semibold">Expected Risk:Reward</span>
               <span className="text-lg font-bold text-accent">
-                {signal.setupQuality === "A+" ? "1:2.0" : signal.setupQuality === "B" ? "1:1.0" : "1:1.5"}
+                {signal.entryDecision?.tier === "A+" ? "1:2.0" : signal.entryDecision?.tier === "B" ? "1:1.0" : "1:1.5"}
               </span>
             </div>
 

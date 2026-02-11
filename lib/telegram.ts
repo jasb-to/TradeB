@@ -61,13 +61,14 @@ You will now receive:
     const confidenceBadge = confidence >= 80 ? "🟢" : confidence >= 70 ? "🟡" : "🔴";
     
     // B TIER: Use independent branding with explicit "B TIER SETUP" header
-    const isBTier = signal.setupQuality === "B";
-    const setupTier = signal.setupQuality === "A+" ? "A+ PREMIUM SETUP" 
-      : signal.setupQuality === "A" ? "A SETUP"
+    // Read tier from entryDecision (canonical source of truth)
+    const isBTier = signal.entryDecision?.tier === "B";
+    const setupTier = signal.entryDecision?.tier === "A+" ? "A+ PREMIUM SETUP" 
+      : signal.entryDecision?.tier === "A" ? "A SETUP"
       : "B TIER SETUP";
-    const setupDescription = signal.setupQuality === "A+" 
+    const setupDescription = signal.entryDecision?.tier === "A+" 
       ? "(High confidence - ADX strong, perfect alignment)"
-      : signal.setupQuality === "A" 
+      : signal.entryDecision?.tier === "A" 
       ? "(Good setup - Solid trend confirmation)"
       : "(B TIER: 1H/15M aligned momentum - Reduced position size)";
 

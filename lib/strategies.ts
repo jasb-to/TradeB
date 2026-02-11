@@ -417,7 +417,6 @@ export class TradingStrategies {
         ? finalTP  // B TIER: takeProfit = TP1 (full exit)
         : finalTP,  // A/A+: takeProfit = TP2 (full exit after TP1 scale)
       riskReward,
-      setupQuality: setupTier || "STANDARD",
       htfTrend: htfPolarity.trend,
       strategy: "BREAKOUT_CHANDELIER",
       reasons: [
