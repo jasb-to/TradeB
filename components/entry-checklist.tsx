@@ -38,6 +38,16 @@ export function EntryChecklist({ signal }: EntryChecklistProps) {
   const passCount = entryDecision.criteria.filter((c) => c.passed).length
   const totalCount = entryDecision.criteria.length
   
+  // Tier score requirements
+  const tierRequirements = [
+    { tier: "A+", scoreRange: "7.0-9.0", requirement: "Premium: 5+ TF aligned + ADX ≥23.5", color: "text-yellow-400 bg-yellow-900/20" },
+    { tier: "A", scoreRange: "6.0-6.99", requirement: "Good: 4+ TF aligned + ADX ≥21", color: "text-blue-400 bg-blue-900/20" },
+    { tier: "B", scoreRange: "4.5-5.99", requirement: "1H momentum-aligned, no HTF gates", color: "text-slate-400 bg-slate-800/20" },
+    { tier: "NO_TRADE", scoreRange: "<4.5", requirement: "Below threshold - entry not allowed", color: "text-red-400 bg-red-900/20" },
+  ]
+  
+  const currentTierReq = tierRequirements.find(t => t.tier === entryDecision.tier)
+  
   return (
     <Card className="bg-slate-900/40 border-slate-700/50">
       <CardHeader>
@@ -51,7 +61,24 @@ export function EntryChecklist({ signal }: EntryChecklistProps) {
           <p>Tier: {entryDecision.tier} | Score: {entryDecision.score.toFixed(1)}/9</p>
         </div>
       </CardHeader>
-      <CardContent className="space-y-2">
+      
+      {/* Tier Requirements Reference Column */}
+      <div className="px-6 py-3 border-b border-slate-700/30">
+        <p className="text-xs font-semibold text-slate-300 mb-2">TIER SCORE REQUIREMENTS:</p>
+        <div className="space-y-1">
+          {tierRequirements.map((tier) => (
+            <div 
+              key={tier.tier}
+              className={`p-2 rounded text-xs ${tier.color} ${tier.tier === entryDecision.tier ? "ring-1 ring-current" : "opacity-60"}`}
+            >
+              <div className="font-semibold">{tier.tier}: {tier.scoreRange}</div>
+              <div className="text-xs opacity-90">{tier.requirement}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <CardContent className="space-y-2 pt-4">
+        <p className="text-xs font-semibold text-slate-300 mb-3">CRITERIA EVALUATION:</p>
         {entryDecision.criteria.map((criterion, i) => (
           <div key={criterion.key} className="flex items-center gap-2 text-sm">
             {criterion.passed ? (
