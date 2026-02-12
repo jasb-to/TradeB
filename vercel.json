@@ -3,21 +3,7 @@
   "outputDirectory": ".next",
   "env": {
     "NEXT_TELEMETRY_DISABLED": "1"
-  },
-  "crons": [
-    {
-      "path": "/api/cron/signal-xau",
-      "schedule": "0 */4 * * *"
-    },
-    {
-      "path": "/api/cron/signal-xag",
-      "schedule": "15 */4 * * *"
-    },
-    {
-      "path": "/api/cron/trade-scan",
-      "schedule": "*/15 * * * *"
-    }
-  ]
+  }
 }
 
 
