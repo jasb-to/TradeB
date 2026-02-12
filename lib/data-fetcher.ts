@@ -289,7 +289,7 @@ export class DataFetcher {
     // Base price for different symbols - updated to match current market prices
     const basePrices: Record<string, number> = {
       "XAU_USD": 4850,  // Updated to match current market price
-      "XAG_USD": 30,
+      "GBP_JPY": 210,
       "XPT_USD": 950,
     }
     
@@ -353,13 +353,13 @@ export class DataFetcher {
         "8h": 6.0,
         "1d": 15.0,
       },
-      "XAG_USD": {
-        "5m": 0.05,
-        "15m": 0.1,
-        "1h": 0.2,
-        "4h": 0.4,
-        "8h": 0.6,
-        "1d": 1.5,
+      "GBP_JPY": {
+        "5m": 0.08,
+        "15m": 0.16,
+        "1h": 0.32,
+        "4h": 0.64,
+        "8h": 0.96,
+        "1d": 2.4,
       },
       "XPT_USD": {
         "5m": 0.3,
