@@ -76,7 +76,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const trades = getOpenTrades()
+    const trades = await getOpenTrades()
     console.log(`[LIFECYCLE] Scan started: ${trades.length} open trades`)
 
     for (const trade of trades) {
@@ -181,11 +181,11 @@ export async function GET(req: Request) {
         }
 
         // Persist updates
-        updateTrade(trade)
+        await updateTrade(trade)
       } catch (tradeError) {
         console.error(`[LIFECYCLE] Error processing trade ${trade.id}:`, tradeError)
         results.errors++
-        updateTrade(trade) // Persist lastChecked timestamp even on error
+        await updateTrade(trade) // Persist lastChecked timestamp even on error
       }
     }
 

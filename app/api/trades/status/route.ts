@@ -10,9 +10,9 @@ export async function GET(req: Request) {
 
     let trades
     if (status === 'all') {
-      trades = getAllTrades()
+      trades = await getAllTrades()
     } else {
-      trades = getOpenTrades()
+      trades = await getOpenTrades()
     }
 
     console.log(`[TRADES] Retrieved ${trades.length} ${status} trades`)

@@ -1,17 +1,15 @@
-import fs from 'fs'
-import path from 'path'
-import { v4 as uuidv4 } from 'uuid'
+import { kv } from "@vercel/kv"
 
 export interface TradeFile {
   id: string
   symbol: string
-  direction: 'BUY' | 'SELL'
+  direction: "BUY" | "SELL"
   entry: number
   stopLoss: number
   tp1: number
   tp2: number
-  tier: 'A+' | 'A' | 'B'
-  status: 'OPEN' | 'CLOSED'
+  tier: "A+" | "A" | "B"
+  status: "OPEN" | "CLOSED"
   tp1Hit: boolean
   tp2Hit: boolean
   slHit: boolean
@@ -22,32 +20,20 @@ export interface TradeFile {
   closeReason?: string
 }
 
-const TRADES_DIR = path.join(process.cwd(), 'data', 'trades')
+const TRADES_PREFIX = "trade:"
+const TRADES_INDEX = "trades_index"
 
-// Ensure directory exists
-export function ensureTradesDir() {
-  if (!fs.existsSync(TRADES_DIR)) {
-    fs.mkdirSync(TRADES_DIR, { recursive: true })
-    console.log(`[LIFECYCLE] Created trades directory: ${TRADES_DIR}`)
-  }
-}
-
-// Create new trade file
-export function createTrade(
+export async function createTrade(
   symbol: string,
-  direction: 'BUY' | 'SELL',
+  direction: "BUY" | "SELL",
   entry: number,
   stopLoss: number,
   tp1: number,
   tp2: number,
-  tier: 'A+' | 'A' | 'B'
-): TradeFile {
-  ensureTradesDir()
-
-  const tradeId = uuidv4()
+  tier: "A+" | "A" | "B"
+): Promise<TradeFile> {
   const timestamp = Math.floor(Date.now() / 1000)
-  const filename = `${symbol}_${timestamp}_${tradeId.substring(0, 8)}.json`
-  const filepath = path.join(TRADES_DIR, filename)
+  const tradeId = `${symbol}_${timestamp}_${Math.random().toString(36).substring(7)}`
 
   const trade: TradeFile = {
     id: tradeId,
@@ -58,7 +44,7 @@ export function createTrade(
     tp1,
     tp2,
     tier,
-    status: 'OPEN',
+    status: "OPEN",
     tp1Hit: false,
     tp2Hit: false,
     slHit: false,
@@ -67,85 +53,50 @@ export function createTrade(
     lastChecked: null,
   }
 
-  // Atomic write: write to temp file first, then rename
-  const tempFilepath = filepath + '.tmp'
-  fs.writeFileSync(tempFilepath, JSON.stringify(trade, null, 2))
-  fs.renameSync(tempFilepath, filepath)
+  await kv.set(TRADES_PREFIX + tradeId, JSON.stringify(trade))
+  await kv.sadd(TRADES_INDEX, tradeId)
 
   console.log(`[LIFECYCLE] Trade created: ${symbol} ${direction} ${tier} Tier at ${entry.toFixed(2)}`)
   return trade
 }
 
-// Read all active trades
-export function getAllTrades(): TradeFile[] {
-  ensureTradesDir()
-
-  const files = fs.readdirSync(TRADES_DIR).filter(f => f.endsWith('.json'))
+export async function getAllTrades(): Promise<TradeFile[]> {
+  const tradeIds = await kv.smembers(TRADES_INDEX)
   const trades: TradeFile[] = []
 
-  for (const file of files) {
+  for (const tradeId of tradeIds) {
     try {
-      const filepath = path.join(TRADES_DIR, file)
-      const content = fs.readFileSync(filepath, 'utf-8')
-      const trade = JSON.parse(content) as TradeFile
-      trades.push(trade)
+      const tradeData = await kv.get(TRADES_PREFIX + tradeId)
+      if (tradeData) {
+        trades.push(JSON.parse(tradeData as string))
+      }
     } catch (error) {
-      console.error(`[LIFECYCLE] Error reading trade file ${file}: ${error}`)
-      // Continue processing other files
+      console.error(`[LIFECYCLE] Error reading trade ${tradeId}: ${error}`)
     }
   }
 
   return trades
 }
 
-// Get open trades
-export function getOpenTrades(): TradeFile[] {
-  return getAllTrades().filter(t => t.status === 'OPEN')
+export async function getOpenTrades(): Promise<TradeFile[]> {
+  const trades = await getAllTrades()
+  return trades.filter((t) => t.status === "OPEN")
 }
 
-// Update trade file
-export function updateTrade(trade: TradeFile): void {
-  ensureTradesDir()
-
-  // Find the file matching this trade ID
-  const files = fs.readdirSync(TRADES_DIR).filter(f => f.endsWith('.json'))
-  let found = false
-
-  for (const file of files) {
-    try {
-      const filepath = path.join(TRADES_DIR, file)
-      const content = fs.readFileSync(filepath, 'utf-8')
-      const existingTrade = JSON.parse(content) as TradeFile
-
-      if (existingTrade.id === trade.id) {
-        // Atomic write
-        const tempFilepath = filepath + '.tmp'
-        fs.writeFileSync(tempFilepath, JSON.stringify(trade, null, 2))
-        fs.renameSync(tempFilepath, filepath)
-        found = true
-        break
-      }
-    } catch (error) {
-      console.error(`[LIFECYCLE] Error updating trade file ${file}: ${error}`)
-    }
-  }
-
-  if (!found) {
-    console.error(`[LIFECYCLE] Trade not found: ${trade.id}`)
-  }
+export async function updateTrade(trade: TradeFile): Promise<void> {
+  await kv.set(TRADES_PREFIX + trade.id, JSON.stringify(trade))
 }
 
-// Check if trade file exists and is valid
 export function isValidTradeFile(trade: TradeFile): boolean {
   return (
     trade.id &&
     trade.symbol &&
-    ['BUY', 'SELL'].includes(trade.direction) &&
-    typeof trade.entry === 'number' &&
-    typeof trade.stopLoss === 'number' &&
-    typeof trade.tp1 === 'number' &&
-    typeof trade.tp2 === 'number' &&
-    ['A+', 'A', 'B'].includes(trade.tier) &&
-    ['OPEN', 'CLOSED'].includes(trade.status)
+    ["BUY", "SELL"].includes(trade.direction) &&
+    typeof trade.entry === "number" &&
+    typeof trade.stopLoss === "number" &&
+    typeof trade.tp1 === "number" &&
+    typeof trade.tp2 === "number" &&
+    ["A+", "A", "B"].includes(trade.tier) &&
+    ["OPEN", "CLOSED"].includes(trade.status)
   )
 }
