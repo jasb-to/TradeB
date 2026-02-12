@@ -8,7 +8,7 @@ import { SignalCache } from "@/lib/signal-cache"
  * 
  * Returns complete system health snapshot:
  * - Cron execution state (last hit, frequency, duration)
- * - Per-symbol execution tracking (XAU_USD, XAG_USD)
+ * - Per-symbol execution tracking (XAU_USD, GBP_JPY)
  * - Current strategy state (HTF polarity, biases, entry score)
  * - Outcome counters (trades, near-misses)
  * - Operational verdict
@@ -23,16 +23,16 @@ export async function GET(request: Request) {
   // Get cron heartbeats (now returns Promise)
   const heartbeats = await CronHeartbeat.getAllHeartbeats()
   const xauHeartbeat = heartbeats.find((h) => h.symbol === "XAU_USD")
-  const xagHeartbeat = heartbeats.find((h) => h.symbol === "XAG_USD")
+  const gbpjpyHeartbeat = heartbeats.find((h) => h.symbol === "GBP_JPY")
 
   // Calculate cron health
-  const lastExternalCronHit = Math.max(xauHeartbeat?.lastExecutionTime || 0, xagHeartbeat?.lastExecutionTime || 0)
+  const lastExternalCronHit = Math.max(xauHeartbeat?.lastExecutionTime || 0, gbpjpyHeartbeat?.lastExecutionTime || 0)
   const timeSinceLastCron = lastExternalCronHit ? now - lastExternalCronHit : null
-  const cronHitsLast60m = (xauHeartbeat?.executionCount || 0) + (xagHeartbeat?.executionCount || 0)
+  const cronHitsLast60m = (xauHeartbeat?.executionCount || 0) + (gbpjpyHeartbeat?.executionCount || 0)
 
   // Get current signals
   const xauSignal = SignalCache.get("XAU_USD")
-  const xagSignal = SignalCache.get("XAG_USD")
+  const gbpjpySignal = SignalCache.get("GBP_JPY")
 
   // Get diagnostic data
   const nearMissAllStates = NearMissTracker.getAllStates()
@@ -66,12 +66,12 @@ export async function GET(request: Request) {
         lastError: xauHeartbeat?.lastExecutionStatus === "FAILED" ? "Execution failed" : null,
         status: xauHeartbeat?.lastExecutionStatus || "UNKNOWN",
       },
-      XAG_USD: {
-        lastRunAt: xagHeartbeat?.lastExecutionTime ? new Date(xagHeartbeat.lastExecutionTime).toISOString() : null,
-        runsLast60m: xagHeartbeat?.executionCount || 0,
-        lastRunCompleted: xagHeartbeat?.lastExecutionStatus === "SUCCESS",
-        lastError: xagHeartbeat?.lastExecutionStatus === "FAILED" ? "Execution failed" : null,
-        status: xagHeartbeat?.lastExecutionStatus || "UNKNOWN",
+      GBP_JPY: {
+        lastRunAt: gbpjpyHeartbeat?.lastExecutionTime ? new Date(gbpjpyHeartbeat.lastExecutionTime).toISOString() : null,
+        runsLast60m: gbpjpyHeartbeat?.executionCount || 0,
+        lastRunCompleted: gbpjpyHeartbeat?.lastExecutionStatus === "SUCCESS",
+        lastError: gbpjpyHeartbeat?.lastExecutionStatus === "FAILED" ? "Execution failed" : null,
+        status: gbpjpyHeartbeat?.lastExecutionStatus || "UNKNOWN",
       },
     },
 
@@ -90,18 +90,18 @@ export async function GET(request: Request) {
             lastUpdated: new Date(xauSignal.timestamp).toISOString(),
           }
         : { error: "No signal data" },
-      XAG_USD: xagSignal
+      GBP_JPY: gbpjpySignal
         ? {
-            htfPolarity: xagSignal.htfPolarityState || "UNKNOWN",
-            dailyBias: xagSignal.mtfAlignment?.daily || "UNKNOWN",
-            h4Bias: xagSignal.mtfAlignment?.h4 || "UNKNOWN",
-            h1Bias: xagSignal.mtfAlignment?.h1 || "UNKNOWN",
-            primaryBlocker: xagSignal.blockedReason || "None",
-            entryScore: xagSignal.confidence?.toFixed(1) || "0.0",
-            cooldownActive: xagSignal.cooldownRemaining ? true : false,
-            cooldownRemainingMs: xagSignal.cooldownRemaining || null,
-            signalType: xagSignal.type,
-            lastUpdated: new Date(xagSignal.timestamp).toISOString(),
+            htfPolarity: gbpjpySignal.htfPolarityState || "UNKNOWN",
+            dailyBias: gbpjpySignal.mtfAlignment?.daily || "UNKNOWN",
+            h4Bias: gbpjpySignal.mtfAlignment?.h4 || "UNKNOWN",
+            h1Bias: gbpjpySignal.mtfAlignment?.h1 || "UNKNOWN",
+            primaryBlocker: gbpjpySignal.blockedReason || "None",
+            entryScore: gbpjpySignal.confidence?.toFixed(1) || "0.0",
+            cooldownActive: gbpjpySignal.cooldownRemaining ? true : false,
+            cooldownRemainingMs: gbpjpySignal.cooldownRemaining || null,
+            signalType: gbpjpySignal.type,
+            lastUpdated: new Date(gbpjpySignal.timestamp).toISOString(),
           }
         : { error: "No signal data" },
     },
