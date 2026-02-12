@@ -19,7 +19,7 @@ try {
 export const maxDuration = 60
 export const dynamic = "force-dynamic"
 
-const TRADING_SYMBOLS = ["XAU_USD", "XAG_USD"]
+const TRADING_SYMBOLS = ["XAU_USD", "GBP_JPY"]
 
 export async function GET(request: NextRequest) {
   const requestId = Math.random().toString(36).substring(7)

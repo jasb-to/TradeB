@@ -11,17 +11,17 @@ export const runtime = "nodejs"
 
 let lastValidSignals: { [key: string]: any } = {
   XAU_USD: null,
-  XAG_USD: null,
+  GBP_JPY: null,
 }
 let lastValidTimestamps: { [key: string]: string | null } = {
   XAU_USD: null,
-  XAG_USD: null,
+  GBP_JPY: null,
 }
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const symbol = (searchParams.get("symbol") || "XAU_USD") as "XAU_USD" | "XAG_USD"
+    const symbol = (searchParams.get("symbol") || "XAU_USD") as "XAU_USD" | "GBP_JPY"
 
     const marketStatus = MarketHours.getMarketStatus()
 
