@@ -5,7 +5,6 @@ import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
 import { MarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
 import { createTrade } from "@/lib/trade-lifecycle"
-import { TelegramNotifier } from "@/lib/telegram"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
