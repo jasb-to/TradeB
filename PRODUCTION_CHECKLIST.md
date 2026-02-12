@@ -13,30 +13,34 @@
 - [ ] OANDA_TOKEN = [OANDA API key]
 - NO development/test values in production
 
-#### 2. Kill Switch Verification
+#### 3. Kill Switch Verification
 ```typescript
-// Both endpoints check this before executing
-if (process.env.TRADING_ENABLED !== "true") {
-  return neutral_signal / skip_scan
-}
+// Both endpoints execute immediately without kill switch checks
+// Trading is enabled by default
 ```
-- [ ] `/api/signal/current` has kill switch
-- [ ] `/api/trades/scan` has kill switch
-- [ ] Can disable trading instantly without redeploying
+- [ ] `/api/signal/current` runs without gating
+- [ ] `/api/trades/scan` runs without gating
+- [ ] All cron endpoints respond to external triggers
 
-#### 3. Cron Configuration (vercel.json)
-```json
-{
-  "crons": [
-    { "path": "/api/cron/signal-xau", "schedule": "0 */4 * * *" },
-    { "path": "/api/cron/signal-xag", "schedule": "15 */4 * * *" },
-    { "path": "/api/cron/trade-scan", "schedule": "*/15 * * * *" }
-  ]
-}
-```
-- [ ] Cron paths configured
+#### 2. External Cron Setup (cron-job.org)
+Since Vercel Hobby accounts limit cron jobs to daily execution, using cron-job.org for external triggering:
+- [ ] **Signal Generation (XAU_USD):** Cron every 4 hours
+  ```
+  https://xptswitch.vercel.app/api/cron/signal-xau
+  Header: Authorization: Bearer [CRON_SECRET]
+  ```
+- [ ] **Signal Generation (XAG_USD):** Cron every 4 hours (offset 15 min)
+  ```
+  https://xptswitch.vercel.app/api/cron/signal-xag
+  Header: Authorization: Bearer [CRON_SECRET]
+  ```
+- [ ] **Trade Scan:** Cron every 15 minutes
+  ```
+  https://xptswitch.vercel.app/api/cron/trade-scan
+  Header: Authorization: Bearer [CRON_SECRET]
+  ```
 - [ ] Bearer token protection active
-- [ ] 15-minute trade scan frequency set
+- [ ] All three jobs configured in cron-job.org dashboard
 
 #### 4. Live Fire Test (DO THIS BEFORE GOING LIVE)
 **Manual Signal Trigger:**
@@ -68,7 +72,7 @@ if (process.env.TRADING_ENABLED !== "true") {
 - [x] Dead code cleaned up
 - [x] No filesystem-based storage
 - [x] No console.log exposing secrets
-- [x] Diagnostic documents archived
+- [x] Vercel cron config removed (using cron-job.org instead)
 
 #### 7. Production Safeguards
 - [x] Kill switch implemented and tested
@@ -80,22 +84,16 @@ if (process.env.TRADING_ENABLED !== "true") {
 
 ### Deployment Steps
 
-1. **Set TRADING_ENABLED environment variable to "true"**
+1. **Configure cron-job.org** with the three cron URLs and bearer tokens
 2. **Deploy to production**
 3. **Run live fire test** (see section 4)
 4. **Monitor first 24 hours** for any issues
-5. **If critical issue**: Set TRADING_ENABLED="false" to instantly disable trading
 
 ### Emergency Protocol
 
-If something behaves unexpectedly:
+If something behaves unexpectedly, simply delete the cron jobs from cron-job.org dashboard. No signal generation = no new trades = no exit scanning.
 
-```bash
-# IMMEDIATELY: Disable trading without redeploying
-vercel env add TRADING_ENABLED false
-```
-
-This stops all signals and exit scans without touching logic.
+For immediate restart: Re-add the three cron jobs with the same URLs and bearer token.
 
 ### Monitoring Commands
 
