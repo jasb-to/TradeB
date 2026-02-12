@@ -91,16 +91,6 @@ async function checkStructuralInvalidation(symbol: string, originalTier: string)
 }
 
 export async function GET(req: Request) {
-  // PRODUCTION KILL SWITCH - Disable exit scanning without redeploying
-  if (process.env.TRADING_ENABLED !== "true") {
-    console.warn("[KILL_SWITCH] Trading is disabled - trade scan skipped")
-    return NextResponse.json({
-      success: true,
-      message: "Trade scanning disabled via TRADING_ENABLED environment variable",
-      results: { scanned: 0, tpHits: 0, slHits: 0, invalidations: 0, errors: 0 },
-    })
-  }
-
   const startTime = Date.now()
   const results = {
     scanned: 0,

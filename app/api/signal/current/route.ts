@@ -19,16 +19,6 @@ let lastValidTimestamps: { [key: string]: string | null } = {
 }
 
 export async function GET(request: Request) {
-  // PRODUCTION KILL SWITCH - Disable trading without redeploying
-  if (process.env.TRADING_ENABLED !== "true") {
-    console.warn("[KILL_SWITCH] Trading is disabled - returning neutral signal")
-    return NextResponse.json({
-      success: true,
-      message: "Trading disabled via TRADING_ENABLED environment variable",
-      signal: { type: "NO_TRADE", direction: null, reason: "KILL_SWITCH" },
-    })
-  }
-
   try {
     const { searchParams } = new URL(request.url)
     const symbol = (searchParams.get("symbol") || "XAU_USD") as "XAU_USD" | "XAG_USD"
