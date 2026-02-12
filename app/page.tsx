@@ -1,6 +1,6 @@
 "use client"
-// Build cache bust - force clean rebuild on Vercel
-const BUILD_VERSION = "1.0.7"
+// Build cache bust - force clean rebuild on Vercel - XAG PURGE COMPLETE
+const BUILD_VERSION = "2.0.0"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"

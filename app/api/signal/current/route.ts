@@ -5,23 +5,40 @@ import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
 import { MarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
 import { createTrade } from "@/lib/trade-lifecycle"
+import { TRADING_SYMBOLS, isValidTradingSymbol } from "@/lib/trading-symbols"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
-let lastValidSignals: { [key: string]: any } = {
-  XAU_USD: null,
-  GBP_JPY: null,
-}
-let lastValidTimestamps: { [key: string]: string | null } = {
-  XAU_USD: null,
-  GBP_JPY: null,
-}
+let lastValidSignals: { [key: string]: any } = {}
+let lastValidTimestamps: { [key: string]: string | null } = {}
+
+// Initialize for all trading symbols
+TRADING_SYMBOLS.forEach((symbol) => {
+  lastValidSignals[symbol] = null
+  lastValidTimestamps[symbol] = null
+})
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const symbol = (searchParams.get("symbol") || "XAU_USD") as "XAU_USD" | "GBP_JPY"
+    const symbolParam = searchParams.get("symbol")
+    
+    // Guard: reject invalid symbols
+    if (!symbolParam || !isValidTradingSymbol(symbolParam)) {
+      console.error(`[GUARD] Invalid symbol requested: ${symbolParam}`)
+      return NextResponse.json(
+        { success: false, error: "Invalid trading symbol" },
+        { status: 400 }
+      )
+    }
+    
+    const symbol = symbolParam as typeof TRADING_SYMBOLS[number]
+    
+    // Runtime failsafe: reject XAG if it somehow appears
+    if (symbol === "XAG_USD") {
+      throw new Error("[FAILSAFE] XAG_USD should not exist in production")
+    }
 
     const marketStatus = MarketHours.getMarketStatus()
 
