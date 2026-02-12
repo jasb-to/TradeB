@@ -24,16 +24,19 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const symbolParam = searchParams.get("symbol")
     
+    console.log(`[v0] SIGNAL/CURRENT GUARD: symbolParam=${symbolParam}`)
+    
     // Guard: reject invalid symbols
     if (!symbolParam || !isValidTradingSymbol(symbolParam)) {
-      console.error(`[GUARD] Invalid symbol requested: ${symbolParam}`)
+      console.error(`[GUARD] Invalid symbol requested: ${symbolParam}. Valid symbols: ${TRADING_SYMBOLS.join(", ")}`)
       return NextResponse.json(
-        { success: false, error: "Invalid trading symbol" },
+        { success: false, error: "Invalid trading symbol", requestedSymbol: symbolParam, validSymbols: TRADING_SYMBOLS },
         { status: 400 }
       )
     }
     
     const symbol = symbolParam as typeof TRADING_SYMBOLS[number]
+    console.log(`[v0] SIGNAL/CURRENT PASSED GUARD: symbol=${symbol}`)
     
     // Runtime failsafe: reject XAG if it somehow appears
     if (symbol === "XAG_USD") {
