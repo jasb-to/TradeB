@@ -131,6 +131,7 @@ export interface Signal {
     "5m": "LONG" | "SHORT" | "NEUTRAL"
   }
   entrySetup?: string
+  structuralTier: "A+" | "A" | "B" | "NO_TRADE"  // Required: The tier determined by HTF regime, NOT overridden by score
   passed?: string[]
   failed?: string[]
   setupQuality?: "A+" | "A" | "B" | "STANDARD"

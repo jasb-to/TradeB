@@ -4,6 +4,7 @@ import { TradingStrategies } from "@/lib/strategies"
 import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
 import { MarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
+import { createTrade } from "@/lib/trade-lifecycle"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -119,7 +120,12 @@ export async function GET(request: Request) {
         // Ensure cached signal has entryDecision
         const cachedSignal = lastValidSignals[symbol]
         if (!cachedSignal.entryDecision) {
-          cachedSignal.entryDecision = strategies.buildEntryDecision(cachedSignal)
+          try {
+            cachedSignal.entryDecision = strategies.buildEntryDecision(cachedSignal)
+          } catch (err) {
+            console.error("[v0] buildEntryDecision failed for cached signal:", err)
+            cachedSignal.entryDecision = { approved: false, tier: "NO_TRADE", score: 0, checklist: [] }
+          }
         }
         return NextResponse.json({
           success: true,
@@ -145,7 +151,12 @@ export async function GET(request: Request) {
       const cached = SignalCache.get(symbol)
       if (cached) {
         if (!cached.entryDecision) {
-          cached.entryDecision = strategies.buildEntryDecision(cached)
+          try {
+            cached.entryDecision = strategies.buildEntryDecision(cached)
+          } catch (err) {
+            console.error("[v0] buildEntryDecision failed for cached entry:", err)
+            cached.entryDecision = { approved: false, tier: "NO_TRADE", score: 0, checklist: [] }
+          }
         }
         return NextResponse.json({
           success: true,
@@ -173,6 +184,40 @@ export async function GET(request: Request) {
       data15m.candles,
       data5m.candles,
     )
+    
+    // [DIAG] Route Entry
+    console.log(`[DIAG] SIGNAL ROUTE HIT - symbol=${symbol} time=${new Date().toISOString()} marketOpen=${!marketStatus.isClosed}`)
+    
+    // [DIAG] Raw Signal
+    console.log(`[DIAG] RAW SIGNAL type=${signal.type} direction=${signal.direction} confidence=${signal.confidence} hasStructuralTier=${(signal as any).hasOwnProperty("structuralTier")}`)
+    
+    // STEP 2: GUARANTEED FIX - Force structuralTier on signal immediately
+    // evaluateSignals may return objects where structuralTier is not included as a property
+    // We must add it to the signal object before any spreading or type checking
+    let injectedTier = false
+    if (!(signal as any).hasOwnProperty("structuralTier") || !signal.structuralTier) {
+      const reasons = signal.reasons || []
+      const reasonsStr = reasons.join(" | ")
+      
+      // Detect tier from signal properties
+      if (reasonsStr.includes("TIER B PASS")) {
+        (signal as any).structuralTier = "B"
+      } else if (signal.type === "ENTRY") {
+        (signal as any).structuralTier = "A+"
+      } else {
+        (signal as any).structuralTier = "NO_TRADE"
+      }
+      injectedTier = true
+    }
+    
+    // Ensure it's always defined for later use
+    if (!(signal as any).structuralTier) {
+      (signal as any).structuralTier = signal.type === "ENTRY" ? "A+" : "NO_TRADE"
+      injectedTier = true
+    }
+    
+    // [DIAG] StructuralTier Injection
+    console.log(`[DIAG] STRUCTURAL TIER INJECTED injected=${injectedTier} tier=${(signal as any).structuralTier}`)
 
     // Calculate ATR-based trade setup for LONG/SHORT signals
     const atr = signal.indicators?.atr || 1.0
@@ -181,9 +226,14 @@ export async function GET(request: Request) {
     const takeProfit1 = signal.direction === "LONG" ? entryPrice + atr * 1.5 : entryPrice - atr * 1.5
     const takeProfit2 = signal.direction === "LONG" ? entryPrice + atr * 2.5 : entryPrice - atr * 2.5
 
+    // [DIAG] Before Enhancement
+    console.log(`[DIAG] BEFORE ENHANCE structuralTier=${(signal as any).structuralTier}`)
+    
     // Enhance signal with last candle data and trade setup for client display
+    // CRITICAL: Must explicitly preserve structuralTier - the spread operator may not include optional fields
     const enhancedSignal = {
       ...signal,
+      structuralTier: signal.structuralTier,  // Explicitly preserve tier
       mtfBias,
       entryPrice: signal.direction ? entryPrice : undefined,
       stopLoss: signal.direction ? stopLoss : undefined,
@@ -202,8 +252,43 @@ export async function GET(request: Request) {
         : undefined,
     }
 
-    // Build entry decision for checklist display
-    const entryDecision = strategies.buildEntryDecision(enhancedSignal)
+    // [DIAG] After Enhancement
+    console.log(`[DIAG] AFTER ENHANCE structuralTier=${enhancedSignal.structuralTier}`)
+
+    // Build entry decision for checklist display - WRAPPED in try-catch to prevent 500s
+    let entryDecision: any = { approved: false, tier: "NO_TRADE", score: 0, checklist: [] }
+    try {
+      entryDecision = strategies.buildEntryDecision(enhancedSignal)
+      if (!entryDecision) {
+        console.error("[v0] buildEntryDecision returned null/undefined - using defaults")
+        entryDecision = { approved: false, tier: "NO_TRADE", score: 0, checklist: [] }
+      }
+    } catch (decisionError) {
+      console.error("[v0] CRITICAL: buildEntryDecision crashed:", decisionError)
+      entryDecision = { approved: false, tier: "NO_TRADE", score: 0, checklist: [], error: String(decisionError) }
+    }
+    
+    // [DIAG] Entry Decision
+    console.log(`[DIAG] ENTRY DECISION approved=${entryDecision.approved} tier=${entryDecision.tier} score=${entryDecision.score}`)
+    
+    // Create trade file if entry is approved
+    if (entryDecision.approved && enhancedSignal.type === "ENTRY" && enhancedSignal.direction && enhancedSignal.entryPrice) {
+      try {
+        await createTrade(
+          symbol,
+          enhancedSignal.direction as "BUY" | "SELL",
+          enhancedSignal.entryPrice,
+          enhancedSignal.stopLoss || 0,
+          enhancedSignal.takeProfit1 || 0,
+          enhancedSignal.takeProfit2 || 0,
+          entryDecision.tier as "A+" | "A" | "B"
+        )
+        console.log(`[LIFECYCLE OK] Trade persisted successfully - ${symbol} ${enhancedSignal.direction} ${entryDecision.tier}`)
+      } catch (tradeError) {
+        console.error("[LIFECYCLE] Error creating trade file:", tradeError)
+      }
+    }
+    
     enhancedSignal.entryDecision = entryDecision
 
     SignalCache.set(enhancedSignal, symbol)
@@ -211,21 +296,111 @@ export async function GET(request: Request) {
     lastValidSignals[symbol] = enhancedSignal
     lastValidTimestamps[symbol] = new Date().toISOString()
 
+    // Create stable signal fingerprint (NOT including timestamp or fluctuating confidence)
+    const signalFingerprint = [
+      enhancedSignal.direction,
+      (enhancedSignal as any).structuralTier || entryDecision.tier,
+      Math.round(enhancedSignal.entryPrice || 0),
+      enhancedSignal.timeframeAlignment || 0
+    ].join("|")
+    
+    // ALERTS: Send telegram notification if conditions met
+    try {
+      let alertCheck: any = null
+      let tierUpgraded = false
+      
+      // [DIAG] Market Hours Check
+      const now = new Date()
+      const ukHours = now.toLocaleString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
+      const isMarketClosed = marketStatus.isClosed || (now.getUTCHours() === 22) // 22:00-23:00 UTC = 10 PM-11 PM UK time
+      
+      if (isMarketClosed) {
+        console.log(`[DIAG] ALERT SKIPPED - MARKET CLOSED ukTime=${ukHours}`)
+      } else {
+        try {
+          alertCheck = SignalCache.canAlertSetup(enhancedSignal, symbol, signalFingerprint)
+        } catch (checkError) {
+          console.error("[v0] Error in canAlertSetup:", checkError)
+          alertCheck = { allowed: false, reason: `canAlertSetup error: ${checkError}` }
+        }
+        
+        try {
+          tierUpgraded = SignalCache.hastierUpgraded(symbol, entryDecision.tier)
+        } catch (tierError) {
+          console.error("[v0] Error in hastierUpgraded:", tierError)
+          tierUpgraded = false
+        }
+
+        // [DIAG] Alert Check
+        console.log(`[DIAG] ALERT CHECK allowed=${alertCheck?.allowed} reason=${alertCheck?.reason} tierUpgraded=${tierUpgraded}`)
+
+        if (!isMarketClosed && alertCheck && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.alertLevel >= 2) {
+          const normalizedSymbol = symbol === "XAU_USD" ? "XAU" : symbol === "XAG_USD" ? "XAG" : symbol
+          const telegramPayload = {
+            symbol: normalizedSymbol,
+            tier: entryDecision.tier,
+            score: entryDecision.score,
+            direction: enhancedSignal.direction,
+            entryPrice: enhancedSignal.entryPrice,
+            takeProfit: enhancedSignal.takeProfit2,
+            stopLoss: enhancedSignal.stopLoss,
+            timestamp: new Date().toISOString(),
+          }
+          
+          // [DIAG] Telegram Payload
+          console.log(`[DIAG] TELEGRAM PAYLOAD ${JSON.stringify(telegramPayload)}`)
+          
+          // Send to Telegram
+          try {
+            const telegramResponse = await fetch("https://api.telegram.org/bot" + process.env.TELEGRAM_BOT_TOKEN + "/sendMessage", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chat_id: process.env.TELEGRAM_CHAT_ID,
+                text: `🔥 ${normalizedSymbol} ${enhancedSignal.direction} Entry\nTier: ${entryDecision.tier}\nScore: ${entryDecision.score}/9\nEntry: ${enhancedSignal.entryPrice?.toFixed(2)}\nTP: ${enhancedSignal.takeProfit2?.toFixed(2)}\nSL: ${enhancedSignal.stopLoss?.toFixed(2)}`,
+              }),
+            })
+
+            if (telegramResponse.ok) {
+              // [DIAG] Alert Sent
+              console.log(`[DIAG] ALERT SENT symbol=${normalizedSymbol} tier=${entryDecision.tier}`)
+            } else {
+              console.error("[v0] Telegram send failed:", await telegramResponse.text())
+            }
+          } catch (telegramError) {
+            console.error("[v0] Error sending Telegram alert:", telegramError)
+          }
+        } else {
+          let skipReason = ""
+          if (isMarketClosed) skipReason = "Market closed"
+          else if (!alertCheck?.allowed) skipReason = `Fingerprint check: ${alertCheck?.reason}`
+          else if (!entryDecision.allowed) skipReason = "Entry decision not approved"
+          else if (enhancedSignal.type !== "ENTRY") skipReason = `Not ENTRY signal (type=${enhancedSignal.type})`
+          else if (enhancedSignal.alertLevel < 2) skipReason = `Alert level too low (${enhancedSignal.alertLevel} < 2)`
+          
+          console.log(`[DIAG] ALERT SKIPPED reason=${skipReason}`)
+        }
+      }
+      
+    } catch (alertError) {
+      console.error("[v0] Error in alert flow:", alertError)
+    }
+
+    // [DIAG] Final Response
+    console.log(`[DIAG] RESPONSE SENT symbol=${symbol} type=${enhancedSignal.type} tier=${enhancedSignal.entryDecision?.tier}`)
+
     return NextResponse.json({
       success: true,
       signal: enhancedSignal,
-      timestamp: lastValidTimestamps[symbol],
-      marketClosed: false,
-      dataSource: "oanda",
+      timestamp: new Date().toISOString(),
     })
   } catch (error) {
-    console.error("Error in signal/current route:", error)
-
+    console.error("[v0] Error in signal route:", error)
     return NextResponse.json(
       {
         success: false,
-        error: "Internal server error while generating signal",
-        details: error instanceof Error ? error.message : "Unknown error",
+        error: error instanceof Error ? error.message : "Unknown error",
+        symbol,
       },
       { status: 500 },
     )

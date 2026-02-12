@@ -1,0 +1,29 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Testing
+.jest_cache
+
+# Production
+.next
+out
+build
+dist
+
+# Misc
+.DS_Store
+.env.local
+.env.*.local
+*.pem
+*.log
+
+# Trade data
+data/trades/
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo

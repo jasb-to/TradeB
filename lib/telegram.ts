@@ -36,7 +36,91 @@ You will now receive:
     await this.sendMessage(message);
   }
 
-  async sendSignalAlert(signal: Signal & { symbol?: string }): Promise<void> {
+  async sendSignalAlert(signal: any): Promise<void> {
+    // Support both raw Signal and normalized AlertPayload
+    const isNormalized = signal.symbol && !signal.entryPrice && !signal.direction === "LONG";
+    
+    if (!signal) {
+      console.error("[v0] TELEGRAM: Signal is empty");
+      return;
+    }
+
+    // Extract normalized payload fields (STEP 1: Single source of truth)
+    const symbol = (signal.symbol || "UNKNOWN").toUpperCase();
+    const direction = (signal.direction || "N/A").toUpperCase();
+    const tier = signal.tier || "NO_TRADE";
+    const score = signal.score ?? 0;
+    const entry = signal.entry ?? signal.entryPrice ?? null;
+    const confidence = signal.confidence ?? 0;
+    const tp1 = signal.tp1 ?? signal.takeProfit1 ?? null;
+    const tp2 = signal.tp2 ?? signal.takeProfit2 ?? null;
+    const sl = signal.sl ?? signal.stopLoss ?? null;
+
+    // Enforce tier fallback (STEP 2)
+    const validTiers = ["A+", "A", "B", "NO_TRADE"]
+    const finalTier = validTiers.includes(tier) ? tier : "NO_TRADE"
+
+    // Format symbol (STEP 3)
+    const cleanSymbol = symbol.replace(/_USD/g, "")
+
+    // Skip NO_TRADE
+    if (finalTier === "NO_TRADE") {
+      console.log(`[v0] TELEGRAM: Skipping NO_TRADE alert for ${cleanSymbol}`);
+      return;
+    }
+
+    // Build message from normalized fields only (STEP 4)
+    const emoji = direction === "LONG" ? "📈" : direction === "SHORT" ? "📉" : "⚪";
+    const confidenceBadge = confidence >= 80 ? "🟢" : confidence >= 70 ? "🟡" : "🔴";
+    
+    const isBTier = finalTier === "B"
+    const setupTier = finalTier === "A+" ? "A+ PREMIUM SETUP" 
+      : finalTier === "A" ? "A SETUP"
+      : "B TIER SETUP"
+    const setupDescription = finalTier === "A+" 
+      ? "(High confidence - ADX strong, perfect alignment)"
+      : finalTier === "A" 
+      ? "(Good setup - Solid trend confirmation)"
+      : "(B TIER: 1H/15M aligned momentum - Reduced position size)"
+
+    const entryStr = entry != null && typeof entry === "number" ? entry.toFixed(2) : "N/A"
+    const slStr = sl != null && typeof sl === "number" ? sl.toFixed(2) : "N/A"
+    const tp1Str = tp1 != null && typeof tp1 === "number" ? tp1.toFixed(2) : "N/A"
+    const tp2Str = tp2 != null && typeof tp2 === "number" ? tp2.toFixed(2) : "N/A"
+    
+    const scoreFormatted = typeof score === "number" ? score.toFixed(1) : "0.0"
+    
+    const tp1Instruction = isBTier 
+      ? "HARD TP1 ONLY - Full position closes at TP1 level"
+      : "TP2 for full exit (50% at TP1, 50% at TP2)"
+
+    const headerEmoji = isBTier ? "🚨" : emoji;
+    const headerText = isBTier ? `${headerEmoji} B TIER SETUP – ${cleanSymbol}` : `${emoji} ENTRY SIGNAL ALERT - ONE TRADE ONLY`;
+    const message = `${headerText}
+═══════════════════════════════════════
+SETUP TIER: ${setupTier}
+${setupDescription}
+
+Symbol: ${cleanSymbol}
+Direction: ${direction}
+Score: ${scoreFormatted}/9 ${confidenceBadge}
+
+Entry: $${entryStr}
+SL: $${slStr}
+TP1: $${tp1Str}
+${!isBTier ? `TP2: $${tp2Str}` : ""}
+
+Exit Rule: ${tp1Instruction}
+
+⏰ Time: ${new Date().toISOString()}
+═══════════════════════════════════════`;
+
+    console.log(`[v0] TELEGRAM: Alert message built from normalized payload for ${cleanSymbol}`)
+    await this.sendMessage(message);
+  }
+
+  // Legacy method - kept for backward compatibility
+  async sendSignalAlertLegacy(signal: Signal & { symbol?: string }): Promise<void> {
     if (!signal || !signal.type) {
       console.error("[v0] TELEGRAM: Signal is empty or missing type");
       return;
@@ -72,10 +156,15 @@ You will now receive:
       ? "(Good setup - Solid trend confirmation)"
       : "(B TIER: 1H/15M aligned momentum - Reduced position size)";
 
-    const entryPrice = signal.entryPrice?.toFixed(2) || "N/A";
-    const stopLoss = signal.stopLoss?.toFixed(2) || "N/A";
-    const tp1 = signal.takeProfit1?.toFixed(2) || "N/A";
-    const tp2 = signal.takeProfit2?.toFixed(2) || "N/A";
+    const entryPrice = signal.entryPrice != null && typeof signal.entryPrice === "number" ? signal.entryPrice.toFixed(2) : "N/A";
+    const stopLoss = signal.stopLoss != null && typeof signal.stopLoss === "number" ? signal.stopLoss.toFixed(2) : "N/A";
+    const tp1 = signal.takeProfit1 != null && typeof signal.takeProfit1 === "number" ? signal.takeProfit1.toFixed(2) : "N/A";
+    const tp2 = signal.takeProfit2 != null && typeof signal.takeProfit2 === "number" ? signal.takeProfit2.toFixed(2) : "N/A";
+    
+    // B TIER: Hard TP1 only - no TP2, no runners, no scaling
+    const tp1Instruction = isBTier 
+      ? "HARD TP1 ONLY - Full position closes at TP1 level"
+      : "TP2 for full exit (50% at TP1, 50% at TP2)";
     
     // B TIER: Hard TP1 only - no TP2, no runners, no scaling
     const tp1Instruction = isBTier 
@@ -95,7 +184,7 @@ You will now receive:
     const headerEmoji = isBTier ? "🚨" : emoji;
     const headerText = isBTier ? `${headerEmoji} B TIER SETUP – ${symbol}` : `${emoji} ENTRY SIGNAL ALERT - ONE TRADE ONLY`;
     const message = `${headerText}
-═══════════════════════════════════════
+═══════════════════════════════════���═══
 SETUP TIER: ${setupTier}
 ${setupDescription}
 
@@ -317,7 +406,7 @@ Reason: ${reason}
       case "NEAR_INVALIDATION":
         emoji = "⚠️"
         message = `${emoji} TRADE APPROACHING INVALIDATION
-═══════════════════════════════════════
+══════════════���════════════════════════
 Symbol: ${symbol}
 Status: NEAR INVALIDATION WARNING
 

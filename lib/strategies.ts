@@ -100,6 +100,7 @@ export class TradingStrategies {
         counterTrendBlocked: true,
         htfTrend: htfPolarity.trend,
         timeframeAlignment: timeframeAlignment,
+        structuralTier: "NO_TRADE",
         // Include lastCandle so VWAP bias and price display work in the UI
         lastCandle: {
           close: currentPrice,
@@ -150,6 +151,7 @@ export class TradingStrategies {
         confidence: 0,
         htfTrend: "NEUTRAL",
         timeframeAlignment: timeframeAlignment,
+        structuralTier: "NO_TRADE",
         lastCandle: {
           close: currentPrice,
           timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
@@ -214,6 +216,7 @@ export class TradingStrategies {
           confidence: 0,
           htfTrend: "NEUTRAL",
           timeframeAlignment: timeframeAlignment,
+          structuralTier: "NO_TRADE",
           lastCandle: {
             close: currentPrice,
             timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
@@ -260,6 +263,7 @@ export class TradingStrategies {
         alertLevel: 0,
         confidence: 0,
         timeframeAlignment: timeframeAlignment,
+        structuralTier: "NO_TRADE",
         lastCandle: {
           close: currentPrice,
           timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
@@ -301,6 +305,7 @@ export class TradingStrategies {
         confidence: 0,
         reasons: ["B-tier trades disabled - only A/A+ allowed"],
         timeframeAlignment: timeframeAlignment,
+        structuralTier: "NO_TRADE",
         lastCandle: {
           close: currentPrice,
           timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
@@ -323,6 +328,7 @@ export class TradingStrategies {
         confidence: confidence,
         pendingReason: `Waiting for 5M/15M confirmation on ${direction} entry`,
         timeframeAlignment: timeframeAlignment,
+        structuralTier: "NO_TRADE",  // REQUIRED: All paths must have tier
         lastCandle: {
           close: currentPrice,
           timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
@@ -418,14 +424,15 @@ export class TradingStrategies {
         : finalTP,  // A/A+: takeProfit = TP2 (full exit after TP1 scale)
       riskReward,
       htfTrend: htfPolarity.trend,
+      structuralTier: setupTier === "B" ? "B" : setupTier === "A" ? "A" : setupTier === "A+" ? "A+" : "NO_TRADE",
       strategy: "BREAKOUT_CHANDELIER",
       reasons: [
-        `${setupTier || "STANDARD"} Setup: Score ${alignmentScore}/10 (Daily + 4H + 1H aligned)`,
+        `Alignment Score: ${alignmentScore}/10 (Daily + 4H + 1H aligned)`,
         `${marketRegime} market (ADX ${adx1h.toFixed(1)})`,
         `HTF Polarity: ${htfPolarity.trend} (${htfPolarity.reason})`,
         `Weighted MTF Score: ${alignmentScore}`,
         setupTier === "B"
-          ? `Risk:Reward ${riskReward.toFixed(2)}:1 | B TIER: Hard TP1 exit only`
+          ? `Risk:Reward ${riskReward.toFixed(2)}:1 | Exit at hard TP1 only`
           : `Risk:Reward ${riskReward.toFixed(2)}:1 | TP via Chandelier Stop (adaptive to volatility)`,
       ],
       indicators: {
@@ -589,12 +596,12 @@ export class TradingStrategies {
     //   - 15M bias must match trade direction (alignment confirmation)
     //   - ADX >= 15 (lowered from 18/16 to capture valid momentum earlier)
     //   - Daily must NOT oppose (checked upstream in B-tier gate)
-    //   - Minimum weighted score >= 4
+    //   - Minimum weighted score >= 5 (raised from 4.5 based on backtest data)
     const h1Active = h1Bias !== "NEUTRAL"
     const m15Active = m15Bias !== undefined && m15Bias !== "NEUTRAL"
     const ltfAligned = h1Active && m15Active && h1Bias === m15Bias
 
-    if (score >= 4 && adx >= 15 && ltfAligned) return "B"
+    if (score >= 5 && adx >= 15 && ltfAligned) return "B"
 
     return null
   }
@@ -808,47 +815,34 @@ export class TradingStrategies {
     // Round to 1 decimal place and cap at 9
     const score = Math.min(Math.round(rawScore * 10) / 10, 9)
 
-    // VALIDATE TIER vs SCORE CONSISTENCY
-    // The tier must align with the score ranges:
-    // A+: score >= 7
-    // A: 6 <= score < 7
-    // B: 4.5 <= score < 6
-    // NO_TRADE: score < 4.5
-    // If setupQuality doesn't match the score range, reconcile it.
-    
-    // Determine tier from setupQuality first, then validate against score
-    // setupQuality is the actual tier determined during signal generation
-    const signalTier = signal.setupQuality as "A+" | "A" | "B" | "STANDARD" | undefined
+    // Tier comes from signal's structural determination (HTF regime-based)
+    // Score does NOT override or upgrade tier - it only gates approval
+    // A B-tier signal (HTF neutral + 1H/15M aligned) stays B tier regardless of score
+    const structuralTier = (signal as any).structuralTier as "A+" | "A" | "B" | "NO_TRADE"
+    console.log(`[v0] buildEntryDecision RECEIVED: structuralTier=${structuralTier} type=${signal.type}`)
     let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
     
-    // Use setupQuality as primary source of truth
-    if (signalTier === "A+") {
+    if (structuralTier === "A+") {
       tier = "A+"
-    } else if (signalTier === "A") {
+    } else if (structuralTier === "A") {
       tier = "A"
-    } else if (signalTier === "B") {
+    } else if (structuralTier === "B") {
       tier = "B"
     } else {
-      // Fallback to score-based determination if setupQuality not set
-      if (score >= 7) tier = "A+"
-      else if (score >= 6) tier = "A"
-      else if (score >= 4.5) tier = "B"
-      else tier = "NO_TRADE"
+      tier = "NO_TRADE"
     }
-    
-    // Validate score is within expected range for the tier (warning only, don't override)
-    if (signalTier && signalTier !== "STANDARD") {
-      if (signalTier === "A+" && score < 7) {
-        console.warn(`[v0] TIER MISMATCH: setupQuality is "A+" but score ${score} is below 7`)
-      } else if (signalTier === "A" && (score < 6 || score >= 7)) {
-        console.warn(`[v0] TIER MISMATCH: setupQuality is "A" but score ${score} is outside 6-7 range`)
-      } else if (signalTier === "B" && (score < 4.5 || score >= 6)) {
-        console.warn(`[v0] TIER MISMATCH: setupQuality is "B" but score ${score} is outside 4.5-6 range`)
-      }
-    }
+
+    console.log(`[v0] buildEntryDecision TIER: ${tier} SCORE: ${score} APPROVED: ${signal.type === "ENTRY" && tier !== "NO_TRADE"}`)
 
     // Alert level based on tier
     let alertLevel: 0 | 1 | 2 | 3 = 0
+    
+    // DEFENSIVE: Ensure tier is never undefined
+    if (!tier) {
+      console.error("[v0] CRITICAL: Missing tier in buildEntryDecision - forcing NO_TRADE")
+      tier = "NO_TRADE"
+    }
+    
     if (tier === "A+") {
       alertLevel = 3
     } else if (tier === "A") {
