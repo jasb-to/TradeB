@@ -166,6 +166,11 @@ Exit Rule: ${tp1Instruction}
       ? "HARD TP1 ONLY - Full position closes at TP1 level"
       : "TP2 for full exit (50% at TP1, 50% at TP2)";
     
+    // B TIER: Hard TP1 only - no TP2, no runners, no scaling
+    const tp1Instruction = isBTier 
+      ? "HARD TP1 ONLY - Full position closes at TP1 level"
+      : "TP2 for full exit (50% at TP1, 50% at TP2)";
+    
     // HTF Trend context (Gold only)
     const trendContext = signal.htfTrend 
       ? `📊 HTF Trend: ${signal.htfTrend}-only regime\n   (${(signal as any).trendContext || "Polarity locked"})\n`
