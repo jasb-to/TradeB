@@ -21,7 +21,7 @@ export const runtime = "nodejs"
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const symbol = (searchParams.get("symbol") || "XAU_USD") as "XAU_USD" | "XAG_USD"
+    const symbol = (searchParams.get("symbol") || "XAU_USD") as "XAU_USD" | "GBP_JPY"
 
     const diagnosticStartTime = Date.now()
 

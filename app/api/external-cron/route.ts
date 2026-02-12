@@ -6,6 +6,7 @@ import { MarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
 import { NearMissTracker } from "@/lib/near-miss-tracker"
 import { CronHeartbeat } from "@/lib/cron-heartbeat"
+import { TRADING_SYMBOLS } from "@/lib/trading-symbols"
 
 // Dynamically import TelegramNotifier to handle potential import failures
 let TelegramNotifier: any = null
@@ -18,8 +19,6 @@ try {
 
 export const maxDuration = 60
 export const dynamic = "force-dynamic"
-
-const TRADING_SYMBOLS = ["XAU_USD", "XAG_USD"]
 
 export async function GET(request: NextRequest) {
   const requestId = Math.random().toString(36).substring(7)
@@ -329,7 +328,8 @@ export async function GET(request: NextRequest) {
     }
 
     const duration = Date.now() - startTime
-    console.log(`[v0] EXTERNAL-CRON COMPLETED: requestId=${requestId} duration=${duration}ms XAU=${results["XAU_USD"] ? "✓" : "✗"} XAG=${results["XAG_USD"] ? "✓" : "✗"}`)
+    const symbolStatus = TRADING_SYMBOLS.map((sym) => `${sym}=${results[sym] ? "✓" : "✗"}`).join(" ")
+    console.log(`[v0] EXTERNAL-CRON COMPLETED: requestId=${requestId} duration=${duration}ms ${symbolStatus}`)
 
     return NextResponse.json({
       success: true,

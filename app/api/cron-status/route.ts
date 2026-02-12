@@ -3,7 +3,7 @@ import { SignalCache } from "@/lib/signal-cache"
 
 export const dynamic = "force-dynamic"
 
-const TRADING_SYMBOLS = ["XAU_USD", "XAG_USD"]
+const TRADING_SYMBOLS = ["XAU_USD", "GBP_JPY"]
 
 export async function GET() {
   const diagnostics: Record<string, any> = {

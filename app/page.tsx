@@ -1,4 +1,6 @@
 "use client"
+// Build cache bust - force clean rebuild on Vercel - XAG PURGE COMPLETE
+const BUILD_VERSION = "2.0.2"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
@@ -16,7 +18,7 @@ import { GoldPriceDisplay } from "@/components/gold-price-display"
 export default function GoldTradingDashboard() {
   const { toast } = useToast()
   const [signalXAU, setSignalXAU] = useState<Signal | null>(null)
-  const [signalXAG, setSignalXAG] = useState<Signal | null>(null)
+  const [signalGBPJPY, setSignalGBPJPY] = useState<Signal | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdate, setLastUpdate] = useState<number | null>(null)
   const [secondsAgo, setSecondsAgo] = useState(0)
@@ -33,30 +35,30 @@ export default function GoldTradingDashboard() {
     setIsMounted(true)
   }, [])
 
-  // XAU is always the main display, XAG runs in background
+  // XAU is always the main display, GBP/JPY runs in background
   const signal = signalXAU
   const handleManualRefresh = async () => {
     setRefreshing(true)
     try {
-      const [xauResponse, xagResponse] = await Promise.all([
+      const [xauResponse, gbpjpyResponse] = await Promise.all([
         fetch("/api/signal/current?symbol=XAU_USD"),
-        fetch("/api/signal/current?symbol=XAG_USD"),
+        fetch("/api/signal/current?symbol=GBP_JPY"),
       ])
 
-      if (!xauResponse.ok || !xagResponse.ok) {
+      if (!xauResponse.ok || !gbpjpyResponse.ok) {
         throw new Error("Failed to fetch signals")
       }
 
       const xauData = await xauResponse.json()
-      const xagData = await xagResponse.json()
+      const gbpjpyData = await gbpjpyResponse.json()
 
       if (xauData.signal) {
         setSignalXAU(xauData.signal)
         setMarketClosed(xauData.marketClosed || false)
         setMarketMessage(xauData.marketStatus || null)
       }
-      if (xagData.signal) {
-        setSignalXAG(xagData.signal)
+      if (gbpjpyData.signal) {
+        setSignalGBPJPY(gbpjpyData.signal)
       }
 
       setLastUpdate(Date.now())
@@ -158,21 +160,29 @@ export default function GoldTradingDashboard() {
     }
   }
 
-  const fetchXAG = async () => {
+  const fetchGBPJPY = async () => {
     try {
-      const response = await fetch("/api/signal/current?symbol=XAG_USD")
+      const response = await fetch("/api/signal/current?symbol=GBP_JPY").catch(err => {
+        console.error("[v0] GBP/JPY fetch network error:", err.message)
+        return null
+      })
       
+      if (!response) {
+        console.warn("[v0] GBP/JPY fetch failed - retrying next cycle")
+        return
+      }
+
       if (!response.ok) {
-        throw new Error(`XAG Signal API returned ${response.status}`)
+        throw new Error(`GBP/JPY Signal API returned ${response.status}`)
       }
 
       const data = await response.json()
 
       if (data.success && data.signal) {
-        setSignalXAG(data.signal)
+        setSignalGBPJPY(data.signal)
       }
     } catch (error) {
-      console.error("[v0] XAG polling error:", error)
+      console.error("[v0] GBP/JPY polling error:", error)
     }
   }
 
@@ -211,8 +221,16 @@ export default function GoldTradingDashboard() {
     intervalRef.current = setInterval(async () => {
       try {
         // Poll XAU (main display)
-        const xauResponse = await fetch("/api/signal/current?symbol=XAU_USD")
+        const xauResponse = await fetch("/api/signal/current?symbol=XAU_USD").catch(err => {
+          console.error("[v0] XAU fetch network error:", err.message)
+          return null
+        })
         
+        if (!xauResponse) {
+          console.warn("[v0] XAU fetch failed - retrying next cycle")
+          return
+        }
+
         if (!xauResponse.ok) {
           throw new Error(`XAU Signal API returned ${xauResponse.status}`)
         }
@@ -260,8 +278,8 @@ export default function GoldTradingDashboard() {
         setLastUpdate(Date.now())
         setSecondsAgo(0)
 
-        // Poll XAG in background (every cycle)
-        fetchXAG()
+        // Poll GBP/JPY in background (every cycle)
+        fetchGBPJPY()
       } catch (error) {
         console.error("[v0] Polling error:", error)
       }
@@ -384,7 +402,7 @@ export default function GoldTradingDashboard() {
             {marketClosed 
               ? "Market closed - polling paused. Will resume when market reopens."
               : "Data refreshes automatically every 30 seconds. Strategy: Multi-TF aligned entries with strict risk gates. DO NOT trade against the higher timeframe bias."
-            } Silver runs as background system with Telegram-only alerts.
+            } GBP/JPY runs as background system with Telegram-only alerts.
           </p>
         </div>
       </div>

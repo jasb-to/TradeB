@@ -24,23 +24,15 @@
 
 #### 2. External Cron Setup (cron-job.org)
 Since Vercel Hobby accounts limit cron jobs to daily execution, using cron-job.org for external triggering:
-- [ ] **Signal Generation (XAU_USD):** Cron every 4 hours
+- [ ] **Signal Generation & Trade Scanning:** Cron every 10 minutes
   ```
   https://xptswitch.vercel.app/api/cron/signal-xau
-  Header: Authorization: Bearer [CRON_SECRET]
-  ```
-- [ ] **Signal Generation (XAG_USD):** Cron every 4 hours (offset 15 min)
-  ```
-  https://xptswitch.vercel.app/api/cron/signal-xag
-  Header: Authorization: Bearer [CRON_SECRET]
-  ```
-- [ ] **Trade Scan:** Cron every 15 minutes
-  ```
-  https://xptswitch.vercel.app/api/cron/trade-scan
+  https://xptswitch.vercel.app/api/trades/scan
   Header: Authorization: Bearer [CRON_SECRET]
   ```
 - [ ] Bearer token protection active
-- [ ] All three jobs configured in cron-job.org dashboard
+- [ ] All cron jobs configured in cron-job.org dashboard
+- [ ] 10-minute frequency ensures 6 signal evaluations per day + 144 trade scans
 
 #### 4. Live Fire Test (DO THIS BEFORE GOING LIVE)
 **Manual Signal Trigger:**
@@ -59,13 +51,13 @@ Since Vercel Hobby accounts limit cron jobs to daily execution, using cron-job.o
    - [ ] No duplicate alerts (idempotent scan)
 
 #### 5. Idempotency Test
-1. Reduce cron to 1-minute frequency for 10 minutes
-2. Monitor logs for:
+1. Monitor 10-minute cron for first week
+2. Verify logs for:
    - [ ] No duplicate exit alerts
    - [ ] No duplicate state changes
    - [ ] No scan overlaps
    - [ ] No KV lock collisions
-3. Restore to 15-minute frequency
+3. 10-minute frequency = more signal opportunities + faster exit detection
 
 #### 6. Code Cleanup (COMPLETED)
 - [x] All old backtest scripts removed

@@ -5,23 +5,43 @@ import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
 import { MarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
 import { createTrade } from "@/lib/trade-lifecycle"
+import { TRADING_SYMBOLS, isValidTradingSymbol } from "@/lib/trading-symbols"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
-let lastValidSignals: { [key: string]: any } = {
-  XAU_USD: null,
-  XAG_USD: null,
-}
-let lastValidTimestamps: { [key: string]: string | null } = {
-  XAU_USD: null,
-  XAG_USD: null,
-}
+let lastValidSignals: { [key: string]: any } = {}
+let lastValidTimestamps: { [key: string]: string | null } = {}
+
+// Initialize for all trading symbols
+TRADING_SYMBOLS.forEach((symbol) => {
+  lastValidSignals[symbol] = null
+  lastValidTimestamps[symbol] = null
+})
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const symbol = (searchParams.get("symbol") || "XAU_USD") as "XAU_USD" | "XAG_USD"
+    const symbolParam = searchParams.get("symbol")
+    
+    console.log(`[v0] SIGNAL/CURRENT GUARD: symbolParam=${symbolParam}`)
+    
+    // Guard: reject invalid symbols
+    if (!symbolParam || !isValidTradingSymbol(symbolParam)) {
+      console.error(`[GUARD] Invalid symbol requested: ${symbolParam}. Valid symbols: ${TRADING_SYMBOLS.join(", ")}`)
+      return NextResponse.json(
+        { success: false, error: "Invalid trading symbol", requestedSymbol: symbolParam, validSymbols: TRADING_SYMBOLS },
+        { status: 400 }
+      )
+    }
+    
+    const symbol = symbolParam as typeof TRADING_SYMBOLS[number]
+    console.log(`[v0] SIGNAL/CURRENT PASSED GUARD: symbol=${symbol}`)
+    
+    // Runtime failsafe: reject XAG if it somehow appears
+    if (symbol === "XAG_USD") {
+      throw new Error("[FAILSAFE] XAG_USD should not exist in production")
+    }
 
     const marketStatus = MarketHours.getMarketStatus()
 
@@ -335,7 +355,7 @@ export async function GET(request: Request) {
         console.log(`[DIAG] ALERT CHECK allowed=${alertCheck?.allowed} reason=${alertCheck?.reason} tierUpgraded=${tierUpgraded}`)
 
         if (!isMarketClosed && alertCheck && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.alertLevel >= 2) {
-          const normalizedSymbol = symbol === "XAU_USD" ? "XAU" : symbol === "XAG_USD" ? "XAG" : symbol
+          const normalizedSymbol = symbol === "XAU_USD" ? "XAU" : symbol === "GBP_JPY" ? "GBP/JPY" : symbol
           const telegramPayload = {
             symbol: normalizedSymbol,
             tier: entryDecision.tier,
