@@ -4,6 +4,7 @@ import { TradingStrategies } from "@/lib/strategies"
 import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
 import { MarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
+import { createTrade } from "@/lib/trade-lifecycle"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -269,6 +270,24 @@ export async function GET(request: Request) {
     
     // [DIAG] Entry Decision
     console.log(`[DIAG] ENTRY DECISION approved=${entryDecision.approved} tier=${entryDecision.tier} score=${entryDecision.score}`)
+    
+    // Create trade file if entry is approved
+    if (entryDecision.approved && enhancedSignal.type === "ENTRY" && enhancedSignal.direction && enhancedSignal.entryPrice) {
+      try {
+        createTrade(
+          symbol,
+          enhancedSignal.direction as "BUY" | "SELL",
+          enhancedSignal.entryPrice,
+          enhancedSignal.stopLoss || 0,
+          enhancedSignal.takeProfit1 || 0,
+          enhancedSignal.takeProfit2 || 0,
+          entryDecision.tier as "A+" | "A" | "B"
+        )
+        console.log(`[LIFECYCLE] Trade file created for ${symbol} ${enhancedSignal.direction}`)
+      } catch (tradeError) {
+        console.error("[LIFECYCLE] Error creating trade file:", tradeError)
+      }
+    }
     
     enhancedSignal.entryDecision = entryDecision
 
