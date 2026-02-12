@@ -5,7 +5,6 @@ import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
 import { MarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
 import { createTrade } from "@/lib/trade-lifecycle"
-import { checkDirectionChange } from "@/lib/direction-tracker"
 import { TelegramNotifier } from "@/lib/telegram"
 
 export const dynamic = "force-dynamic"
