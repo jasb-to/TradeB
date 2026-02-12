@@ -335,27 +335,6 @@ export async function GET(request: Request) {
         // [DIAG] Alert Check
         console.log(`[DIAG] ALERT CHECK allowed=${alertCheck?.allowed} reason=${alertCheck?.reason} tierUpgraded=${tierUpgraded}`)
 
-        // Check for direction or tier changes
-        try {
-          const directionResult = await checkDirectionChange(
-            symbol,
-            enhancedSignal.direction as "BUY" | "SELL" | "NEUTRAL",
-            entryDecision.tier as "A+" | "A" | "B" | "NO_TRADE"
-          )
-
-          if (directionResult.changed && directionResult.alert && !isMarketClosed) {
-            console.log(`[DIRECTION] Sending alert for ${symbol}: ${directionResult.alert}`)
-            const notifier = new TelegramNotifier(
-              process.env.TELEGRAM_BOT_TOKEN || "",
-              process.env.TELEGRAM_CHAT_ID || "",
-              process.env.DASHBOARD_URL || "https://tradebot.vercel.app"
-            )
-            await notifier.sendDirectionChangeAlert(symbol, directionResult.alert)
-          }
-        } catch (directionError) {
-          console.error("[DIRECTION] Error checking direction change:", directionError)
-        }
-
         if (!isMarketClosed && alertCheck && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.alertLevel >= 2) {
           const normalizedSymbol = symbol === "XAU_USD" ? "XAU" : symbol === "XAG_USD" ? "XAG" : symbol
           const telegramPayload = {
