@@ -596,12 +596,12 @@ export class TradingStrategies {
     //   - 15M bias must match trade direction (alignment confirmation)
     //   - ADX >= 15 (lowered from 18/16 to capture valid momentum earlier)
     //   - Daily must NOT oppose (checked upstream in B-tier gate)
-    //   - Minimum weighted score >= 4
+    //   - Minimum weighted score >= 5 (raised from 4.5 based on backtest data)
     const h1Active = h1Bias !== "NEUTRAL"
     const m15Active = m15Bias !== undefined && m15Bias !== "NEUTRAL"
     const ltfAligned = h1Active && m15Active && h1Bias === m15Bias
 
-    if (score >= 4 && adx >= 15 && ltfAligned) return "B"
+    if (score >= 5 && adx >= 15 && ltfAligned) return "B"
 
     return null
   }
