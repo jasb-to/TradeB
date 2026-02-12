@@ -42,8 +42,8 @@ export function EntryChecklist({ signal }: EntryChecklistProps) {
   const tierRequirements = [
     { tier: "A+", scoreRange: "7.0-9.0", requirement: "Premium: 5+ TF aligned + ADX ≥23.5", color: "text-yellow-400 bg-yellow-900/20" },
     { tier: "A", scoreRange: "6.0-6.99", requirement: "Good: 4+ TF aligned + ADX ≥21", color: "text-blue-400 bg-blue-900/20" },
-    { tier: "B", scoreRange: "4.5-5.99", requirement: "1H momentum-aligned, no HTF gates", color: "text-slate-400 bg-slate-800/20" },
-    { tier: "NO_TRADE", scoreRange: "<4.5", requirement: "Below threshold - entry not allowed", color: "text-red-400 bg-red-900/20" },
+    { tier: "B", scoreRange: "5.0-5.99", requirement: "Momentum-aligned: 1H+15M aligned + ADX ≥15", color: "text-slate-400 bg-slate-800/20" },
+    { tier: "NO_TRADE", scoreRange: "<5.0", requirement: "Below threshold - entry not allowed", color: "text-red-400 bg-red-900/20" },
   ]
   
   const currentTierReq = tierRequirements.find(t => t.tier === entryDecision.tier)
