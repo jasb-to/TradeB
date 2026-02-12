@@ -274,7 +274,7 @@ export async function GET(request: Request) {
     // Create trade file if entry is approved
     if (entryDecision.approved && enhancedSignal.type === "ENTRY" && enhancedSignal.direction && enhancedSignal.entryPrice) {
       try {
-        createTrade(
+        await createTrade(
           symbol,
           enhancedSignal.direction as "BUY" | "SELL",
           enhancedSignal.entryPrice,
@@ -283,7 +283,7 @@ export async function GET(request: Request) {
           enhancedSignal.takeProfit2 || 0,
           entryDecision.tier as "A+" | "A" | "B"
         )
-        console.log(`[LIFECYCLE] Trade file created for ${symbol} ${enhancedSignal.direction}`)
+        console.log(`[LIFECYCLE OK] Trade persisted successfully - ${symbol} ${enhancedSignal.direction} ${entryDecision.tier}`)
       } catch (tradeError) {
         console.error("[LIFECYCLE] Error creating trade file:", tradeError)
       }

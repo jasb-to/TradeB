@@ -13,6 +13,31 @@ interface MarketPrice {
   mid: number
 }
 
+async function sendTelegramAlert(message: string): Promise<void> {
+  if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHAT_ID) {
+    console.warn('[SCAN] Telegram not configured - skipping alert')
+    return
+  }
+
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: process.env.TELEGRAM_CHAT_ID,
+        text: message,
+        parse_mode: 'HTML',
+      }),
+    })
+
+    if (!response.ok) {
+      console.error('[SCAN] Telegram send failed:', await response.text())
+    }
+  } catch (error) {
+    console.error('[SCAN] Error sending Telegram alert:', error)
+  }
+}
+
 async function fetchMarketPrice(symbol: string): Promise<MarketPrice | null> {
   try {
     const fetcher = new DataFetcher(DEFAULT_TRADING_CONFIG)
@@ -111,6 +136,9 @@ export async function GET(req: Request) {
             console.log(
               `[LIFECYCLE] SL hit: ${trade.symbol} ${trade.direction} at ${mid.toFixed(2)} (SL: ${trade.stopLoss.toFixed(2)})`
             )
+            await sendTelegramAlert(
+              `🔴 <b>STOP LOSS HIT</b>\n${trade.symbol} ${trade.direction}\nExit: ${mid.toFixed(2)}\nTier: ${trade.tier}`
+            )
           } else if (trade.direction === 'SELL' && mid >= trade.stopLoss) {
             trade.slHit = true
             trade.status = 'CLOSED'
@@ -120,6 +148,9 @@ export async function GET(req: Request) {
             results.slHits++
             console.log(
               `[LIFECYCLE] SL hit: ${trade.symbol} ${trade.direction} at ${mid.toFixed(2)} (SL: ${trade.stopLoss.toFixed(2)})`
+            )
+            await sendTelegramAlert(
+              `🔴 <b>STOP LOSS HIT</b>\n${trade.symbol} ${trade.direction}\nExit: ${mid.toFixed(2)}\nTier: ${trade.tier}`
             )
           }
         }
@@ -132,7 +163,9 @@ export async function GET(req: Request) {
               `[LIFECYCLE] TP1 hit: ${trade.symbol} ${trade.direction} at ${mid.toFixed(2)} (TP1: ${trade.tp1.toFixed(2)})`
             )
             results.tpHits++
-            
+            await sendTelegramAlert(
+              `🟢 <b>TP1 HIT</b>\n${trade.symbol} ${trade.direction}\nExit: ${mid.toFixed(2)}\nSL moved to entry (${trade.entry.toFixed(2)})`
+            )
             // Move SL to entry for breakeven protection
             trade.stopLoss = trade.entry
           } else if (trade.direction === 'SELL' && mid <= trade.tp1) {
@@ -141,7 +174,9 @@ export async function GET(req: Request) {
               `[LIFECYCLE] TP1 hit: ${trade.symbol} ${trade.direction} at ${mid.toFixed(2)} (TP1: ${trade.tp1.toFixed(2)})`
             )
             results.tpHits++
-            
+            await sendTelegramAlert(
+              `🟢 <b>TP1 HIT</b>\n${trade.symbol} ${trade.direction}\nExit: ${mid.toFixed(2)}\nSL moved to entry (${trade.entry.toFixed(2)})`
+            )
             // Move SL to entry for breakeven protection
             trade.stopLoss = trade.entry
           }
@@ -158,6 +193,9 @@ export async function GET(req: Request) {
             console.log(
               `[LIFECYCLE] TP2 hit: ${trade.symbol} ${trade.direction} at ${mid.toFixed(2)} (TP2: ${trade.tp2.toFixed(2)})`
             )
+            await sendTelegramAlert(
+              `✅ <b>TP2 HIT - TRADE CLOSED</b>\n${trade.symbol} ${trade.direction}\nExit: ${mid.toFixed(2)}\nTier: ${trade.tier}`
+            )
           } else if (trade.direction === 'SELL' && mid <= trade.tp2) {
             trade.tp2Hit = true
             trade.status = 'CLOSED'
@@ -166,6 +204,9 @@ export async function GET(req: Request) {
             results.tpHits++
             console.log(
               `[LIFECYCLE] TP2 hit: ${trade.symbol} ${trade.direction} at ${mid.toFixed(2)} (TP2: ${trade.tp2.toFixed(2)})`
+            )
+            await sendTelegramAlert(
+              `✅ <b>TP2 HIT - TRADE CLOSED</b>\n${trade.symbol} ${trade.direction}\nExit: ${mid.toFixed(2)}\nTier: ${trade.tier}`
             )
           }
         }
@@ -177,6 +218,9 @@ export async function GET(req: Request) {
             trade.invalidated = true
             results.invalidations++
             console.log(`[LIFECYCLE] Structure invalidated: ${trade.symbol} ${trade.direction}`)
+            await sendTelegramAlert(
+              `⚠️ <b>STRUCTURE INVALIDATED</b>\n${trade.symbol} ${trade.direction}\nRegime change detected`
+            )
           }
         }
 

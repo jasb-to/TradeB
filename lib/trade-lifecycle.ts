@@ -85,6 +85,11 @@ export async function getOpenTrades(): Promise<TradeFile[]> {
 
 export async function updateTrade(trade: TradeFile): Promise<void> {
   await kv.set(TRADES_PREFIX + trade.id, JSON.stringify(trade))
+  
+  // If trade is closed, remove from active index
+  if (trade.status === "CLOSED") {
+    await kv.srem(TRADES_INDEX, trade.id)
+  }
 }
 
 export function isValidTradeFile(trade: TradeFile): boolean {
