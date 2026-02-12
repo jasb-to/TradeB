@@ -5,6 +5,8 @@ import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
 import { MarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
 import { createTrade } from "@/lib/trade-lifecycle"
+import { checkDirectionChange } from "@/lib/direction-tracker"
+import { sendTelegramMessage } from "@/lib/telegram"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -333,6 +335,22 @@ export async function GET(request: Request) {
 
         // [DIAG] Alert Check
         console.log(`[DIAG] ALERT CHECK allowed=${alertCheck?.allowed} reason=${alertCheck?.reason} tierUpgraded=${tierUpgraded}`)
+
+        // Check for direction or tier changes
+        try {
+          const directionResult = await checkDirectionChange(
+            symbol,
+            enhancedSignal.direction as "BUY" | "SELL" | "NEUTRAL",
+            entryDecision.tier as "A+" | "A" | "B" | "NO_TRADE"
+          )
+
+          if (directionResult.changed && directionResult.alert && !isMarketClosed) {
+            console.log(`[DIRECTION] Sending alert for ${symbol}: ${directionResult.alert}`)
+            await sendTelegramMessage(directionResult.alert)
+          }
+        } catch (directionError) {
+          console.error("[DIRECTION] Error checking direction change:", directionError)
+        }
 
         if (!isMarketClosed && alertCheck && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.alertLevel >= 2) {
           const normalizedSymbol = symbol === "XAU_USD" ? "XAU" : symbol === "XAG_USD" ? "XAG" : symbol
