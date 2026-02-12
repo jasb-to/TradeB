@@ -1,6 +1,6 @@
 "use client"
 // Build cache bust - force clean rebuild on Vercel
-const BUILD_VERSION = "1.0.4"
+const BUILD_VERSION = "1.0.5"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
@@ -162,8 +162,16 @@ export default function GoldTradingDashboard() {
 
   const fetchGBPJPY = async () => {
     try {
-      const response = await fetch("/api/signal/current?symbol=GBP_JPY")
+      const response = await fetch("/api/signal/current?symbol=GBP_JPY").catch(err => {
+        console.error("[v0] GBP/JPY fetch network error:", err.message)
+        return null
+      })
       
+      if (!response) {
+        console.warn("[v0] GBP/JPY fetch failed - retrying next cycle")
+        return
+      }
+
       if (!response.ok) {
         throw new Error(`GBP/JPY Signal API returned ${response.status}`)
       }
@@ -213,8 +221,16 @@ export default function GoldTradingDashboard() {
     intervalRef.current = setInterval(async () => {
       try {
         // Poll XAU (main display)
-        const xauResponse = await fetch("/api/signal/current?symbol=XAU_USD")
+        const xauResponse = await fetch("/api/signal/current?symbol=XAU_USD").catch(err => {
+          console.error("[v0] XAU fetch network error:", err.message)
+          return null
+        })
         
+        if (!xauResponse) {
+          console.warn("[v0] XAU fetch failed - retrying next cycle")
+          return
+        }
+
         if (!xauResponse.ok) {
           throw new Error(`XAU Signal API returned ${xauResponse.status}`)
         }
