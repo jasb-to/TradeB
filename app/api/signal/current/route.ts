@@ -6,7 +6,7 @@ import { MarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
 import { createTrade } from "@/lib/trade-lifecycle"
 import { checkDirectionChange } from "@/lib/direction-tracker"
-import { sendTelegramMessage } from "@/lib/telegram"
+import { TelegramNotifier } from "@/lib/telegram"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -346,7 +346,12 @@ export async function GET(request: Request) {
 
           if (directionResult.changed && directionResult.alert && !isMarketClosed) {
             console.log(`[DIRECTION] Sending alert for ${symbol}: ${directionResult.alert}`)
-            await sendTelegramMessage(directionResult.alert)
+            const notifier = new TelegramNotifier(
+              process.env.TELEGRAM_BOT_TOKEN || "",
+              process.env.TELEGRAM_CHAT_ID || "",
+              process.env.DASHBOARD_URL || "https://tradebot.vercel.app"
+            )
+            await notifier.sendDirectionChangeAlert(symbol, directionResult.alert)
           }
         } catch (directionError) {
           console.error("[DIRECTION] Error checking direction change:", directionError)
