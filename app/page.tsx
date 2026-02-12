@@ -1,4 +1,6 @@
 "use client"
+// Build cache bust - force clean rebuild on Vercel
+const BUILD_VERSION = "1.0.1"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
