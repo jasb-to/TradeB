@@ -329,7 +329,7 @@ export async function GET(request: NextRequest) {
     }
 
     const duration = Date.now() - startTime
-    console.log(`[v0] EXTERNAL-CRON COMPLETED: requestId=${requestId} duration=${duration}ms XAU=${results["XAU_USD"] ? "✓" : "✗"} XAG=${results["XAG_USD"] ? "✓" : "✗"}`)
+    console.log(`[v0] EXTERNAL-CRON COMPLETED: requestId=${requestId} duration=${duration}ms XAU=${results["XAU_USD"] ? "✓" : "✗"} GBP/JPY=${results["GBP_JPY"] ? "✓" : "✗"}`)
 
     return NextResponse.json({
       success: true,
