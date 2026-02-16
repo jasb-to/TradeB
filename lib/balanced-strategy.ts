@@ -40,10 +40,12 @@ export class BalancedBreakoutStrategy {
     data4h: Candle[],
     data1h: Candle[],
   ): Promise<Signal> {
+    console.log("ENGINE_ACTIVE: BALANCED")
+
     // Calculate indicators for the three timeframes we use
-    const indDaily = await this.calculateIndicators(dataDaily, "daily")
-    const ind4h = await this.calculateIndicators(data4h, "4h")
-    const ind1h = await this.calculateIndicators(data1h, "1h")
+    const indDaily = this.calculateIndicators(dataDaily, "daily")
+    const ind4h = this.calculateIndicators(data4h, "4h")
+    const ind1h = this.calculateIndicators(data1h, "1h")
 
     const currentPrice = data1h[data1h.length - 1]?.close || 0
     const adx1h = ind1h.adx || 0
@@ -229,12 +231,15 @@ export class BalancedBreakoutStrategy {
     return "NEUTRAL"
   }
 
-  private async calculateIndicators(candles: Candle[], label: string): Promise<TechnicalIndicators> {
-    if (!candles.length) return {} as TechnicalIndicators
-    return TechnicalAnalysis.calculateAll(candles, label)
+  private calculateIndicators(candles: Candle[], label: string): TechnicalIndicators {
+    if (!candles.length || candles.length < 14) return {} as TechnicalIndicators
+    return TechnicalAnalysis.calculateAllIndicators(candles)
   }
 
-  private noTradeSignal(price: number, data1h: Candle[], ind1h: TechnicalIndicators, reason: string): Signal {
+  private noTradeSignal(price: number, data1h: Candle[], ind1h: TechnicalIndicators, reason: string, blockedBy: string[] = []): Signal {
+    // Derive blockedBy from reason if not explicitly provided
+    const gates = blockedBy.length > 0 ? blockedBy : [this.reasonToGateKey(reason)]
+    console.log(`[BALANCED] NO_TRADE blockedBy=[${gates.join(",")}] reason=${reason}`)
     return {
       type: "NO_TRADE",
       direction: "NONE",
@@ -243,6 +248,7 @@ export class BalancedBreakoutStrategy {
       strategyMode: "BALANCED",
       strategy: "BALANCED_BREAKOUT",
       structuralTier: "NO_TRADE",
+      blockedBy: gates,
       lastCandle: {
         close: price,
         timestamp: data1h[data1h.length - 1]?.timestamp || Date.now(),
@@ -260,5 +266,14 @@ export class BalancedBreakoutStrategy {
         ema200: ind1h.ema200 || 0,
       },
     }
+  }
+
+  private reasonToGateKey(reason: string): string {
+    if (reason.includes("4H trend neutral")) return "4h_trend"
+    if (reason.includes("breakout")) return "1h_breakout"
+    if (reason.includes("ADX")) return "adx_filter"
+    if (reason.includes("ATR")) return "atr_filter"
+    if (reason.includes("VWAP")) return "vwap_confirmation"
+    return "unknown"
   }
 }

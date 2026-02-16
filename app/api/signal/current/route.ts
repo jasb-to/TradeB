@@ -8,10 +8,15 @@ import { SignalCache } from "@/lib/signal-cache"
 import { createTrade } from "@/lib/trade-lifecycle"
 import { TRADING_SYMBOLS, isValidTradingSymbol } from "@/lib/trading-symbols"
 
-// STRATEGY MODE: Toggle between STRICT and BALANCED
-// STRICT = original multi-TF alignment engine (conservative, fewer trades)
-// BALANCED = swing breakout engine (4H trend + 1H breakout, more trades)
-const STRATEGY_MODE: "STRICT" | "BALANCED" = "BALANCED"
+// SYMBOL-SPECIFIC STRATEGY ROUTING
+// Each symbol is permanently bound to one engine. No global toggle.
+// XAU_USD = STRICT (multi-TF alignment, conservative)
+// GBP_JPY = BALANCED (4H trend + 1H breakout, swing trades)
+function getStrategyModeForSymbol(symbol: string): "STRICT" | "BALANCED" {
+  if (symbol === "XAU_USD") return "STRICT"
+  if (symbol === "GBP_JPY") return "BALANCED"
+  throw new Error(`Unsupported symbol for strategy routing: ${symbol}`)
+}
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -202,9 +207,12 @@ export async function GET(request: Request) {
       )
     }
 
-    // Evaluate using the active strategy mode
+    // Symbol-specific strategy routing - no global mode
+    const activeMode = getStrategyModeForSymbol(symbol)
+    console.log(`[ROUTE] ACTIVE_MODE_FOR_${symbol}=${activeMode}`)
+
     let signal
-    if (STRATEGY_MODE === "BALANCED") {
+    if (activeMode === "BALANCED") {
       const balancedStrategy = new BalancedBreakoutStrategy(DEFAULT_TRADING_CONFIG)
       balancedStrategy.setDataSource("oanda")
       signal = await balancedStrategy.evaluateSignals(
@@ -212,7 +220,6 @@ export async function GET(request: Request) {
         data4h.candles,
         data1h.candles,
       )
-      console.log(`[MODE] BALANCED_BREAKOUT evaluation for ${symbol}`)
     } else {
       signal = await strategies.evaluateSignals(
         dataDaily.candles,
@@ -222,7 +229,6 @@ export async function GET(request: Request) {
         data15m.candles,
         data5m.candles,
       )
-      console.log(`[MODE] STRICT evaluation for ${symbol}`)
     }
     
     // [DIAG] Route Entry
@@ -440,7 +446,6 @@ export async function GET(request: Request) {
       {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
-        symbol,
       },
       { status: 500 },
     )

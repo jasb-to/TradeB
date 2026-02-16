@@ -116,6 +116,7 @@ export interface Signal {
   confidence: number
   advice?: string
   reasons: string[]
+  blockedBy?: string[]
   entryDecision?: EntryDecision
   tradeStateInfo?: TradeStateInfo
   timeframeAlignment?: TimeframeAlignment

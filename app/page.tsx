@@ -1,6 +1,6 @@
 "use client"
-// Build cache bust - force clean rebuild on Vercel - XAG PURGE COMPLETE - FINAL CLEANUP
-const BUILD_VERSION = "2.0.3"
+// Build cache bust - ENGINE REPAIR: Symbol-specific routing, unified backtest, crash fix
+const BUILD_VERSION = "3.0.0"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"

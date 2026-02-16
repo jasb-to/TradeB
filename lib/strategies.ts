@@ -56,6 +56,7 @@ export class TradingStrategies {
     data15m: Candle[],
     data5m: Candle[],
   ): Promise<Signal> {
+    console.log("ENGINE_ACTIVE: STRICT")
     const indicatorsDaily = await this.calculateIndicators(dataDaily, "daily")
     const indicators8h = await this.calculateIndicators(data8h, "8h")
     const indicators4h = await this.calculateIndicators(data4h, "4h")
