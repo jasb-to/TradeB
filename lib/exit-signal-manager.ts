@@ -21,10 +21,12 @@ export class ExitSignalManager {
     if (trade.direction === "LONG" && currentPrice <= trade.stopLoss) {
       return {
         type: "EXIT",
-        direction: "NONE" as any,
+        direction: "EXIT",
         alertLevel: 3,
         confidence: 100,
         timestamp: Date.now(),
+        strategy: "EXIT_SIGNAL_MANAGER" as any,
+        structuralTier: "NO_TRADE",
         reasons: [`STOP LOSS BREACHED: Price ${currentPrice.toFixed(2)} ≤ SL ${trade.stopLoss.toFixed(2)}`],
         indicators: {},
       }
@@ -33,10 +35,12 @@ export class ExitSignalManager {
     if (trade.direction === "SHORT" && currentPrice >= trade.stopLoss) {
       return {
         type: "EXIT",
-        direction: "NONE" as any,
+        direction: "EXIT",
         alertLevel: 3,
         confidence: 100,
         timestamp: Date.now(),
+        strategy: "EXIT_SIGNAL_MANAGER" as any,
+        structuralTier: "NO_TRADE",
         reasons: [`STOP LOSS BREACHED: Price ${currentPrice.toFixed(2)} ≥ SL ${trade.stopLoss.toFixed(2)}`],
         indicators: {},
       }
@@ -46,10 +50,12 @@ export class ExitSignalManager {
     if (trade.direction === "LONG" && currentPrice >= trade.takeProfit2) {
       return {
         type: "EXIT",
-        direction: "NONE" as any,
+        direction: "EXIT",
         alertLevel: 2,
         confidence: 100,
         timestamp: Date.now(),
+        strategy: "EXIT_SIGNAL_MANAGER" as any,
+        structuralTier: "NO_TRADE",
         reasons: [`TAKE PROFIT 2 REACHED: Price ${currentPrice.toFixed(2)} ≥ TP2 ${trade.takeProfit2.toFixed(2)}`],
         indicators: {},
       }
@@ -58,10 +64,12 @@ export class ExitSignalManager {
     if (trade.direction === "SHORT" && currentPrice <= trade.takeProfit2) {
       return {
         type: "EXIT",
-        direction: "NONE" as any,
+        direction: "EXIT",
         alertLevel: 2,
         confidence: 100,
         timestamp: Date.now(),
+        strategy: "EXIT_SIGNAL_MANAGER" as any,
+        structuralTier: "NO_TRADE",
         reasons: [`TAKE PROFIT 2 REACHED: Price ${currentPrice.toFixed(2)} ≤ TP2 ${trade.takeProfit2.toFixed(2)}`],
         indicators: {},
       }
@@ -71,10 +79,12 @@ export class ExitSignalManager {
     if (trade.direction === "LONG" && currentPrice >= trade.takeProfit1 && !trade.tp1Hit) {
       return {
         type: "EXIT",
-        direction: "NONE" as any,
+        direction: "EXIT",
         alertLevel: 1,
         confidence: 95,
         timestamp: Date.now(),
+        strategy: "EXIT_SIGNAL_MANAGER" as any,
+        structuralTier: "NO_TRADE",
         reasons: [`TAKE PROFIT 1 REACHED: Price ${currentPrice.toFixed(2)} ≥ TP1 ${trade.takeProfit1.toFixed(2)}`],
         indicators: {},
       }
@@ -83,10 +93,12 @@ export class ExitSignalManager {
     if (trade.direction === "SHORT" && currentPrice <= trade.takeProfit1 && !trade.tp1Hit) {
       return {
         type: "EXIT",
-        direction: "NONE" as any,
+        direction: "EXIT",
         alertLevel: 1,
         confidence: 95,
         timestamp: Date.now(),
+        strategy: "EXIT_SIGNAL_MANAGER" as any,
+        structuralTier: "NO_TRADE",
         reasons: [`TAKE PROFIT 1 REACHED: Price ${currentPrice.toFixed(2)} ≤ TP1 ${trade.takeProfit1.toFixed(2)}`],
         indicators: {},
       }
