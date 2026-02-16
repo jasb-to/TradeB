@@ -445,7 +445,7 @@ export async function GET(request: Request) {
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
-    console.error("[v0] Error in signal route:", error)
+    console.error("[v0] Error in signal route - v3.4 catch block:", error)
     return NextResponse.json(
       {
         success: false,
