@@ -45,9 +45,9 @@ export class BalancedBreakoutStrategy {
     console.log("BALANCED_VERSION: calculateAllIndicators GUARANTEED ACTIVE - NO_CALL_TO_calculateAll")
 
     // Calculate indicators for the three timeframes we use
-    const indDaily = this.calculateIndicators(dataDaily, "daily")
-    const ind4h = this.calculateIndicators(data4h, "4h")
-    const ind1h = this.calculateIndicators(data1h, "1h")
+    const indDaily = this.computeIndicators(dataDaily, "daily")
+    const ind4h = this.computeIndicators(data4h, "4h")
+    const ind1h = this.computeIndicators(data1h, "1h")
 
     const currentPrice = data1h[data1h.length - 1]?.close || 0
     const adx1h = ind1h.adx || 0
@@ -233,11 +233,11 @@ export class BalancedBreakoutStrategy {
     return "NEUTRAL"
   }
 
-  private calculateIndicators(candles: Candle[], label: string): TechnicalIndicators {
+  private computeIndicators(candles: Candle[], label: string): TechnicalIndicators {
     if (!candles.length || candles.length < 14) {
       return {} as TechnicalIndicators
     }
-    // V3.4 FINAL: calculateAllIndicators ONLY - NO calculateAll EXISTS
+    // RENAMED from calculateIndicators to FORCE recompile - using calculateAllIndicators
     return TechnicalAnalysis.calculateAllIndicators(candles)
   }
 

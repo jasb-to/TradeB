@@ -1,7 +1,7 @@
 "use client"
-// FORCE REBUILD v3.5: Manual files uploaded - NOW FORCING VERCEL TO CLEAR CACHE AND USE NEW SOURCE
-// Files already corrected: lib/balanced-strategy.ts line 241 + signal/current/route.ts line 452
-const BUILD_VERSION = "3.5.0"
+// v3.6-FORCE-DEPLOY: Method rename (calculateIndicators→computeIndicators) to force Turbopack rebuild
+// Symbol catch block scoped correctly - undefined symbol removed
+const BUILD_VERSION = "3.6.0-force-deploy"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
