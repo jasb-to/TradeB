@@ -1,6 +1,6 @@
 "use client"
-// v5.1.4: BACKTEST DIAGNOSTIC LOGGING - Added TRADING_SYMBOLS import logging to force fresh build
-const BUILD_VERSION = "5.1.4"
+// v5.1.5: Fixed JSX syntax error at line 372 - orphaned text removed, build now passes
+const BUILD_VERSION = "5.1.5"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
@@ -368,8 +368,7 @@ export default function GoldTradingDashboard() {
           <p className="text-xs text-slate-500 text-center">
             {marketClosed 
               ? "Market closed - polling paused. Will resume when market reopens."
-              : "Data refreshes automatically every 30 seconds. Strategy: Multi-TF aligned entries with strict risk gates. DO NOT trade against the higher timeframe bias."
-            Background systems: XAU_USD only. No secondary symbols.
+              : "Data refreshes automatically every 30 seconds. Strategy: Multi-TF aligned entries with strict risk gates. DO NOT trade against the higher timeframe bias."}
           </p>
         </div>
       </div>
