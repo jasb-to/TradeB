@@ -1,6 +1,6 @@
 "use client"
-// Build cache bust - v3.3: FULL RECOMPILE - calculateAllIndicators fix + import path fix + symbol scope fix
-const BUILD_VERSION = "3.3.0"
+// v3.4 FINAL DEPLOY: calculateAllIndicators fix is LIVE - catch block fixed - NO MORE OLD CODE DEPLOYED
+const BUILD_VERSION = "3.4.0"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
