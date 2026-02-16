@@ -1,4 +1,5 @@
-import { type Candle, type Signal, DEFAULT_TRADING_CONFIG } from "@/types/trading"
+import { type Candle, type Signal } from "@/types/trading"
+import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
 import { TradingStrategies } from "./strategies"
 import { BalancedBreakoutStrategy } from "./balanced-strategy"
 import { TechnicalAnalysis, type TechnicalIndicators } from "./indicators"

@@ -1,6 +1,6 @@
 "use client"
-// Build cache bust - AGGRESSIVE FORCE REBUILD: package.json version bump + BUILD_VERSION
-const BUILD_VERSION = "3.1.0"
+// Build cache bust - v3.3: FULL RECOMPILE - calculateAllIndicators fix + import path fix + symbol scope fix
+const BUILD_VERSION = "3.3.0"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"

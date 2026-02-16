@@ -41,8 +41,8 @@ export class BalancedBreakoutStrategy {
     data4h: Candle[],
     data1h: Candle[],
   ): Promise<Signal> {
-    console.log("ENGINE_ACTIVE: BALANCED")
-    console.log("BALANCED_VERSION_CHECK: calculateAllIndicators ACTIVE")
+    console.log("ENGINE_ACTIVE: BALANCED - v3.2 CLEAN BUILD")
+    console.log("BALANCED_VERSION: calculateAllIndicators GUARANTEED ACTIVE - NO_CALL_TO_calculateAll")
 
     // Calculate indicators for the three timeframes we use
     const indDaily = this.calculateIndicators(dataDaily, "daily")
@@ -234,8 +234,14 @@ export class BalancedBreakoutStrategy {
   }
 
   private calculateIndicators(candles: Candle[], label: string): TechnicalIndicators {
-    if (!candles.length || candles.length < 14) return {} as TechnicalIndicators
-    return TechnicalAnalysis.calculateAllIndicators(candles)
+    if (!candles.length || candles.length < 14) {
+      console.log(`[BALANCED] No candles for ${label}, returning empty indicators`)
+      return {} as TechnicalIndicators
+    }
+    // CRITICAL FIX v3.3: Using calculateAllIndicators, NOT calculateAll
+    const result = TechnicalAnalysis.calculateAllIndicators(candles)
+    console.log(`[BALANCED] Indicators calculated for ${label}: ADX=${result.adx}, RSI=${result.rsi}`)
+    return result
   }
 
   private noTradeSignal(price: number, data1h: Candle[], ind1h: TechnicalIndicators, reason: string, blockedBy: string[] = []): Signal {
