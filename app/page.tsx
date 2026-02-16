@@ -1,6 +1,6 @@
 "use client"
-// v4.0-MODE-PARAMETER-DEBUG: Added diagnostic logging to verify mode parameter is read correctly
-const BUILD_VERSION = "4.0.0"
+// v5.0-JP225-ADDED: Added Nikkei 225 to backtest symbols - now supporting XAU_USD, GBP_JPY, JP225
+const BUILD_VERSION = "5.0.0"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"

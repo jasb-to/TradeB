@@ -1,4 +1,4 @@
-export const TRADING_SYMBOLS = ["XAU_USD", "GBP_JPY"] as const
+export const TRADING_SYMBOLS = ["XAU_USD", "GBP_JPY", "JP225"] as const
 
 export type TradingSymbol = typeof TRADING_SYMBOLS[number]
 

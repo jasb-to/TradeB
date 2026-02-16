@@ -31,6 +31,7 @@ const STRATEGY_IMPORTS = {
 function getStrategyModeForSymbol(symbol: string): "STRICT" | "BALANCED" {
   if (symbol === "XAU_USD") return "STRICT"
   if (symbol === "GBP_JPY") return "BALANCED"
+  if (symbol === "JP225") return "BALANCED"
   throw new Error(`Unsupported symbol: ${symbol}`)
 }
 
