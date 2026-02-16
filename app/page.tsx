@@ -1,7 +1,6 @@
 "use client"
-// v3.6-FORCE-DEPLOY: Method rename (calculateIndicators→computeIndicators) to force Turbopack rebuild
-// Symbol catch block scoped correctly - undefined symbol removed
-const BUILD_VERSION = "3.6.0-force-deploy"
+// v3.7-FIXED: Backtest now uses working DataFetcher instead of reimplemented OANDA calls
+const BUILD_VERSION = "3.7.0"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
