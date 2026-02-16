@@ -1,6 +1,6 @@
 "use client"
-// v5.1.2: Dashboard updated - GBP_JPY removed, only XAU_USD polling active
-const BUILD_VERSION = "5.1.2"
+// v5.1.3: AUDIT COMPLETE - GBP_JPY fully removed, dashboard polling XAU_USD only
+const BUILD_VERSION = "5.1.3"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
@@ -247,9 +247,6 @@ export default function GoldTradingDashboard() {
         
         setLastUpdate(Date.now())
         setSecondsAgo(0)
-
-        // Poll GBP/JPY in background (every cycle)
-        fetchGBPJPY()
       } catch (error) {
         console.error("[v0] Polling error:", error)
       }
@@ -372,7 +369,7 @@ export default function GoldTradingDashboard() {
             {marketClosed 
               ? "Market closed - polling paused. Will resume when market reopens."
               : "Data refreshes automatically every 30 seconds. Strategy: Multi-TF aligned entries with strict risk gates. DO NOT trade against the higher timeframe bias."
-            } GBP/JPY runs as background system with Telegram-only alerts.
+            Background systems: XAU_USD only. No secondary symbols.
           </p>
         </div>
       </div>
