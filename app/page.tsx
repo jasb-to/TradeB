@@ -1,6 +1,6 @@
 "use client"
-// v5.1.0: GBP_JPY removed - focus on XAU_USD, JP225, US100, US500
-const BUILD_VERSION = "5.1.0"
+// v5.1.1-FORCE-CACHE-CLEAR: Trading symbols updated - XAU_USD, JP225, US100, US500 active, GBP_JPY removed
+const BUILD_VERSION = "5.1.1"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
