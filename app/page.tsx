@@ -1,6 +1,6 @@
 "use client"
-// v5.1.3: AUDIT COMPLETE - GBP_JPY fully removed, dashboard polling XAU_USD only
-const BUILD_VERSION = "5.1.3"
+// v5.1.4: BACKTEST DIAGNOSTIC LOGGING - Added TRADING_SYMBOLS import logging to force fresh build
+const BUILD_VERSION = "5.1.4"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
