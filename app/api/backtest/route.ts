@@ -54,8 +54,9 @@ export async function GET(request: Request) {
   const limitParam = searchParams.get("limit") || "500"
   const modeParam = searchParams.get("mode") || null
 
-  console.log(`[BACKTEST v4.0] Raw URL: ${request.url}`)
-  console.log(`[BACKTEST v4.0] Symbol param: ${symbol}, Mode param: ${modeParam}`)
+  console.log(`[BACKTEST v5.0-JP225] Raw URL: ${request.url}`)
+  console.log(`[BACKTEST v5.0-JP225] Symbol param: ${symbol}, Mode param: ${modeParam}`)
+  console.log(`[BACKTEST v5.0-JP225] TRADING_SYMBOLS imported: ${TRADING_SYMBOLS.join(", ")}`)
 
   if (!TRADING_SYMBOLS.includes(symbol as any)) {
     return NextResponse.json({ error: `Invalid symbol. Valid: ${TRADING_SYMBOLS.join(", ")}` }, { status: 400 })
@@ -65,17 +66,16 @@ export async function GET(request: Request) {
   let mode: "STRICT" | "BALANCED" | "REGIME_ADAPTIVE"
   if (modeParam === "BALANCED") {
     mode = "BALANCED"
-    console.log(`[BACKTEST v4.0] MODE OVERRIDE: Using BALANCED from query param`)
+    console.log(`[BACKTEST v5.0-JP225] MODE OVERRIDE: Using BALANCED from query param`)
   } else if (modeParam === "STRICT") {
     mode = "STRICT"
-    console.log(`[BACKTEST v4.0] MODE OVERRIDE: Using STRICT from query param`)
+    console.log(`[BACKTEST v5.0-JP225] MODE OVERRIDE: Using STRICT from query param`)
   } else if (modeParam === "REGIME_ADAPTIVE") {
     mode = "REGIME_ADAPTIVE"
-    console.log(`[BACKTEST v4.0] MODE OVERRIDE: Using REGIME_ADAPTIVE from query param`)
+    console.log(`[BACKTEST v5.0-JP225] MODE OVERRIDE: Using REGIME_ADAPTIVE from query param`)
   } else {
     mode = getStrategyModeForSymbol(symbol)
-    console.log(`[BACKTEST v4.0] MODE DEFAULT: Using ${mode} based on symbol`)
-  }
+    console.log(`[BACKTEST v5.0-JP225] MODE DEFAULT: Using ${mode} based on symbol`)
   }
   
   console.log(`[BACKTEST] Starting: symbol=${symbol} mode=${mode} (modeParam=${modeParam})`)

@@ -1,6 +1,6 @@
 "use client"
-// v5.0-JP225-ADDED: Added Nikkei 225 to backtest symbols - now supporting XAU_USD, GBP_JPY, JP225
-const BUILD_VERSION = "5.0.0"
+// v5.0.1-JP225-DEPLOY: FORCE VERCEL REBUILD - JP225 added to TRADING_SYMBOLS, backtest route updated
+const BUILD_VERSION = "5.0.1"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
