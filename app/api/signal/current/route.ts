@@ -13,10 +13,10 @@ import { TRADING_SYMBOLS, isValidTradingSymbol } from "@/lib/trading-symbols"
 // SYMBOL-SPECIFIC STRATEGY ROUTING
 // Each symbol is permanently bound to one engine. No global toggle.
 // XAU_USD = STRICT (multi-TF alignment, conservative)
-// GBP_JPY = BALANCED (4H trend + 1H breakout, swing trades)
+// JP225, US100, US500 = BALANCED (4H trend + 1H breakout)
 function getStrategyModeForSymbol(symbol: string): "STRICT" | "BALANCED" {
   if (symbol === "XAU_USD") return "STRICT"
-  if (symbol === "GBP_JPY") return "BALANCED"
+  if (symbol === "JP225" || symbol === "US100" || symbol === "US500") return "BALANCED"
   throw new Error(`Unsupported symbol for strategy routing: ${symbol}`)
 }
 

@@ -1,6 +1,6 @@
 "use client"
-// v5.1.5: Fixed JSX syntax error at line 372 - orphaned text removed, build now passes
-const BUILD_VERSION = "5.1.5"
+// v5.2.0: CRITICAL FIX - Removed GBP_JPY from strategy routing in signal/current and dashboard. XAU_USD/JP225/US100/US500 only.
+const BUILD_VERSION = "5.2.0"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
@@ -150,10 +150,6 @@ export default function GoldTradingDashboard() {
       setRefreshing(false)
       setLoading(false)
     }
-  }
-
-  const fetchGBPJPY = async () => {
-    // GBP_JPY removed - only XAU_USD is now supported
   }
 
   const fetchActiveTrades = async () => {
