@@ -13,6 +13,7 @@
 import { NextResponse } from "next/server"
 import { TradingStrategies } from "@/lib/strategies"
 import { BalancedBreakoutStrategy } from "@/lib/balanced-strategy"
+import { RegimeAdaptiveStrategy } from "@/lib/regime-adaptive-strategy"
 import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
 import { DataFetcher } from "@/lib/data-fetcher"
 import { TRADING_SYMBOLS } from "@/lib/trading-symbols"
@@ -57,11 +58,13 @@ export async function GET(request: Request) {
   }
 
   // Use modeParam if provided, otherwise default by symbol
-  let mode: "STRICT" | "BALANCED"
+  let mode: "STRICT" | "BALANCED" | "REGIME_ADAPTIVE"
   if (modeParam === "BALANCED") {
     mode = "BALANCED"
   } else if (modeParam === "STRICT") {
     mode = "STRICT"
+  } else if (modeParam === "REGIME_ADAPTIVE") {
+    mode = "REGIME_ADAPTIVE"
   } else {
     mode = getStrategyModeForSymbol(symbol)
   }
@@ -119,7 +122,19 @@ export async function GET(request: Request) {
           data4h.candles,
           h1Window,
         )
+      } else if (mode === "REGIME_ADAPTIVE") {
+        const strategy = new RegimeAdaptiveStrategy(DEFAULT_TRADING_CONFIG)
+        strategy.setDataSource("oanda")
+        signal = await strategy.evaluateSignals(
+          dataDaily.candles,
+          data8h.candles,
+          data4h.candles,
+          h1Window,
+          data15m.candles,
+          data5m.candles,
+        )
       } else {
+        // STRICT mode (default)
         const strategy = new TradingStrategies(DEFAULT_TRADING_CONFIG)
         strategy.setDataSource("oanda")
         signal = await strategy.evaluateSignals(

@@ -1,6 +1,6 @@
 "use client"
-// v3.8-MODE-FIX: Backtest now respects &mode=BALANCED and &mode=REGIME_ADAPTIVE query parameters
-const BUILD_VERSION = "3.8.0"
+// v3.9-COMPLETE: Mode parameter now works + REGIME_ADAPTIVE support + all three engines active
+const BUILD_VERSION = "3.9.0"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
