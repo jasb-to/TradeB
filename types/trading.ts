@@ -1,4 +1,4 @@
-the api export interface Candle {
+export interface Candle {
   timestamp: number
   open: number
   high: number
