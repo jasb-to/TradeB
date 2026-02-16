@@ -103,6 +103,8 @@ export interface Signal {
     | "SUPPORT_BOUNCE"
     | "RESISTANCE_BOUNCE"
     | "CHANDELIER_TRAILING"
+    | "BALANCED_BREAKOUT"
+  strategyMode?: "STRICT" | "BALANCED"
   direction?: "LONG" | "SHORT" | "EXIT" | "NONE" | "NEUTRAL"
   entryPrice?: number
   stopLoss?: number
@@ -114,6 +116,7 @@ export interface Signal {
   confidence: number
   advice?: string
   reasons: string[]
+  blockedBy?: string[]
   entryDecision?: EntryDecision
   tradeStateInfo?: TradeStateInfo
   timeframeAlignment?: TimeframeAlignment

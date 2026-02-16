@@ -56,6 +56,7 @@ export class TradingStrategies {
     data15m: Candle[],
     data5m: Candle[],
   ): Promise<Signal> {
+    console.log("ENGINE_ACTIVE: STRICT")
     const indicatorsDaily = await this.calculateIndicators(dataDaily, "daily")
     const indicators8h = await this.calculateIndicators(data8h, "8h")
     const indicators4h = await this.calculateIndicators(data4h, "4h")
@@ -572,12 +573,12 @@ export class TradingStrategies {
   ): "A+" | "A" | "B" | null {
     const allAligned = dailyBias === h4Bias && h4Bias === h1Bias && dailyBias !== "NEUTRAL"
 
-    // Check if this is Silver (more volatile) vs Gold
-    const isSilver = this.isSilverSymbol()
+    // Check if this is GBP/JPY (secondary symbol) vs Gold (primary)
+    const isSecondary = this.isSilverSymbol()
 
-    // ── A+ / A tiers: UNCHANGED ─────────────────────────────────────────
-    // Silver-specific thresholds (more lenient due to higher volatility)
-    if (isSilver) {
+    // ── A+ / A tiers ────────────────────────────────────────────────────
+    // GBP/JPY thresholds (slightly more lenient due to different volatility)
+    if (isSecondary) {
       if (score >= 7.5 && adx >= 21 && allAligned) return "A+"
       if (score >= 5.5 && adx >= 17 && allAligned) return "A"
     } else {
@@ -607,10 +608,11 @@ export class TradingStrategies {
   }
 
   private isSilverSymbol(): boolean {
-    // Check if we're trading Silver based on current price range or symbol
-    // Silver typically trades around $20-30, Gold around $2000+
+    // Check if we're trading the secondary symbol (GBP/JPY)
+    // GBP/JPY trades around 190-210, Gold around $2800+
+    // GBP/JPY uses slightly more lenient thresholds due to different volatility profile
     const currentPrice = this.getCurrentPrice()
-    return currentPrice < 1000 // If price < $1000, assume Silver
+    return currentPrice > 0 && currentPrice < 1000 // GBP/JPY ~190-210, Gold ~2800+
   }
 
   private getCurrentPrice(): number {

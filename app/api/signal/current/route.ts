@@ -1,11 +1,23 @@
 import { NextResponse } from "next/server"
 import { DataFetcher } from "@/lib/data-fetcher"
 import { TradingStrategies } from "@/lib/strategies"
+import { BalancedBreakoutStrategy } from "@/lib/balanced-strategy"
 import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
+// CACHE BUST v3.1: Force full rebuild - symbol scope fixed in catch block
 import { MarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
 import { createTrade } from "@/lib/trade-lifecycle"
 import { TRADING_SYMBOLS, isValidTradingSymbol } from "@/lib/trading-symbols"
+
+// SYMBOL-SPECIFIC STRATEGY ROUTING
+// Each symbol is permanently bound to one engine. No global toggle.
+// XAU_USD = STRICT (multi-TF alignment, conservative)
+// GBP_JPY = BALANCED (4H trend + 1H breakout, swing trades)
+function getStrategyModeForSymbol(symbol: string): "STRICT" | "BALANCED" {
+  if (symbol === "XAU_USD") return "STRICT"
+  if (symbol === "GBP_JPY") return "BALANCED"
+  throw new Error(`Unsupported symbol for strategy routing: ${symbol}`)
+}
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -196,14 +208,29 @@ export async function GET(request: Request) {
       )
     }
 
-    const signal = await strategies.evaluateSignals(
-      dataDaily.candles,
-      data8h.candles,
-      data4h.candles,
-      data1h.candles,
-      data15m.candles,
-      data5m.candles,
-    )
+    // Symbol-specific strategy routing - no global mode
+    const activeMode = getStrategyModeForSymbol(symbol)
+    console.log(`[ROUTE] ACTIVE_MODE_FOR_${symbol}=${activeMode}`)
+
+    let signal
+    if (activeMode === "BALANCED") {
+      const balancedStrategy = new BalancedBreakoutStrategy(DEFAULT_TRADING_CONFIG)
+      balancedStrategy.setDataSource("oanda")
+      signal = await balancedStrategy.evaluateSignals(
+        dataDaily.candles,
+        data4h.candles,
+        data1h.candles,
+      )
+    } else {
+      signal = await strategies.evaluateSignals(
+        dataDaily.candles,
+        data8h.candles,
+        data4h.candles,
+        data1h.candles,
+        data15m.candles,
+        data5m.candles,
+      )
+    }
     
     // [DIAG] Route Entry
     console.log(`[DIAG] SIGNAL ROUTE HIT - symbol=${symbol} time=${new Date().toISOString()} marketOpen=${!marketStatus.isClosed}`)
@@ -420,7 +447,6 @@ export async function GET(request: Request) {
       {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
-        symbol,
       },
       { status: 500 },
     )

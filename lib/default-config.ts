@@ -52,11 +52,11 @@ export const DEFAULT_TRADING_CONFIG: TradingConfig = {
       multiplier: 3.0,
       description: "Slow chandelier for gold - adapts to wider volatility swings",
     },
-    XAG_USD: {
-      // Silver: Faster, tighter, more defensive
+    GBP_JPY: {
+      // GBP/JPY: Fast, sharp, defensive
       period: 14,
       multiplier: 2.0,
-      description: "Fast chandelier for silver - tighter stops for quicker reactions",
+      description: "Fast chandelier for GBP/JPY - tighter stops for sharp reversals",
     },
   },
 }

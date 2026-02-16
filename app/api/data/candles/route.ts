@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { DataFetcher } from "@/lib/data-fetcher"
+import { TRADING_SYMBOLS } from "@/lib/trading-symbols"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -7,7 +8,10 @@ export const revalidate = 0
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
-    const symbol = (searchParams.get("symbol") as "XAU_USD" | "XAG_USD") || "XAU_USD" // add symbol parameter
+    const symbolParam = searchParams.get("symbol")
+    const symbol = (symbolParam && TRADING_SYMBOLS.includes(symbolParam as any) 
+      ? symbolParam 
+      : "XAU_USD") as typeof TRADING_SYMBOLS[number]
     const timeframe = (searchParams.get("timeframe") as "5m" | "15m" | "1h" | "4h") || "1h"
     const limit = Number.parseInt(searchParams.get("limit") || "100")
 
