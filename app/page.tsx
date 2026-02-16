@@ -1,6 +1,6 @@
 "use client"
-// v5.2.0: CRITICAL FIX - Removed GBP_JPY from strategy routing in signal/current and dashboard. XAU_USD/JP225/US100/US500 only.
-const BUILD_VERSION = "5.2.0"
+// v5.2.1-FORCE-DEPLOY: Aggressive cache clear - Updated trading-symbols comment, backtest logging, version bump
+const BUILD_VERSION = "5.2.1"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"

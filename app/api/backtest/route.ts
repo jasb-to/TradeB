@@ -23,11 +23,11 @@ export async function GET(request: Request) {
   const limitParam = searchParams.get("limit") || "500"
   const modeParam = searchParams.get("mode") || null
 
-  console.log(`[BACKTEST v5.1.3] DIAGNOSTIC: TRADING_SYMBOLS=${TRADING_SYMBOLS.join(", ")} | Requested symbol=${symbol}`)
+  console.log(`[BACKTEST v5.2.1-FORCE-DEPLOY] GUARD CHECK: TRADING_SYMBOLS=${TRADING_SYMBOLS.join(", ")} | Requested=${symbol}`)
 
   if (!TRADING_SYMBOLS.includes(symbol as any)) {
     const errorMsg = `Invalid symbol. Valid: ${TRADING_SYMBOLS.join(", ")}`
-    console.log(`[BACKTEST v5.1.3] GUARD ERROR: ${errorMsg}`)
+    console.log(`[BACKTEST v5.2.1-FORCE-DEPLOY] REJECTED: ${errorMsg}`)
     return NextResponse.json({ error: errorMsg }, { status: 400 })
   }
 
