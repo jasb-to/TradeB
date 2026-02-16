@@ -234,8 +234,14 @@ export class BalancedBreakoutStrategy {
   }
 
   private calculateIndicators(candles: Candle[], label: string): TechnicalIndicators {
-    if (!candles.length || candles.length < 14) return {} as TechnicalIndicators
-    return TechnicalAnalysis.calculateAllIndicators(candles)
+    if (!candles.length || candles.length < 14) {
+      console.log(`[BALANCED] No candles for ${label}, returning empty indicators`)
+      return {} as TechnicalIndicators
+    }
+    // CRITICAL FIX v3.3: Using calculateAllIndicators, NOT calculateAll
+    const result = TechnicalAnalysis.calculateAllIndicators(candles)
+    console.log(`[BALANCED] Indicators calculated for ${label}: ADX=${result.adx}, RSI=${result.rsi}`)
+    return result
   }
 
   private noTradeSignal(price: number, data1h: Candle[], ind1h: TechnicalIndicators, reason: string, blockedBy: string[] = []): Signal {
