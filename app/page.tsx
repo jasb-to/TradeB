@@ -1,6 +1,6 @@
 "use client"
-// v5.0.0 MASTER IMPLEMENTATION: Capital growth optimized - US100/US500 added, exit manager enabled, trade-status-card UI ready
-const BUILD_VERSION = "5.0.0"
+// v5.1.0: GBP_JPY removed - focus on XAU_USD, JP225, US100, US500
+const BUILD_VERSION = "5.1.0"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"

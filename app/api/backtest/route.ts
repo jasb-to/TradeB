@@ -23,7 +23,6 @@ interface BacktestTrade {
 
 function getStrategyModeForSymbol(symbol: string): "STRICT" | "BALANCED" {
   if (symbol === "XAU_USD") return "STRICT"
-  if (symbol === "GBP_JPY") return "BALANCED"
   if (symbol === "JP225") return "BALANCED"
   if (symbol === "US100") return "BALANCED"
   if (symbol === "US500") return "BALANCED"
