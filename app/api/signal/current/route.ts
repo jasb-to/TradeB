@@ -3,6 +3,7 @@ import { DataFetcher } from "@/lib/data-fetcher"
 import { TradingStrategies } from "@/lib/strategies"
 import { BalancedBreakoutStrategy } from "@/lib/balanced-strategy"
 import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
+import { CACHE_BUSTER_V3_3 } from "@/lib/cache-buster"
 // CACHE BUST v3.1: Force full rebuild - symbol scope fixed in catch block
 import { MarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
@@ -49,6 +50,8 @@ export async function GET(request: Request) {
     
     const symbol = symbolParam as typeof TRADING_SYMBOLS[number]
     console.log(`[v0] SIGNAL/CURRENT PASSED GUARD: symbol=${symbol}`)
+    console.log(`[v0] CACHE_BUSTER v3.3 ACTIVE: ${CACHE_BUSTER_V3_3}`)
+    console.log(`[v0] This proves the FIXED source code is running, not cached old bytecode`)
     
     // Runtime failsafe: reject XAG if it somehow appears
     if (symbol === "XAG_USD") {
