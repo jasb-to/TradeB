@@ -1,6 +1,6 @@
 "use client"
-// v5.0.1-JP225-DEPLOY: FORCE VERCEL REBUILD - JP225 added to TRADING_SYMBOLS, backtest route updated
-const BUILD_VERSION = "5.0.1"
+// v5.0.0 MASTER IMPLEMENTATION: Capital growth optimized - US100/US500 added, exit manager enabled, trade-status-card UI ready
+const BUILD_VERSION = "5.0.0"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
