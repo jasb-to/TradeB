@@ -1,6 +1,6 @@
 "use client"
-// Build cache bust - ENGINE FULLY REPAIRED: Backtest suite active, symbol routing fixed, crashes resolved
-const BUILD_VERSION = "3.0.1"
+// Build cache bust - AGGRESSIVE FORCE REBUILD: package.json version bump + BUILD_VERSION
+const BUILD_VERSION = "3.1.0"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
