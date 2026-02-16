@@ -7,14 +7,19 @@ import https from "https"
 
 const OANDA_KEY = process.env.OANDA_API_KEY
 const SYMBOLS = ["XAU_USD", "GBP_JPY"]
+const SERVERS = ["api-fxtrade.oanda.com", "api-fxpractice.oanda.com"]
 
-function fetchOANDA(instrument, granularity, count) {
+function fetchOANDAFromServer(hostname, instrument, granularity, count) {
   return new Promise((resolve, reject) => {
     const opts = {
-      hostname: "api-fxpractice.oanda.com",
-      path: `/v3/instruments/${instrument}/candles?granularity=${granularity}&count=${count}&price=MBA`,
+      hostname,
+      path: `/v3/instruments/${instrument}/candles?granularity=${granularity}&count=${count}&price=M`,
       method: "GET",
-      headers: { Authorization: `Bearer ${OANDA_KEY}`, "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${OANDA_KEY}`,
+        "Content-Type": "application/json",
+        "Accept-Datetime-Format": "RFC3339",
+      },
     }
     https.request(opts, (res) => {
       let d = ""
@@ -23,15 +28,29 @@ function fetchOANDA(instrument, granularity, count) {
         try {
           const r = JSON.parse(d)
           if (r.candles) resolve(r.candles)
-          else { console.error("OANDA error:", d.substring(0, 200)); resolve([]) }
+          else reject(new Error(`OANDA ${hostname}: ${d.substring(0, 200)}`))
         } catch (e) { reject(e) }
       })
     }).on("error", reject).end()
   })
 }
 
+async function fetchOANDA(instrument, granularity, count) {
+  for (const server of SERVERS) {
+    try {
+      const result = await fetchOANDAFromServer(server, instrument, granularity, count)
+      console.log(`  OK: ${server} returned ${result.length} candles for ${instrument} ${granularity}`)
+      return result
+    } catch (e) {
+      console.log(`  FAIL: ${server} - ${e.message.substring(0, 100)}`)
+    }
+  }
+  console.error(`  All servers failed for ${instrument} ${granularity}`)
+  return []
+}
+
 function parseCandles(raw) {
-  return raw.filter(c => c.complete !== false).map(c => ({
+  return raw.filter(c => c.complete !== false && c.mid).map(c => ({
     time: c.time,
     open: parseFloat(c.mid.o),
     high: parseFloat(c.mid.h),
