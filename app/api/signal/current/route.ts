@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server"
 import { DataFetcher } from "@/lib/data-fetcher"
 import { TradingStrategies } from "@/lib/strategies"
+import { BalancedBreakoutStrategy } from "@/lib/balanced-strategy"
 import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
 import { MarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
 import { createTrade } from "@/lib/trade-lifecycle"
 import { TRADING_SYMBOLS, isValidTradingSymbol } from "@/lib/trading-symbols"
+
+// STRATEGY MODE: Toggle between STRICT and BALANCED
+// STRICT = original multi-TF alignment engine (conservative, fewer trades)
+// BALANCED = swing breakout engine (4H trend + 1H breakout, more trades)
+const STRATEGY_MODE: "STRICT" | "BALANCED" = "BALANCED"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -196,14 +202,28 @@ export async function GET(request: Request) {
       )
     }
 
-    const signal = await strategies.evaluateSignals(
-      dataDaily.candles,
-      data8h.candles,
-      data4h.candles,
-      data1h.candles,
-      data15m.candles,
-      data5m.candles,
-    )
+    // Evaluate using the active strategy mode
+    let signal
+    if (STRATEGY_MODE === "BALANCED") {
+      const balancedStrategy = new BalancedBreakoutStrategy(DEFAULT_TRADING_CONFIG)
+      balancedStrategy.setDataSource("oanda")
+      signal = await balancedStrategy.evaluateSignals(
+        dataDaily.candles,
+        data4h.candles,
+        data1h.candles,
+      )
+      console.log(`[MODE] BALANCED_BREAKOUT evaluation for ${symbol}`)
+    } else {
+      signal = await strategies.evaluateSignals(
+        dataDaily.candles,
+        data8h.candles,
+        data4h.candles,
+        data1h.candles,
+        data15m.candles,
+        data5m.candles,
+      )
+      console.log(`[MODE] STRICT evaluation for ${symbol}`)
+    }
     
     // [DIAG] Route Entry
     console.log(`[DIAG] SIGNAL ROUTE HIT - symbol=${symbol} time=${new Date().toISOString()} marketOpen=${!marketStatus.isClosed}`)
