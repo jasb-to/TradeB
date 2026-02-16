@@ -1,6 +1,6 @@
 "use client"
-// v5.1.1-FORCE-CACHE-CLEAR: Trading symbols updated - XAU_USD, JP225, US100, US500 active, GBP_JPY removed
-const BUILD_VERSION = "5.1.1"
+// v5.1.2: Dashboard updated - GBP_JPY removed, only XAU_USD polling active
+const BUILD_VERSION = "5.1.2"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
@@ -18,7 +18,6 @@ import { GoldPriceDisplay } from "@/components/gold-price-display"
 export default function GoldTradingDashboard() {
   const { toast } = useToast()
   const [signalXAU, setSignalXAU] = useState<Signal | null>(null)
-  const [signalGBPJPY, setSignalGBPJPY] = useState<Signal | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdate, setLastUpdate] = useState<number | null>(null)
   const [secondsAgo, setSecondsAgo] = useState(0)
@@ -35,30 +34,23 @@ export default function GoldTradingDashboard() {
     setIsMounted(true)
   }, [])
 
-  // XAU is always the main display, GBP/JPY runs in background
+  // XAU is the main display
   const signal = signalXAU
   const handleManualRefresh = async () => {
     setRefreshing(true)
     try {
-      const [xauResponse, gbpjpyResponse] = await Promise.all([
-        fetch("/api/signal/current?symbol=XAU_USD"),
-        fetch("/api/signal/current?symbol=GBP_JPY"),
-      ])
+      const xauResponse = await fetch("/api/signal/current?symbol=XAU_USD")
 
-      if (!xauResponse.ok || !gbpjpyResponse.ok) {
+      if (!xauResponse.ok) {
         throw new Error("Failed to fetch signals")
       }
 
       const xauData = await xauResponse.json()
-      const gbpjpyData = await gbpjpyResponse.json()
 
       if (xauData.signal) {
         setSignalXAU(xauData.signal)
         setMarketClosed(xauData.marketClosed || false)
         setMarketMessage(xauData.marketStatus || null)
-      }
-      if (gbpjpyData.signal) {
-        setSignalGBPJPY(gbpjpyData.signal)
       }
 
       setLastUpdate(Date.now())
@@ -161,29 +153,7 @@ export default function GoldTradingDashboard() {
   }
 
   const fetchGBPJPY = async () => {
-    try {
-      const response = await fetch("/api/signal/current?symbol=GBP_JPY").catch(err => {
-        console.error("[v0] GBP/JPY fetch network error:", err.message)
-        return null
-      })
-      
-      if (!response) {
-        console.warn("[v0] GBP/JPY fetch failed - retrying next cycle")
-        return
-      }
-
-      if (!response.ok) {
-        throw new Error(`GBP/JPY Signal API returned ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      if (data.success && data.signal) {
-        setSignalGBPJPY(data.signal)
-      }
-    } catch (error) {
-      console.error("[v0] GBP/JPY polling error:", error)
-    }
+    // GBP_JPY removed - only XAU_USD is now supported
   }
 
   const fetchActiveTrades = async () => {
