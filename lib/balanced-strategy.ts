@@ -3,6 +3,7 @@
  * 
  * Separate evaluation path from STRICT mode.
  * Designed for 1-2 swing trades per week, 1-2 day holds.
+ * CACHE BUST v3.1: Force Turbopack recompile - all indicators now use calculateAllIndicators only
  * 
  * Timeframe Stack:
  *   Bias: Daily (weighted, NOT blocking)

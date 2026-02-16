@@ -3,6 +3,7 @@ import { DataFetcher } from "@/lib/data-fetcher"
 import { TradingStrategies } from "@/lib/strategies"
 import { BalancedBreakoutStrategy } from "@/lib/balanced-strategy"
 import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
+// CACHE BUST v3.1: Force full rebuild - symbol scope fixed in catch block
 import { MarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
 import { createTrade } from "@/lib/trade-lifecycle"
