@@ -1,6 +1,6 @@
 "use client"
-// v3.9-COMPLETE: Mode parameter now works + REGIME_ADAPTIVE support + all three engines active
-const BUILD_VERSION = "3.9.0"
+// v4.0-MODE-PARAMETER-DEBUG: Added diagnostic logging to verify mode parameter is read correctly
+const BUILD_VERSION = "4.0.0"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
