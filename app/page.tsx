@@ -1,7 +1,6 @@
 "use client"
-// FORCE REBUILD v3.5: Manual files uploaded - NOW FORCING VERCEL TO CLEAR CACHE AND USE NEW SOURCE
-// Files already corrected: lib/balanced-strategy.ts line 241 + signal/current/route.ts line 452
-const BUILD_VERSION = "3.5.0"
+// v3.9-COMPLETE: Mode parameter now works + REGIME_ADAPTIVE support + all three engines active
+const BUILD_VERSION = "3.9.0"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
