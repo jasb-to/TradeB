@@ -1,6 +1,6 @@
 "use client"
-// v3.7-FIXED: Backtest now uses working DataFetcher instead of reimplemented OANDA calls
-const BUILD_VERSION = "3.7.0"
+// v3.8-MODE-FIX: Backtest now respects &mode=BALANCED and &mode=REGIME_ADAPTIVE query parameters
+const BUILD_VERSION = "3.8.0"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"

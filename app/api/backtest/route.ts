@@ -50,13 +50,23 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const symbol = searchParams.get("symbol") || "XAU_USD"
   const limitParam = searchParams.get("limit") || "500"
+  const modeParam = searchParams.get("mode") || null
 
   if (!TRADING_SYMBOLS.includes(symbol as any)) {
     return NextResponse.json({ error: `Invalid symbol. Valid: ${TRADING_SYMBOLS.join(", ")}` }, { status: 400 })
   }
 
-  const mode = getStrategyModeForSymbol(symbol)
-  console.log(`[BACKTEST] Starting: symbol=${symbol} mode=${mode}`)
+  // Use modeParam if provided, otherwise default by symbol
+  let mode: "STRICT" | "BALANCED"
+  if (modeParam === "BALANCED") {
+    mode = "BALANCED"
+  } else if (modeParam === "STRICT") {
+    mode = "STRICT"
+  } else {
+    mode = getStrategyModeForSymbol(symbol)
+  }
+  
+  console.log(`[BACKTEST] Starting: symbol=${symbol} mode=${mode} (modeParam=${modeParam})`)
   console.log(`[BACKTEST] Strategy imports: STRICT=${STRATEGY_IMPORTS.STRICT} BALANCED=${STRATEGY_IMPORTS.BALANCED}`)
 
   // Fetch historical data from OANDA
