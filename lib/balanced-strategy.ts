@@ -42,6 +42,7 @@ export class BalancedBreakoutStrategy {
     data1h: Candle[],
   ): Promise<Signal> {
     console.log("ENGINE_ACTIVE: BALANCED")
+    console.log("BALANCED_VERSION_CHECK: calculateAllIndicators ACTIVE")
 
     // Calculate indicators for the three timeframes we use
     const indDaily = this.calculateIndicators(dataDaily, "daily")
