@@ -1,6 +1,6 @@
 "use client"
-// v5.2.1-FORCE-DEPLOY: Aggressive cache clear - Updated trading-symbols comment, backtest logging, version bump
-const BUILD_VERSION = "5.2.1"
+// v5.3.0: PROFESSIONAL BACKTEST FIX - BACKTEST mode returns ALL candles, loop changed to i++ for real walk-forward evaluation
+const BUILD_VERSION = "5.3.0"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"

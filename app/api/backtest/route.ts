@@ -44,9 +44,11 @@ export async function GET(request: Request) {
 
   try {
     const fetcher = new DataFetcher(symbol)
-    const { candles: dataDaily } = await fetcher.fetchCandles("1d", 200)
-    const { candles: data4h } = await fetcher.fetchCandles("4h", 500)
-    const { candles: data1h } = await fetcher.fetchCandles("1h", 500)
+    const { candles: dataDaily } = await fetcher.fetchCandles("1d", 200, "BACKTEST")
+    const { candles: data4h } = await fetcher.fetchCandles("4h", 500, "BACKTEST")
+    const { candles: data1h } = await fetcher.fetchCandles("1h", 500, "BACKTEST")
+
+    console.log(`[BACKTEST v5.2.1] Data loaded: Daily=${dataDaily.length}, 4H=${data4h.length}, 1H=${data1h.length}`)
 
     if (!dataDaily.length || !data4h.length || !data1h.length) {
       return NextResponse.json({
@@ -72,7 +74,9 @@ export async function GET(request: Request) {
     let totalNetR = 0
     const tierMetrics: Record<string, any> = { "A+": { trades: 0, wins: 0 }, A: { trades: 0, wins: 0 }, B: { trades: 0, wins: 0 } }
 
-    for (let i = 100; i < data1h.length; i += 50) {
+    // PROFESSIONAL BACKTEST: Evaluate every candle (walk-forward analysis)
+    // NOT regime snapshots (i += 50). This gives real performance statistics.
+    for (let i = 100; i < data1h.length; i++) {
       const h1Window = data1h.slice(Math.max(0, i - 200), i + 1)
       const h4Window = data4h.filter(c => {
         const t = new Date(c.time).getTime()

@@ -68,7 +68,7 @@ export class DataFetcher {
    * - Only true 401/403 responses trigger server-swap; all others propagate with their real class.
    * - Transient errors (network, 429, 5xx) are retried up to OANDA_MAX_RETRIES before giving up.
    */
-  private async fetchFromOanda(timeframe: "5m" | "15m" | "1h" | "4h" | "8h" | "1d", limit: number): Promise<Candle[]> {
+  private async fetchFromOanda(timeframe: "5m" | "15m" | "1h" | "4h" | "8h" | "1d", limit: number, mode: 'LIVE' | 'BACKTEST' = 'LIVE'): Promise<Candle[]> {
     const apiKey = process.env.OANDA_API_KEY
     if (!apiKey) {
       throw new OandaFetchError("OANDA_API_KEY not configured", "AUTH_FAILURE")
@@ -189,7 +189,7 @@ export class DataFetcher {
     }
 
     const data = await response.json()
-    return this.parseOandaCandles(data)
+    return this.parseOandaCandles(data, mode)
   }
 
   /** Visible source tag for all fetched data */
@@ -198,13 +198,18 @@ export class DataFetcher {
   }
   private _lastFetchSource: DataSource = "synthetic"
 
-  private parseOandaCandles(data: any): Candle[] {
+  private parseOandaCandles(data: any, mode: 'LIVE' | 'BACKTEST' = 'LIVE'): Candle[] {
     if (!data.candles || data.candles.length === 0) {
       throw new Error("No candles returned from OANDA")
     }
 
-    const candles: Candle[] = data.candles
-      .filter((c: any) => c.complete || data.candles.indexOf(c) === data.candles.length - 1)
+    // BACKTEST MODE: Return ALL candles (including current/incomplete)
+    // LIVE MODE: Return only completed candles for signal integrity
+    const filteredCandles = mode === 'BACKTEST' 
+      ? data.candles 
+      : data.candles.filter((c: any) => c.complete || data.candles.indexOf(c) === data.candles.length - 1)
+
+    const candles: Candle[] = filteredCandles
       .map((c: any) => ({
         timestamp: new Date(c.time).getTime(),
         open: Number.parseFloat(c.mid.o),
@@ -214,7 +219,7 @@ export class DataFetcher {
         volume: c.volume || 0,
       }))
 
-    console.log(`[v0] Loaded ${candles.length} candles from OANDA (${detectedOandaServer})`)
+    console.log(`[v0] Loaded ${candles.length} candles from OANDA (${detectedOandaServer}) [${mode} mode]`)
     return candles
   }
 
@@ -228,6 +233,7 @@ export class DataFetcher {
   async fetchCandles(
     timeframe: "5m" | "15m" | "1h" | "4h" | "8h" | "1d",
     limit = 100,
+    mode: 'LIVE' | 'BACKTEST' = 'LIVE',
   ): Promise<{ candles: Candle[]; source: DataSource }> {
     const cacheKey = `${this.symbol}-${timeframe}-${limit}`
 
@@ -241,7 +247,7 @@ export class DataFetcher {
     // ── OANDA path ──────────────────────────────────────────────────────
     if (this.hasOandaCredentials()) {
       try {
-        const candles = await this.fetchFromOanda(timeframe, limit)
+        const candles = await this.fetchFromOanda(timeframe, limit, mode)
 
         if (candles.length > 0) {
           moduleState.oandaCache.data.set(cacheKey, { candles, timestamp: Date.now() })
