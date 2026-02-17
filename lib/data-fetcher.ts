@@ -82,7 +82,7 @@ export class DataFetcher {
     const primaryServer = detectedOandaServer
 
     try {
-      return await this.tryOandaFetchWithRetry(primaryServer, instrument, granularity, count, apiKey)
+      return await this.tryOandaFetchWithRetry(primaryServer, instrument, granularity, count, apiKey, mode)
     } catch (error) {
       // Only swap servers on confirmed AUTH_FAILURE
       if (error instanceof OandaFetchError && error.errorClass === "AUTH_FAILURE") {
@@ -90,7 +90,7 @@ export class DataFetcher {
         console.log(`[v0] OANDA auth failed on ${primaryServer}, trying ${otherServer} server...`)
 
         try {
-          const candles = await this.tryOandaFetchWithRetry(otherServer, instrument, granularity, count, apiKey)
+          const candles = await this.tryOandaFetchWithRetry(otherServer, instrument, granularity, count, apiKey, mode)
           // Only update after confirmed success
           detectedOandaServer = otherServer
           console.log(`[v0] OANDA ${otherServer} server confirmed working`)
@@ -117,11 +117,12 @@ export class DataFetcher {
     granularity: string,
     count: number,
     apiKey: string,
+    mode: 'LIVE' | 'BACKTEST' = 'LIVE',
   ): Promise<Candle[]> {
     let lastError: Error | null = null
     for (let attempt = 0; attempt <= OANDA_MAX_RETRIES; attempt++) {
       try {
-        return await this.tryOandaFetch(server, instrument, granularity, count, apiKey)
+        return await this.tryOandaFetch(server, instrument, granularity, count, apiKey, mode)
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error))
         const errorClass = error instanceof OandaFetchError ? error.errorClass : "UNKNOWN"
@@ -148,6 +149,7 @@ export class DataFetcher {
     granularity: string,
     count: number,
     apiKey: string,
+    mode: 'LIVE' | 'BACKTEST' = 'LIVE',
   ): Promise<Candle[]> {
     const baseUrl = this.getOandaBaseUrl(server)
     const url = `${baseUrl}/v3/instruments/${instrument}/candles?granularity=${granularity}&count=${count}&price=M`
