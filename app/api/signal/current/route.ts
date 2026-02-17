@@ -68,14 +68,14 @@ export async function GET(request: Request) {
     let dataDaily, data8h, data4h, data1h, data15m, data5m
 
     try {
-      dataDaily = await dataFetcher.fetchCandles("1d", 100)
-      data8h = await dataFetcher.fetchCandles("8h", 200)
-      data4h = await dataFetcher.fetchCandles("4h", 200)
-      data1h = await dataFetcher.fetchCandles("1h", 200)
+      dataDaily = await dataFetcher.fetchCandles("1d", 100, "LIVE")
+      data8h = await dataFetcher.fetchCandles("8h", 200, "LIVE")
+      data4h = await dataFetcher.fetchCandles("4h", 200, "LIVE")
+      data1h = await dataFetcher.fetchCandles("1h", 200, "LIVE")
 
       const [result15m, result5m] = await Promise.allSettled([
-        dataFetcher.fetchCandles("15m", 200),
-        dataFetcher.fetchCandles("5m", 200),
+        dataFetcher.fetchCandles("15m", 200, "LIVE"),
+        dataFetcher.fetchCandles("5m", 200, "LIVE"),
       ])
 
       data15m = result15m.status === "fulfilled" ? result15m.value : { candles: [], source: "oanda" as const }

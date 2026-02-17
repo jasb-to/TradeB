@@ -1,6 +1,6 @@
 "use client"
-// v5.4.1-CACHE-BUST: Force Vercel rebuild of backtest route with corrected evaluation logic
-const BUILD_VERSION = "5.4.1"
+// v5.4.2: CRITICAL BUG FIX - Added LIVE mode parameter to signal/current fetchCandles calls (was causing ReferenceError: mode is not defined)
+const BUILD_VERSION = "5.4.2"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
