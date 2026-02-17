@@ -48,7 +48,7 @@ export async function GET(request: Request) {
     const { candles: data4h } = await fetcher.fetchCandles("4h", 500, "BACKTEST")
     const { candles: data1h } = await fetcher.fetchCandles("1h", 500, "BACKTEST")
 
-    console.log(`[BACKTEST v5.2.1] Data loaded: Daily=${dataDaily.length}, 4H=${data4h.length}, 1H=${data1h.length}`)
+    console.log(`[BACKTEST v5.3.0] Data loaded: Daily=${dataDaily.length}, 4H=${data4h.length}, 1H=${data1h.length} | Starting loop at i=100, max iterations=${Math.max(0, data1h.length - 100)}`)
 
     if (!dataDaily.length || !data4h.length || !data1h.length) {
       return NextResponse.json({

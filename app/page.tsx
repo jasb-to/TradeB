@@ -1,6 +1,6 @@
 "use client"
-// v5.3.0: PROFESSIONAL BACKTEST FIX - BACKTEST mode returns ALL candles, loop changed to i++ for real walk-forward evaluation
-const BUILD_VERSION = "5.3.0"
+// v5.3.1: Updated backtest logging to v5.3.0 - shows actual data available from OANDA
+const BUILD_VERSION = "5.3.1"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
