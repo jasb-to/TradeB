@@ -11,6 +11,9 @@ import { TRADING_SYMBOLS } from "@/lib/trading-symbols"
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
 
+// Runtime cache buster - forces fresh evaluation on every request
+const CACHE_BUSTER_RUNTIME = `[v0] BACKTEST CACHE_BUSTER ACTIVE: ${Date.now()}`
+
 function getStrategyModeForSymbol(symbol: string): "STRICT" | "BALANCED" {
   if (symbol === "XAU_USD") return "STRICT"
   if (symbol === "JP225") return "BALANCED"
@@ -25,11 +28,12 @@ export async function GET(request: Request) {
   const limitParam = searchParams.get("limit") || "500"
   const modeParam = searchParams.get("mode") || null
 
-  console.log(`[BACKTEST v5.2.1-FORCE-DEPLOY] GUARD CHECK: TRADING_SYMBOLS=${TRADING_SYMBOLS.join(", ")} | Requested=${symbol}`)
+  console.log(`[BACKTEST v5.4.6-LIVE] CACHE_BUSTER=${CACHE_BUSTER_RUNTIME} | GUARD CHECK: symbol=${symbol} mode=${modeParam}`)
+  console.log(`[BACKTEST v5.4.6-LIVE] TRADING_SYMBOLS=${TRADING_SYMBOLS.join(", ")} | Requested=${symbol}`)
 
   if (!TRADING_SYMBOLS.includes(symbol as any)) {
     const errorMsg = `Invalid symbol. Valid: ${TRADING_SYMBOLS.join(", ")}`
-    console.log(`[BACKTEST v5.2.1-FORCE-DEPLOY] REJECTED: ${errorMsg}`)
+    console.log(`[BACKTEST v5.4.6-LIVE] REJECTED: ${errorMsg}`)
     return NextResponse.json({ error: errorMsg }, { status: 400 })
   }
 
@@ -50,7 +54,7 @@ export async function GET(request: Request) {
     const { candles: data4h } = await fetcher.fetchCandles("4h", 500, "BACKTEST")
     const { candles: data1h } = await fetcher.fetchCandles("1h", 500, "BACKTEST")
 
-    console.log(`[BACKTEST v5.3.0] Data loaded: Daily=${dataDaily.length}, 4H=${data4h.length}, 1H=${data1h.length} | Starting loop at i=100, max iterations=${Math.max(0, data1h.length - 100)}`)
+    console.log(`[BACKTEST v5.4.6-LIVE] Data loaded: Daily=${dataDaily.length}, 4H=${data4h.length}, 1H=${data1h.length} | WARMUP=50, evaluations will be ${Math.max(0, data1h.length - 50)}`)
 
     if (!dataDaily.length || !data4h.length || !data1h.length) {
       return NextResponse.json({
