@@ -1,6 +1,6 @@
 "use client"
-// v5.3.1: Updated backtest logging to v5.3.0 - shows actual data available from OANDA
-const BUILD_VERSION = "5.3.1"
+// v5.4.1-CACHE-BUST: Force Vercel rebuild of backtest route with corrected evaluation logic
+const BUILD_VERSION = "5.4.1"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
