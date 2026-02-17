@@ -1,6 +1,6 @@
 "use client"
-// v5.4.4-CACHE-CLEAR: Force Vercel rebuild with v5.4.3 fixes - mode parameter chain complete, backtest evaluation fixed
-const BUILD_VERSION = "5.4.4"
+// v5.4.6-BACKTEST-CACHE-BUST: Added unique timestamp to backtest route with v5.4.5 marker - Forces complete Vercel rebuild
+const BUILD_VERSION = "5.4.6"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"

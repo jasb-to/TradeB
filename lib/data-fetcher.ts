@@ -1,6 +1,7 @@
 import type { Candle, DataSource } from "@/types/trading"
 
-// ── Error classification for OANDA API responses ──────────────────────────
+// v5.4.5-FORCE-VERCEL-REBUILD: 2026-02-17T20:50:00Z - Complete mode parameter chain fix verified
+// Error classification for OANDA API responses
 type OandaErrorClass = "AUTH_FAILURE" | "RATE_LIMIT" | "NETWORK" | "SERVER_ERROR" | "DATA_ERROR" | "UNKNOWN"
 
 function classifyOandaError(status: number, message: string): OandaErrorClass {

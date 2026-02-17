@@ -5,7 +5,8 @@ import * as balancedStrategy from "@/lib/balanced-strategy"
 import * as regimeStrategy from "@/lib/regime-adaptive-strategy"
 import { TRADING_SYMBOLS } from "@/lib/trading-symbols"
 
-// v5.4.3-FORCE-REBUILD: Complete mode parameter chain fix - This ensures Vercel clears cache and rebuilds with correct evaluation logic
+// v5.4.5-FORCE-REBUILD-BACKTEST: 2026-02-17T20:55:00Z - Complete cache invalidation
+// This unique marker ensures Vercel rebuilds the backtest endpoint fresh
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
