@@ -71,15 +71,15 @@ export class BalancedBreakoutStrategy {
         `Awaiting 1H breakout in ${trend4h} direction (4H EMA20 ${trend4h === "LONG" ? ">" : "<"} EMA50)`)
     }
 
-    // ── STEP 3: ADX FILTER (1H >= 20) ──────────────────────────────
-    if (adx1h < 20) {
+    // ── STEP 3: ADX FILTER (1H >= 15 relaxed from 20) ──────────────────────────────
+    if (adx1h < 15) {
       return this.noTradeSignal(currentPrice, data1h, ind1h, 
-        `ADX too low: ${adx1h.toFixed(1)} < 20 (breakout detected but no momentum)`)
+        `ADX too low: ${adx1h.toFixed(1)} < 15 (breakout detected but no momentum)`)
     }
 
     // ── STEP 4: ATR FILTER ─────────────────────────────────────────
-    // Use existing ATR threshold - must show adequate volatility
-    const atrThreshold = currentPrice > 1000 ? 5.0 : 0.15 // Gold vs GBP/JPY
+    // Relaxed thresholds: Gold 3.0 (from 5.0), others 0.10 (from 0.15)
+    const atrThreshold = currentPrice > 1000 ? 3.0 : 0.10
     if (atr1h < atrThreshold) {
       return this.noTradeSignal(currentPrice, data1h, ind1h, 
         `ATR too low: ${atr1h.toFixed(2)} < ${atrThreshold} (insufficient volatility)`)

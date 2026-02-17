@@ -1,6 +1,6 @@
 "use client"
-// v5.5.1-BACKTEST-V2-LIVE: Renamed route from /api/backtest to /api/backtest-v2 - forces fresh lambda function, bypasses Vercel cache completely
-const BUILD_VERSION = "5.5.1"
+// v5.5.2-XAU-FOCUS: System cleanup - removed US100/JP225/US500, relaxed BALANCED/REGIME_ADAPTIVE thresholds for more trades, STRICT remains conservative
+const BUILD_VERSION = "5.5.2"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"

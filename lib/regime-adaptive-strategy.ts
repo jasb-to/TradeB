@@ -55,8 +55,8 @@ export class RegimeAdaptiveStrategy {
     const adxDaily = indDaily.adx || 0
     const adx4h = ind4h.adx || 0
 
-    // Require ADX >= 25 on BOTH daily and 4H for trend confirmation
-    const isTrending = adxDaily >= 25 && adx4h >= 25
+    // Require ADX >= 20 on BOTH daily and 4H for trend confirmation (relaxed from 25)
+    const isTrending = adxDaily >= 20 && adx4h >= 20
 
     if (!isTrending) return "SIDEWAYS"
 
@@ -64,11 +64,11 @@ export class RegimeAdaptiveStrategy {
     const dailySlope = this.calculateEMASlope(dataDaily, indDaily)
     const h4Slope = this.calculateEMASlope(data4h, ind4h)
 
-    // Strong bullish if both timeframes show positive slope
-    if (dailySlope > 0.5 && h4Slope > 0.5) return "BULLISH_TREND"
+    // Strong bullish if both timeframes show positive slope (relaxed from 0.5 to 0.3)
+    if (dailySlope > 0.3 && h4Slope > 0.3) return "BULLISH_TREND"
 
-    // Strong bearish if both timeframes show negative slope
-    if (dailySlope < -0.5 && h4Slope < -0.5) return "BEARISH_TREND"
+    // Strong bearish if both timeframes show negative slope (relaxed from -0.5 to -0.3)
+    if (dailySlope < -0.3 && h4Slope < -0.3) return "BEARISH_TREND"
 
     // Mixed signals → sideways
     return "SIDEWAYS"
