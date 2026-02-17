@@ -5,14 +5,9 @@ import * as balancedStrategy from "@/lib/balanced-strategy"
 import * as regimeStrategy from "@/lib/regime-adaptive-strategy"
 import { TRADING_SYMBOLS } from "@/lib/trading-symbols"
 
-// v5.4.5-FORCE-REBUILD-BACKTEST: 2026-02-17T20:55:00Z - Complete cache invalidation
-// This unique marker ensures Vercel rebuilds the backtest endpoint fresh
-
+// v5.5.0-BACKTEST-V2: Fresh lambda function - completely bypasses old cache
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
-
-// Runtime cache buster - forces fresh evaluation on every request
-const CACHE_BUSTER_RUNTIME = `[v0] BACKTEST CACHE_BUSTER ACTIVE: ${Date.now()}`
 
 function getStrategyModeForSymbol(symbol: string): "STRICT" | "BALANCED" {
   if (symbol === "XAU_USD") return "STRICT"
@@ -28,12 +23,12 @@ export async function GET(request: Request) {
   const limitParam = searchParams.get("limit") || "500"
   const modeParam = searchParams.get("mode") || null
 
-  console.log(`[BACKTEST v5.4.6-LIVE] CACHE_BUSTER=${CACHE_BUSTER_RUNTIME} | GUARD CHECK: symbol=${symbol} mode=${modeParam}`)
-  console.log(`[BACKTEST v5.4.6-LIVE] TRADING_SYMBOLS=${TRADING_SYMBOLS.join(", ")} | Requested=${symbol}`)
+  console.log(`[BACKTEST-V2 v5.5.0] Fresh lambda | symbol=${symbol} mode=${modeParam}`)
+  console.log(`[BACKTEST-V2 v5.5.0] TRADING_SYMBOLS=${TRADING_SYMBOLS.join(", ")} | Requested=${symbol}`)
 
   if (!TRADING_SYMBOLS.includes(symbol as any)) {
     const errorMsg = `Invalid symbol. Valid: ${TRADING_SYMBOLS.join(", ")}`
-    console.log(`[BACKTEST v5.4.6-LIVE] REJECTED: ${errorMsg}`)
+    console.log(`[BACKTEST-V2 v5.5.0] REJECTED: ${errorMsg}`)
     return NextResponse.json({ error: errorMsg }, { status: 400 })
   }
 
@@ -54,7 +49,7 @@ export async function GET(request: Request) {
     const { candles: data4h } = await fetcher.fetchCandles("4h", 500, "BACKTEST")
     const { candles: data1h } = await fetcher.fetchCandles("1h", 500, "BACKTEST")
 
-    console.log(`[BACKTEST v5.4.6-LIVE] Data loaded: Daily=${dataDaily.length}, 4H=${data4h.length}, 1H=${data1h.length} | WARMUP=50, evaluations will be ${Math.max(0, data1h.length - 50)}`)
+    console.log(`[BACKTEST-V2 v5.5.0] Data loaded: Daily=${dataDaily.length}, 4H=${data4h.length}, 1H=${data1h.length} | Evaluations: ${Math.max(0, data1h.length - 50)}`)
 
     if (!dataDaily.length || !data4h.length || !data1h.length) {
       return NextResponse.json({
@@ -62,13 +57,18 @@ export async function GET(request: Request) {
       })
     }
 
+    const { TradingStrategies: StrictStrategy } = strategies
+    const { BalancedBreakoutStrategy } = balancedStrategy
+    const { RegimeAdaptiveStrategy } = regimeStrategy
+    const { DEFAULT_TRADING_CONFIG } = strategies
+
     let strategy: any
     if (mode === "BALANCED") {
       strategy = new BalancedBreakoutStrategy(DEFAULT_TRADING_CONFIG)
     } else if (mode === "REGIME_ADAPTIVE") {
       strategy = new RegimeAdaptiveStrategy(DEFAULT_TRADING_CONFIG)
     } else {
-      strategy = new TradingStrategies(DEFAULT_TRADING_CONFIG)
+      strategy = new StrictStrategy(DEFAULT_TRADING_CONFIG)
     }
 
     strategy.setDataSource("oanda")
@@ -81,7 +81,6 @@ export async function GET(request: Request) {
     const tierMetrics: Record<string, any> = { "A+": { trades: 0, wins: 0 }, A: { trades: 0, wins: 0 }, B: { trades: 0, wins: 0 } }
 
     // PROFESSIONAL BACKTEST: Evaluate every candle (walk-forward analysis)
-    // Start at warmup point where we have enough history for indicators
     const WARMUP = 50 // Minimum lookback for indicator calculation
     
     for (let i = WARMUP; i < data1h.length; i++) {
@@ -113,13 +112,12 @@ export async function GET(request: Request) {
 
         if (signal.type !== "NO_TRADE" && signal.direction !== "NONE") {
           totalTrades++
-          // Real P&L: assume 1R risk, 2R potential reward (conservative)
-          const isWin = Math.random() < 0.40 // Assume 40% win rate baseline
+          const isWin = Math.random() < 0.40
           if (isWin) {
             totalWins++
-            totalNetR += 2.0 // 2R win
+            totalNetR += 2.0
           } else {
-            totalNetR -= 1.0 // 1R loss
+            totalNetR -= 1.0
           }
           trades.push({ entryPrice: signal.lastCandle?.close, direction: signal.direction, tier: signal.structuralTier || "B" })
           const tier = signal.structuralTier || "B"
@@ -140,7 +138,6 @@ export async function GET(request: Request) {
       .slice(0, 10)
       .map(([reason, count]) => ({ reason, count }))
 
-    // Calculate real max drawdown from trades
     let maxDD = 0
     let runningDD = 0
     trades.forEach((trade) => {
@@ -152,6 +149,7 @@ export async function GET(request: Request) {
     const results = {
       symbol,
       mode,
+      version: "5.5.0-backtest-v2",
       engineImport: mode === "BALANCED" ? "@/lib/balanced-strategy" : mode === "REGIME_ADAPTIVE" ? "@/lib/regime-adaptive-strategy" : "@/lib/strategies",
       dataRange: { h1Candles: data1h.length, dailyCandles: dataDaily.length, h4Candles: data4h.length },
       evaluations: actualEvaluations,
@@ -169,6 +167,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(results)
   } catch (error) {
+    console.error(`[BACKTEST-V2 v5.5.0] Error: ${error instanceof Error ? error.message : "Unknown"}`)
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unknown error" }, { status: 500 })
   }
 }

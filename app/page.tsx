@@ -1,6 +1,6 @@
 "use client"
-// v5.5.0-BACKTEST-REBUILD: Complete backtest route rewrite with v5.4.6 markers - forces Vercel to discard all old bytecode
-const BUILD_VERSION = "5.5.0"
+// v5.5.1-BACKTEST-V2-LIVE: Renamed route from /api/backtest to /api/backtest-v2 - forces fresh lambda function, bypasses Vercel cache completely
+const BUILD_VERSION = "5.5.1"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
