@@ -9,10 +9,8 @@ import { createTrade } from "@/lib/trade-lifecycle"
 import { InMemoryTrades } from "@/lib/in-memory-trades"
 
 // SYSTEM VERSION - Visible on homepage and all API responses
-// v9.1.0-TRADE-PERSISTENCE: Signal flickering permanently fixed with in-memory trade persistence
-// Active trades override fresh evaluation to maintain display until TP/SL hit
-// Fallback persistence when Vercel KV not configured: InMemoryTrades system
-export const SYSTEM_VERSION = "9.1.0-TRADE-PERSISTENCE"
+// v9.1.1-BUILD-FIX: Corrected import path to @/lib/default-config (was @/lib/constants)
+export const SYSTEM_VERSION = "9.1.1-BUILD-FIX"
 
 // HARDCODED: Only XAU_USD - never import TRADING_SYMBOLS which gets cached by Vercel
 const TRADING_SYMBOLS = ["XAU_USD"] as const

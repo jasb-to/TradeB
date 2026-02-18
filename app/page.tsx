@@ -1,13 +1,10 @@
 "use client"
-// v9.1.0-TRADE-PERSISTENCE: Signal flickering PERMANENTLY FIXED
-// ROOT CAUSE: Trades created but lost due to missing Vercel KV environment variables
-// SOLUTION: Implemented in-memory fallback persistence (lib/in-memory-trades.ts)
-// BEHAVIOR: Once ENTRY signal approved, trade persists until TP/SL hit (no more flickering)
-// MECHANISM: Active trade check overrides fresh evaluation to maintain display consistency
-// MONITORING: /api/monitor-active-trades endpoint checks TP/SL hits every minute
-// All 7 architectural issues from v9.0.0 remain fixed + trade persistence now working
-export const SYSTEM_VERSION = "9.1.0-TRADE-PERSISTENCE"
-const TRADE_PERSISTENCE_ACTIVE = "in-memory-fallback-2026-02-18T21:40:00Z"
+// v9.1.1-BUILD-FIX: Import path corrected from @/lib/constants → @/lib/default-config
+// Previous version had correct code but Vercel build cache was stale
+// This version forces complete rebuild to clear import resolution errors
+// Trade persistence (v9.1.0) + All architectural fixes (v9.0.0) remain active
+export const SYSTEM_VERSION = "9.1.1-BUILD-FIX"
+const FORCE_REBUILD = "import-path-fix-2026-02-18T22:50:00Z"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
