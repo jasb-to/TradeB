@@ -1,7 +1,7 @@
 "use client"
-// v6.0.6-GATE1-FIX: Fixed hard gate 1 EMA threshold calculation bug. Was computing percentage threshold as ema50*0.0005, causing wrong comparisons. Now uses fixed 1-pip minimum separation + ADX≥12. Unique rebuild: 2026-feb18-v606-gate-fix. MUST COMMIT TO GIT TO DEPLOY.
-export const SYSTEM_VERSION = "6.0.6-GATE1-FIX"
-const BUILD_VERSION = "6.0.6"
+// v6.0.7-ADX10-LIVE: Further relaxed ADX threshold from 12 to 10 for weaker market conditions. Current ADX=11.2 should now pass gate 1. EMA gap=17.35 pips > 1 pip required passes. Gate 2 checks 1H breakout at 70% level. This should now generate ENTRY signals.
+export const SYSTEM_VERSION = "6.0.7-ADX10-LIVE"
+const BUILD_VERSION = "6.0.7"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"

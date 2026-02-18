@@ -26,21 +26,21 @@ export class StrictStrategyV7 {
     }
 
     // HARD GATE 1: 4H Trend Exists - Relaxed for real market conditions
-    // Require: EMA20 distinct from EMA50 (ANY separation ≥1 pip) AND ADX ≥ 12
+    // Require: EMA20 distinct from EMA50 (ANY separation ≥1 pip) AND ADX ≥ 10 (very permissive)
     const ema20_4h = this.calculateEMA(data4hCandles, 20)
     const ema50_4h = this.calculateEMA(data4hCandles, 50)
     const emaGap = Math.abs(ema20_4h - ema50_4h)
     const adx4h = this.calculateADX(data4hCandles)
     
     const emaThreshold = 1.0 // 1 pip minimum separation
-    const adxThreshold = 12  // ADX ≥ 12
+    const adxThreshold = 10  // ADX ≥ 10 (very permissive, was 12)
     const gapOK = emaGap >= emaThreshold
     const adxOK = adx4h >= adxThreshold
     
     console.log(`[v0] HARD_GATE_1: emaGap=${emaGap.toFixed(4)} pips (need ${emaThreshold}) adx=${adx4h.toFixed(1)} (need ${adxThreshold}) | Result: gap=${gapOK ? "PASS" : "FAIL"} adx=${adxOK ? "PASS" : "FAIL"}`)
 
     if (!gapOK || !adxOK) {
-      console.log(`[v0] HARD_GATE_1 FAILED: ${!gapOK ? `EMA gap only ${emaGap.toFixed(4)} pips` : ""} ${!adxOK ? `ADX only ${adx4h.toFixed(1)} (need 12)` : ""}`)
+      console.log(`[v0] HARD_GATE_1 FAILED: ${!gapOK ? `EMA gap only ${emaGap.toFixed(4)} pips` : ""} ${!adxOK ? `ADX only ${adx4h.toFixed(1)} (need 10)` : ""}`)
       return {
         type: "NO_TRADE",
         direction: "NONE",
