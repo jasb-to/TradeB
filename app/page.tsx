@@ -1,6 +1,7 @@
 "use client"
-// v6.0.2-CANDLE-SAFETY: Fixed STRICT v7.3 strategy to use optional chaining (?.) when accessing candle close prices. Prevents crashes when 15M candles missing. Real backtest will be created to replace internal simulation that was producing 160/180 false signals.
-const BUILD_VERSION = "6.0.2"
+// v6.0.3-AUDIT-COMPLETE: Fixed STRICT v7.3 strategy call with all 6 required timeframe parameters (was missing data8h and data5m). Added SYSTEM_VERSION export. Added detailed hard gate and component score logging. Response includes systemVersion and strategyDetails.
+export const SYSTEM_VERSION = "6.0.3-STRICT-V7-AUDIT-COMPLETE"
+const BUILD_VERSION = "6.0.3"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
@@ -274,6 +275,7 @@ export default function GoldTradingDashboard() {
           <div>
             <h1 className="text-3xl font-bold text-white">TradeB - Gold Trading Dashboard</h1>
             <p className="text-slate-400 text-sm mt-1">Production-Ready XAU/USD Strategy Execution</p>
+            <p className="text-slate-500 text-xs mt-2">System: {SYSTEM_VERSION}</p>
           </div>
           <div className="flex gap-2">
             <Button

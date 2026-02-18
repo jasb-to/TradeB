@@ -11,6 +11,9 @@ import { MarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
 import { createTrade } from "@/lib/trade-lifecycle"
 
+// SYSTEM VERSION - Visible on homepage and all API responses
+export const SYSTEM_VERSION = "6.0.2-STRICT-V7-AUDIT"
+
 // HARDCODED: Only XAU_USD - never import TRADING_SYMBOLS which gets cached by Vercel
 const TRADING_SYMBOLS = ["XAU_USD"] as const
 function isValidTradingSymbol(symbol: string): symbol is typeof TRADING_SYMBOLS[number] {
@@ -277,18 +280,34 @@ export async function GET(request: Request) {
       const strictV7 = new StrictStrategyV7()
       signal = strictV7.evaluate(
         dataDaily.candles,
+        data8h.candles,
         data4h.candles,
         data1h.candles,
         data15m.candles,
+        data5m.candles,
         DEFAULT_TRADING_CONFIG,
       )
     }
     
     // [DIAG] Route Entry
     console.log(`[DIAG] SIGNAL ROUTE HIT - symbol=${symbol} time=${new Date().toISOString()} marketOpen=${!marketStatus.isClosed}`)
+    console.log(`[DIAG] SYSTEM_VERSION=${SYSTEM_VERSION}`)
+    
+    // [DIAG] Strategy Details for STRICT v7
+    if (activeMode === "STRICT") {
+      console.log(`[DIAG] STRICT V7.3 EVALUATION COMPLETE:
+        type=${signal.type}
+        score=${(signal as any).score || 0}
+        direction=${signal.direction}
+        tier=${(signal as any).tier || "UNKNOWN"}
+        component_scores=${JSON.stringify((signal as any).component_scores || {})}
+        hard_gate_1=${(signal as any).hard_gate_1 || "NOT_LOGGED"}
+        hard_gate_2=${(signal as any).hard_gate_2 || "NOT_LOGGED"}
+      `)
+    }
     
     // [DIAG] Raw Signal
-    console.log(`[DIAG] RAW SIGNAL type=${signal.type} direction=${signal.direction} confidence=${signal.confidence} hasStructuralTier=${(signal as any).hasOwnProperty("structuralTier")}`)
+    console.log(`[DIAG] RAW SIGNAL type=${signal.type} direction=${signal.direction} score=${(signal as any).score || "?"} tier=${(signal as any).tier || "?"}`)
     
     // STEP 2: GUARANTEED FIX - Force structuralTier on signal immediately
     // evaluateSignals may return objects where structuralTier is not included as a property
@@ -492,6 +511,15 @@ export async function GET(request: Request) {
       success: true,
       signal: enhancedSignal,
       timestamp: new Date().toISOString(),
+      systemVersion: SYSTEM_VERSION,
+      strategyDetails: {
+        mode: activeMode,
+        hardGate1: (signal as any).hard_gate_1,
+        hardGate2: (signal as any).hard_gate_2,
+        componentScores: (signal as any).component_scores,
+        score: (signal as any).score,
+        tier: (signal as any).tier,
+      }
     })
   } catch (error) {
     console.error("[v0] Error in signal route - v3.4 catch block:", error)
