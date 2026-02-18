@@ -15,10 +15,15 @@ export class StrictStrategyV7 {
       return { type: "NO_TRADE", direction: "NONE", tier: "NO_TRADE", score: 0, indicators: this.getEmptyIndicators() }
     }
 
-    const dailyClose = dailyCandles[dailyCandles.length - 1].close
-    const h4Close = data4hCandles[data4hCandles.length - 1].close
-    const h1Close = data1hCandles[data1hCandles.length - 1].close
-    const h15Close = data15mCandles[data15mCandles.length - 1].close
+    const dailyClose = dailyCandles[dailyCandles.length - 1]?.close || 0
+    const h4Close = data4hCandles[data4hCandles.length - 1]?.close || 0
+    const h1Close = data1hCandles[data1hCandles.length - 1]?.close || 0
+    const h15Close = data15mCandles?.length ? data15mCandles[data15mCandles.length - 1]?.close || 0 : 0
+
+    // Validate we have actual price data
+    if (!dailyClose || !h4Close || !h1Close) {
+      return { type: "NO_TRADE", direction: "NONE", tier: "NO_TRADE", score: 0, reason: "Missing candle close prices", indicators: this.getEmptyIndicators() }
+    }
 
     // HARD GATE 1: 4H Trend Exists (EMA separation ≥ 0.1% + ADX ≥ 25)
     const ema20_4h = this.calculateEMA(data4hCandles, 20)

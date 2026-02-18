@@ -1,6 +1,6 @@
 "use client"
-// v6.0.1-STRICT-V7.3-FORCE-REBUILD: Forcing complete Vercel rebuild with unique buildId to clear Next.js cache and deploy STRICT v7.3 with proper selectivity. Hard gates confirmed: 0.1% EMA + ADX≥25 + 80% breakout. Testing if 160 signal issue is cache-related or backtest simulation issue.
-const BUILD_VERSION = "6.0.1"
+// v6.0.2-CANDLE-SAFETY: Fixed STRICT v7.3 strategy to use optional chaining (?.) when accessing candle close prices. Prevents crashes when 15M candles missing. Real backtest will be created to replace internal simulation that was producing 160/180 false signals.
+const BUILD_VERSION = "6.0.2"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
