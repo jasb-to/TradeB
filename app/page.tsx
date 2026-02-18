@@ -1,6 +1,6 @@
 "use client"
-// v5.7.2-INDICATOR-CARDS-RESTORED: Fixed missing indicator data in API responses. STRICT v7 strategy now includes indicators (EMA, ADX, ATR, RSI, VWAP) in all response types (NO_TRADE, ENTRY). Indicator analysis cards will now display on frontend. Forced rebuild to clear cached US500 heartbeat errors.
-const BUILD_VERSION = "5.7.2"
+// v5.8.0-STRICT-V7.2-SCOREONLY: Complete architecture redesign - SINGLE hard gate (4H trend exists) with everything else score-based. Breakout, ADX, RSI, VWAP, ATR are now scoring components (0-1 each). Entry threshold: score ≥3/6. Should now generate 10-15 trades/6mo instead of 0.
+const BUILD_VERSION = "5.8.0"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
