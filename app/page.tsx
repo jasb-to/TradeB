@@ -1,7 +1,7 @@
 "use client"
-// v6.0.3-AUDIT-COMPLETE: Fixed STRICT v7.3 strategy call with all 6 required timeframe parameters (was missing data8h and data5m). Added SYSTEM_VERSION export. Added detailed hard gate and component score logging. Response includes systemVersion and strategyDetails.
-export const SYSTEM_VERSION = "6.0.3-STRICT-V7-AUDIT-COMPLETE"
-const BUILD_VERSION = "6.0.3"
+// v6.0.4-HARD-GATES-RELAXED: Fixed STRICT v7.3 hard gate thresholds that were too restrictive. Hard Gate 1: ADX reduced from 25 to 20. Hard Gate 2: Breakout threshold reduced from 80% to 70%. Added detailed console logging for both gates to show calculation values. Should now generate entry signals in real market conditions.
+export const SYSTEM_VERSION = "6.0.4-HARD-GATES-RELAXED"
+const BUILD_VERSION = "6.0.4"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"

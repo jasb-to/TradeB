@@ -266,13 +266,19 @@ export async function GET(request: Request) {
     console.log(`[v0] ACTIVE_MODE_FOR_${symbol}=${activeMode} (v7 Score-Based)`)
 
     let signal
+    // Strategy evaluation based on mode
+    console.log(`[v0] STRICT EVALUATION START: activeMode=${activeMode} symbol=${symbol}`)
+    
     if (activeMode === "BALANCED") {
+      // BALANCED mode
       const balancedV7 = new BalancedStrategyV7()
       signal = balancedV7.evaluate(
         dataDaily.candles,
+        data8h.candles,
         data4h.candles,
         data1h.candles,
         data15m.candles,
+        data5m.candles,
         DEFAULT_TRADING_CONFIG,
       )
     } else {
@@ -287,6 +293,7 @@ export async function GET(request: Request) {
         data5m.candles,
         DEFAULT_TRADING_CONFIG,
       )
+      console.log(`[v0] STRICT EVALUATION RESULT: type=${signal.type} score=${(signal as any).score} direction=${signal.direction}`)
     }
     
     // [DIAG] Route Entry
@@ -294,6 +301,7 @@ export async function GET(request: Request) {
     console.log(`[DIAG] SYSTEM_VERSION=${SYSTEM_VERSION}`)
     
     // [DIAG] Strategy Details for STRICT v7
+    console.log(`[DIAG] AFTER EVAL: activeMode=${activeMode} signal.type=${signal.type} score=${(signal as any).score}`)
     if (activeMode === "STRICT") {
       console.log(`[DIAG] STRICT V7.3 EVALUATION COMPLETE:
         type=${signal.type}
@@ -304,6 +312,7 @@ export async function GET(request: Request) {
         hard_gate_1=${(signal as any).hard_gate_1 || "NOT_LOGGED"}
         hard_gate_2=${(signal as any).hard_gate_2 || "NOT_LOGGED"}
       `)
+    }
     }
     
     // [DIAG] Raw Signal

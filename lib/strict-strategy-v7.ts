@@ -25,14 +25,17 @@ export class StrictStrategyV7 {
       return { type: "NO_TRADE", direction: "NONE", tier: "NO_TRADE", score: 0, reason: "Missing candle close prices", indicators: this.getEmptyIndicators() }
     }
 
-    // HARD GATE 1: 4H Trend Exists (EMA separation ≥ 0.1% + ADX ≥ 25)
+    // HARD GATE 1: 4H Trend Exists (EMA separation ≥ 0.1% + ADX ≥ 20 - relaxed from 25)
     const ema20_4h = this.calculateEMA(data4hCandles, 20)
     const ema50_4h = this.calculateEMA(data4hCandles, 50)
     const emaGap = Math.abs(ema20_4h - ema50_4h)
     const adx4h = this.calculateADX(data4hCandles)
+    
+    console.log(`[v0] HARD_GATE_1: emaGap=${emaGap.toFixed(4)} (required ≥${(ema50_4h * 0.001).toFixed(4)}) adx=${adx4h.toFixed(1)} (required ≥20)`)
 
-    // STRICT: 0.1% EMA separation required, ADX must be 25+ (strong trend only)
-    if (emaGap < ema50_4h * 0.001 || adx4h < 25) {
+    // STRICT: 0.1% EMA separation required, ADX must be 20+ (was 25, too restrictive)
+    if (emaGap < ema50_4h * 0.001 || adx4h < 20) {
+      console.log(`[v0] HARD_GATE_1 FAILED: emaGap=${emaGap.toFixed(4)}<${(ema50_4h * 0.001).toFixed(4)} OR adx=${adx4h.toFixed(1)}<20`)
       return {
         type: "NO_TRADE",
         direction: "NONE",
@@ -45,18 +48,21 @@ export class StrictStrategyV7 {
 
     const direction = ema20_4h > ema50_4h ? "UP" : "DOWN"
 
-    // HARD GATE 2: 1H Breakout with Close Confirmation (not just High/Low)
+    // HARD GATE 2: 1H Breakout with Close Confirmation (relaxed to 70% level)
     const h1Recent10 = data1hCandles.slice(-10)
     const h1High = Math.max(...h1Recent10.map(c => c.high))
     const h1Low = Math.min(...h1Recent10.map(c => c.low))
     const h1Range = h1High - h1Low || 1
 
-    // STRICT: Close must break 80% level, not just touch
-    const isBreakoutUp = direction === "UP" && h1Close > h1High * 0.8
-    const isBreakoutDn = direction === "DOWN" && h1Close < h1Low * 1.2
+    // STRICT: Close must break 70% level (was 80%, too restrictive)
+    const isBreakoutUp = direction === "UP" && h1Close > h1High * 0.7
+    const isBreakoutDn = direction === "DOWN" && h1Close < h1Low * 1.3
     const hasBreakout = isBreakoutUp || isBreakoutDn
+    
+    console.log(`[v0] HARD_GATE_2: dir=${direction} h1Close=${h1Close.toFixed(2)} h1High=${h1High.toFixed(2)} h1Low=${h1Low.toFixed(2)} breakout=${hasBreakout}`)
 
     if (!hasBreakout) {
+      console.log(`[v0] HARD_GATE_2 FAILED: No ${direction} breakout at 70% level`)
       return {
         type: "NO_TRADE",
         direction: "NONE",
@@ -66,6 +72,8 @@ export class StrictStrategyV7 {
         indicators: this.buildIndicators(ema20_4h, ema50_4h, adx4h, data4hCandles, data1hCandles),
       }
     }
+    
+    console.log(`[v0] BOTH HARD GATES PASSED - Starting selective scoring`)
 
     // Both hard gates passed - now selective scoring (need 4+ of 6)
     let score = 0
