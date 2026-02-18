@@ -85,6 +85,60 @@ export async function GET(request: Request) {
       data15m = result15m.status === "fulfilled" ? result15m.value : { candles: [], source: "oanda" as const }
       data5m = result5m.status === "fulfilled" ? result5m.value : { candles: [], source: "oanda" as const }
 
+      // STRICT DATA VALIDATION - v5.7.0
+      console.log(`[DATA_FETCH]`, {
+        instrument: symbol,
+        dailyCandles: dataDaily.candles.length,
+        h8Candles: data8h.candles.length,
+        h4Candles: data4h.candles.length,
+        h1Candles: data1h.candles.length,
+        m15Candles: data15m.candles.length,
+        m5Candles: data5m.candles.length,
+        lastDailyTime: dataDaily.candles[dataDaily.candles.length - 1]?.time,
+        lastH1Time: data1h.candles[data1h.candles.length - 1]?.time,
+        source: dataDaily.source,
+      })
+
+      // Validate minimum candle counts
+      if (!dataDaily.candles || dataDaily.candles.length < 50) {
+        console.error("[DATA_INVALID] Daily candles insufficient", dataDaily?.candles?.length)
+        return NextResponse.json(
+          {
+            success: false,
+            error: "DATA_INSUFFICIENT",
+            message: "Insufficient daily candles for analysis",
+            details: { dailyCandles: dataDaily?.candles?.length || 0 },
+          },
+          { status: 422 }
+        )
+      }
+
+      if (!data1h.candles || data1h.candles.length < 100) {
+        console.error("[DATA_INVALID] 1H candles insufficient", data1h?.candles?.length)
+        return NextResponse.json(
+          {
+            success: false,
+            error: "DATA_INSUFFICIENT",
+            message: "Insufficient 1H candles for analysis",
+            details: { h1Candles: data1h?.candles?.length || 0 },
+          },
+          { status: 422 }
+        )
+      }
+
+      if (!data4h.candles || data4h.candles.length < 50) {
+        console.error("[DATA_INVALID] 4H candles insufficient", data4h?.candles?.length)
+        return NextResponse.json(
+          {
+            success: false,
+            error: "DATA_INSUFFICIENT",
+            message: "Insufficient 4H candles for analysis",
+            details: { h4Candles: data4h?.candles?.length || 0 },
+          },
+          { status: 422 }
+        )
+      }
+
       console.log(
         `[v0] Data loaded: Daily=${dataDaily.candles.length} (${dataDaily.source}), 4H=${data4h.candles.length} (${data4h.source}), 1H=${data1h.candles.length} (${data1h.source}), 15M=${data15m.candles.length} (${data15m.source}), 5M=${data5m.candles.length} (${data5m.source})`,
       )
@@ -92,11 +146,12 @@ export async function GET(request: Request) {
       // REMOVED: Synthetic data block was blocking signals when credentials temporarily unavailable
       // Since credentials ARE configured in Vercel, signals should proceed with whatever data is loaded
     } catch (fetchError) {
-      console.error("Error fetching candle data:", fetchError)
+      console.error("[FETCH_ERROR] Candle fetch failed:", fetchError)
       return NextResponse.json(
         {
           success: false,
-          error: "Failed to fetch market data. Please check OANDA API configuration.",
+          error: "OANDA_FETCH_FAILED",
+          message: "Failed to fetch market data from OANDA",
           details: fetchError instanceof Error ? fetchError.message : "Unknown fetch error",
         },
         { status: 500 },

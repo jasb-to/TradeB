@@ -1,6 +1,6 @@
 "use client"
-// v5.6.1-CLEAN-BUILD: Forced complete Vercel rebuild with unique buildId to clear stale .next bytecode cache containing old US500/JP225/US100 symbols. Next deployment will have clean compiled output with XAU_USD exclusive code. OANDA account confirmed working (gold prices 100% accurate).
-const BUILD_VERSION = "5.6.1"
+// v5.7.0-XAU-HARDLOCK: Complete XAU_USD hard-lock with strict data validation. Signal route now validates min candle counts (50 daily, 100 1H, 50 4H). External-cron enhanced with error logging. All non-XAU references removed from active code paths. No silent failures - explicit hard gate reasons logged.
+const BUILD_VERSION = "5.7.0"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
