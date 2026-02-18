@@ -70,6 +70,7 @@ export class StrictStrategyV7 {
 
     // ENTRY THRESHOLD: score >= 4/6 (selective: ~1 trade per week, 8-20 per 6 months)
     if (score >= 4) {
+      const stochRSI = this.calculateStochRSI(h4Candles)
       const tier = score === 6 ? "A+" : score === 5 ? "A" : "B"
       return {
         type: "ENTRY",
@@ -79,11 +80,12 @@ export class StrictStrategyV7 {
         component_scores,
         approved: true,
         reason: `Score ${score}/6 (components: ${Object.entries(component_scores).map(([k, v]) => `${k}=${v}`).join(", ")})`,
-        indicators: { ema20: ema20_4h, ema50: ema50_4h, adx: adx4h, atr: atr4h, rsi: rsi4h, vwap },
+        indicators: { ema20: ema20_4h, ema50: ema50_4h, adx: adx4h, atr: atr4h, rsi: rsi4h, stochRSI, vwap },
       }
     }
 
     // NO_TRADE: Below threshold
+    const stochRSI = this.calculateStochRSI(h4Candles)
     return {
       type: "NO_TRADE",
       direction: "NONE",
@@ -91,7 +93,7 @@ export class StrictStrategyV7 {
       score,
       component_scores,
       reason: `Score ${score}/6 < 4 (components: ${Object.entries(component_scores).map(([k, v]) => `${k}=${v}`).join(", ")})`,
-      indicators: { ema20: ema20_4h, ema50: ema50_4h, adx: adx4h, atr: atr4h, rsi: rsi4h, vwap },
+      indicators: { ema20: ema20_4h, ema50: ema50_4h, adx: adx4h, atr: atr4h, rsi: rsi4h, stochRSI, vwap },
     }
   }
 
@@ -205,7 +207,38 @@ export class StrictStrategyV7 {
     return v > 0 ? pv / v : candles[candles.length - 1].close
   }
 
+  private calculateStochRSI(candles: any[], period: number = 14, smoothK: number = 3, smoothD: number = 3): { k: number; d: number } {
+    if (candles.length < period + smoothK) return { k: 50, d: 50 }
+    
+    // Calculate RSI for last period candles
+    const rsiValues: number[] = []
+    for (let i = Math.max(0, candles.length - period - smoothK + 1); i <= candles.length; i++) {
+      const slice = candles.slice(i - period, i)
+      if (slice.length === period) {
+        rsiValues.push(this.calculateRSI(slice, period))
+      }
+    }
+    
+    if (rsiValues.length < smoothK) return { k: 50, d: 50 }
+    
+    // Calculate Stochastic RSI
+    const rsiHigh = Math.max(...rsiValues.slice(-smoothK))
+    const rsiLow = Math.min(...rsiValues.slice(-smoothK))
+    const rsiRange = rsiHigh - rsiLow || 1
+    const k = 100 * ((rsiValues[rsiValues.length - 1] - rsiLow) / rsiRange)
+    
+    // Calculate %D (3-period SMA of %K)
+    const kValues = rsiValues.slice(-smoothK).map(rsi => {
+      const h = Math.max(...rsiValues)
+      const l = Math.min(...rsiValues)
+      return 100 * ((rsi - l) / (h - l || 1))
+    })
+    const d = kValues.slice(-smoothD).reduce((a, b) => a + b, 0) / smoothD
+    
+    return { k: isNaN(k) ? 50 : k, d: isNaN(d) ? 50 : d }
+  }
+
   private getEmptyIndicators() {
-    return { ema20: 0, ema50: 0, adx: 0, atr: 0, rsi: 50, vwap: 0 }
+    return { ema20: 0, ema50: 0, adx: 0, atr: 0, rsi: 50, stochRSI: { k: 50, d: 50 }, vwap: 0 }
   }
 }

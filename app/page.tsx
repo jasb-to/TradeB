@@ -1,6 +1,6 @@
 "use client"
-// v5.9.0-STRICT-V7.3-SELECTIVE: Complete rewrite with selective scoring targeting 8-20 trades per 6 months. Two hard gates: 4H trend (EMA sep ≥0.01, ADX≥10) + 1H breakout/pullback. Six independent 1-point scoring components (trend, pullback, breakout, momentum, volatility, distance). Entry threshold ≥4/6. Component scores transparent in logs.
-const BUILD_VERSION = "5.9.0"
+// v5.9.1-STOCHRSI-RESTORED: Added calculateStochRSI method with proper %K and %D smoothing. STRICT v7.3 now returns stochRSI indicator data in all signal responses (both ENTRY and NO_TRADE). Indicator analysis card will now display complete stochRSI values with K/D lines.
+const BUILD_VERSION = "5.9.1"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
