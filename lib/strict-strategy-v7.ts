@@ -136,9 +136,9 @@ export class StrictStrategyV7 {
       componentDetails["Volume Up"] = true
     }
 
-    // Entry requires 4+ of 6 components (strict selectivity)
-    if (score >= 4) {
-      const tier = score === 6 ? "A+" : score === 5 ? "A" : "B"
+    // Entry requires 3+ of 6 components (was 4+, causing flickering)
+    if (score >= 3) {
+      const tier = score === 6 ? "A+" : score === 5 ? "A" : score === 4 ? "B" : "B"
       console.log(`[v0] STRICT v7.3 ENTRY: ${direction} | Score ${score}/6 | Components: ${Object.entries(componentDetails).map(([k, v]) => v ? k : null).filter(Boolean).join(", ")}`)
       return {
         type: "ENTRY",

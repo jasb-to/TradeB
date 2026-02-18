@@ -689,25 +689,33 @@ export class TradingStrategies {
     const criteria: EntryDecisionCriteria[] = []
     let rawScore = 0
 
-    // Criterion 1: Daily bias aligned (MANDATORY)
+    // Criterion 1: Daily bias aligned (RELAXED FOR TIER B)
+    // A+ must have daily alignment, but Tier B (score 3-4) can proceed without perfect alignment
     const dailyAligned = signal.mtfBias?.daily === signal.direction
+    const tier = (signal as any).structuralTier || (signal as any).tier || "NO_TRADE"
+    const isTierB = tier === "B" || ((signal as any).score >= 3 && (signal as any).score <= 4)
+    const dailyMandatory = !isTierB // Only mandatory for A/A+
+    
     criteria.push({
       key: "daily_aligned",
       label: "Daily bias aligned",
-      passed: dailyAligned,
-      reason: dailyAligned ? `Daily ${signal.direction}` : `Daily ${signal.mtfBias?.daily || "NO_CLEAR_BIAS"} ≠ signal ${signal.direction}`,
+      passed: dailyAligned || !dailyMandatory,
+      reason: dailyAligned ? `Daily ${signal.direction}` : isTierB ? `Daily ${signal.mtfBias?.daily || "NO_CLEAR_BIAS"} (non-blocking for B)` : `Daily ${signal.mtfBias?.daily || "NO_CLEAR_BIAS"} ≠ signal ${signal.direction}`,
     })
-    if (dailyAligned) rawScore += 2 // Reduced from 3 to fit within 9-point scale
+    if (dailyAligned) rawScore += 2
 
-    // Criterion 2: 4H bias aligned (MANDATORY)
+    // Criterion 2: 4H bias aligned (RELAXED FOR TIER B)
+    // A+ must have 4H alignment, but Tier B can proceed without perfect alignment
     const h4Aligned = signal.mtfBias?.["4h"] === signal.direction
+    const h4Mandatory = !isTierB // Only mandatory for A/A+
+    
     criteria.push({
       key: "h4_aligned",
       label: "4H bias aligned",
-      passed: h4Aligned,
-      reason: h4Aligned ? `4H ${signal.direction}` : `4H ${signal.mtfBias?.["4h"] || "NO_CLEAR_BIAS"}`,
+      passed: h4Aligned || !h4Mandatory,
+      reason: h4Aligned ? `4H ${signal.direction}` : isTierB ? `4H ${signal.mtfBias?.["4h"] || "NO_CLEAR_BIAS"} (non-blocking for B)` : `4H ${signal.mtfBias?.["4h"] || "NO_CLEAR_BIAS"}`,
     })
-    if (h4Aligned) rawScore += 2 // Reduced from 3 to fit within 9-point scale
+    if (h4Aligned) rawScore += 2
     
     // Criterion 3: 1H alignment (CONFIRMATORY, NOT BLOCKING)
     // 5% LOOSENING: 1H is now +1 score (confirmatory) instead of mandatory gate

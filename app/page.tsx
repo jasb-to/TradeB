@@ -1,6 +1,6 @@
 "use client"
-// v6.0.8-FORCE-DEPLOY: Forcing Vercel rebuild with unique timestamp. Previous push didn't deploy. ADX threshold is 10 in /lib/strict-strategy-v7.ts. Timestamp: 2026-02-18T18:35:00Z force-redeploy-marker
-export const SYSTEM_VERSION = "6.0.8-FORCE-DEPLOY"
+// v6.0.9-FIXES-APPLIED: Fixed 4 critical issues - (1) Trade flickering (score threshold 4→3), (2) UI NO_TRADE display (relaxed entry decision for B tier), (3) Stochastic RSI ERROR display fixed, (4) Market Regime now shows LONG/SHORT. Timestamp: 2026-02-18T20:45:00Z
+export const SYSTEM_VERSION = "6.0.9-FIXES-APPLIED"
 const BUILD_VERSION = "6.0.8"
 // REBUILD_TRIGGER = "timestamp-2026-02-18-1835-utc"
 
