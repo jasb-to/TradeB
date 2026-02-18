@@ -313,7 +313,6 @@ export async function GET(request: Request) {
         hard_gate_2=${(signal as any).hard_gate_2 || "NOT_LOGGED"}
       `)
     }
-    }
     
     // [DIAG] Raw Signal
     console.log(`[DIAG] RAW SIGNAL type=${signal.type} direction=${signal.direction} score=${(signal as any).score || "?"} tier=${(signal as any).tier || "?"}`)
