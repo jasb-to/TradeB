@@ -40,7 +40,7 @@ async function sendTelegramAlert(message: string): Promise<void> {
 
 async function fetchMarketPrice(symbol: string): Promise<MarketPrice | null> {
   try {
-    const fetcher = new DataFetcher(DEFAULT_TRADING_CONFIG)
+    const fetcher = new DataFetcher(symbol)
     const pricing = await fetcher.fetchLatestPricing([symbol])
     
     if (pricing && pricing.prices && pricing.prices.length > 0) {
@@ -60,11 +60,11 @@ async function fetchMarketPrice(symbol: string): Promise<MarketPrice | null> {
 
 async function checkStructuralInvalidation(symbol: string, originalTier: string): Promise<boolean> {
   try {
-    const fetcher = new DataFetcher(DEFAULT_TRADING_CONFIG)
+    const fetcher = new DataFetcher(symbol)
     const strategies = new TradingStrategies(DEFAULT_TRADING_CONFIG)
     
-    const dataDaily = await fetcher.fetchCandles(symbol, 100, 'D')
-    const data1h = await fetcher.fetchCandles(symbol, 200, 'H1')
+    const dataDaily = await fetcher.fetchCandles("1d", 100, "LIVE")
+    const data1h = await fetcher.fetchCandles("1h", 200, "LIVE")
     
     if (!dataDaily?.length || !data1h?.length) {
       return false
