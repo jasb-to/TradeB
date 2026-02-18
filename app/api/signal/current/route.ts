@@ -12,7 +12,7 @@ import { SignalCache } from "@/lib/signal-cache"
 import { createTrade } from "@/lib/trade-lifecycle"
 
 // SYSTEM VERSION - Visible on homepage and all API responses
-export const SYSTEM_VERSION = "6.1.1-COMPILE-FIX"
+export const SYSTEM_VERSION = "6.1.2-TIER-TERNARY"
 
 // HARDCODED: Only XAU_USD - never import TRADING_SYMBOLS which gets cached by Vercel
 const TRADING_SYMBOLS = ["XAU_USD"] as const

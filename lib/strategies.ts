@@ -828,17 +828,11 @@ export class TradingStrategies {
     // TIER ASSIGNMENT: Based on SCORE from actual criteria evaluation (NOT from structuralTier)
     // This ensures the tier reflects what we've actually verified
     // Score ranges are calibrated to XAU/USD volatility and multi-timeframe behavior
-    let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
-    
-    if (score >= 7.0) {
-      tier = "A+"  // 7.0-9.0: Premium setup (5+ criteria met, high confidence)
-    } else if (score >= 6.0) {
-      tier = "A"   // 6.0-6.99: Good setup (4+ criteria met)
-    } else if (score >= 5.0) {
-      tier = "B"   // 5.0-5.99: Valid setup (3+ criteria met)
-    } else {
-      tier = "NO_TRADE"  // <5.0: Below threshold
-    }
+    const tier: "NO_TRADE" | "B" | "A" | "A+" = 
+      score >= 7.0 ? "A+" :
+      score >= 6.0 ? "A" :
+      score >= 5.0 ? "B" :
+      "NO_TRADE"
 
     console.log(`[v0] buildEntryDecision SCORE-BASED TIER: score=${score.toFixed(1)} → tier=${tier}`)
     

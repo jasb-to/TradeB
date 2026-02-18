@@ -1,6 +1,6 @@
 "use client"
-// v6.1.1-COMPILE-FIX: Removed redundant tier assignment code causing variable redeclaration error. Tier assignment now purely score-based. Force recompile. Timestamp: 2026-02-18T20:55:00Z
-export const SYSTEM_VERSION = "6.1.1-COMPILE-FIX"
+// v6.1.2-TIER-TERNARY: Changed tier assignment to single const with ternary operators to eliminate variable redeclaration compilation error. Score-based tier logic: 7.0+=A+, 6.0+=A, 5.0+=B, <5.0=NO_TRADE. Timestamp: 2026-02-18T20:58:00Z
+export const SYSTEM_VERSION = "6.1.2-TIER-TERNARY"
 const BUILD_VERSION = "6.0.8"
 // REBUILD_TRIGGER = "timestamp-2026-02-18-1835-utc"
 
