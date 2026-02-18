@@ -14,7 +14,6 @@ export class StrictStrategyV7 {
 
     const h4Candle = h4Candles[h4Candles.length - 1]
     const h1Candle = h1Candles[h1Candles.length - 1]
-    const dailyCandle = dailyCandles[dailyCandles.length - 1]
 
     // Calculate base indicators
     const ema20_4h = this.calculateEMA(h4Candles, 20)
@@ -96,7 +95,6 @@ export class StrictStrategyV7 {
     }
   }
 
-  // Component Scoring Functions
   private scoreTrendDirection(ema20: number, ema50: number, direction: string): number {
     return (direction === "UP" && ema20 > ema50) || (direction === "DOWN" && ema20 < ema50) ? 1 : 0
   }
@@ -117,11 +115,9 @@ export class StrictStrategyV7 {
     const range = high - low
     const from_high = (high - price) / range
     const from_low = (price - low) / range
-    // Price not overextended (not beyond 70% from either extreme)
     return from_high > 0.3 && from_low > 0.3 ? 1 : 0
   }
 
-  // Detection & Calculation Methods
   private detectBreakout(candles: any[], direction: string): boolean {
     if (candles.length < 10) return false
     const latest = candles[candles.length - 1]
@@ -135,15 +131,11 @@ export class StrictStrategyV7 {
     if (candles.length < 10) return false
     const latest = candles[candles.length - 1]
     const ema20 = this.calculateEMA(candles, 20)
-    if (direction === "UP") {
-      const tolerance = 0.5 // 0.5 pips from EMA20
-      return Math.abs(latest.close - ema20) < tolerance
-    }
     return Math.abs(latest.close - ema20) < 0.5
   }
 
   private calculateEMA(candles: any[], period: number): number {
-    if (candles.length < period) return candles[candles.length - 1].close
+    if (candles.length < period) return candles[candles.length - 1]?.close || 0
     const k = 2 / (period + 1)
     let ema = candles.slice(0, period).reduce((sum, c) => sum + c.close, 0) / period
     for (let i = period; i < candles.length; i++) {
@@ -152,9 +144,39 @@ export class StrictStrategyV7 {
     return ema
   }
 
+  private calculateRSI(candles: any[], period: number = 14): number {
+    if (candles.length < period + 1) return 50
+    let gains = 0,
+      losses = 0
+    for (let i = candles.length - period; i < candles.length; i++) {
+      const change = candles[i].close - candles[i - 1].close
+      if (change > 0) gains += change
+      else losses -= change
+    }
+    const avgGain = gains / period
+    const avgLoss = losses / period
+    const rs = avgGain / (avgLoss || 0.01)
+    return 100 - 100 / (1 + rs)
+  }
+
+  private calculateATR(candles: any[], period: number = 14): number {
+    if (candles.length < period) return 0
+    let sumTR = 0
+    for (let i = Math.max(1, candles.length - period); i < candles.length; i++) {
+      const high = candles[i].high
+      const low = candles[i].low
+      const prevClose = candles[i - 1].close
+      const tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose))
+      sumTR += tr
+    }
+    return sumTR / period
+  }
+
   private calculateADX(candles: any[], period: number = 14): number {
     if (candles.length < period * 2) return 20
-    let plusDM = 0, minusDM = 0, tr = 0
+    let plusDM = 0,
+      minusDM = 0,
+      tr = 0
     for (let i = Math.max(1, candles.length - period); i < candles.length; i++) {
       const high = candles[i].high - candles[i - 1].high
       const low = candles[i - 1].low - candles[i].low
@@ -171,43 +193,16 @@ export class StrictStrategyV7 {
     return Math.min(100, di * 100)
   }
 
-  private calculateRSI(candles: any[], period: number = 14): number {
-    if (candles.length < period + 1) return 50
-    let gains = 0, losses = 0
-    for (let i = candles.length - period; i < candles.length; i++) {
-      const change = candles[i].close - candles[i - 1].close
-      if (change > 0) gains += change
-      else losses -= change
-    }
-    const avgGain = gains / period
-    const avgLoss = losses / period
-    const rs = avgGain / (avgLoss || 0.01)
-    return 100 - (100 / (1 + rs))
-  }
-
-  private calculateATR(candles: any[], period: number = 14): number {
-    if (candles.length < period) return 0
-    let sumTR = 0
-    for (let i = Math.max(1, candles.length - period); i < candles.length; i++) {
-      const high = candles[i].high
-      const low = candles[i].low
-      const prevClose = candles[i - 1].close
-      const tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose))
-      sumTR += tr
-    }
-    return sumTR / period
-  }
-
   private calculateVWAP(candles: any[]): number {
     if (!candles.length) return 0
-    let cumVolPrice = 0, cumVol = 0
-    for (const c of candles.slice(-20)) {
-      const tp = (c.high + c.low + c.close) / 3
-      const vol = c.volume || 1
-      cumVolPrice += tp * vol
-      cumVol += vol
+    let pv = 0,
+      v = 0
+    for (const c of candles) {
+      const typicalPrice = (c.high + c.low + c.close) / 3
+      pv += typicalPrice * (c.volume || 1)
+      v += c.volume || 1
     }
-    return cumVolPrice / (cumVol || 1)
+    return v > 0 ? pv / v : candles[candles.length - 1].close
   }
 
   private getEmptyIndicators() {
