@@ -1,6 +1,6 @@
 "use client"
-// v5.5.8-BUILD-CACHE-BUST: Modified next.config with dynamic buildId to force complete .next rebuild. Removes stale compiled bytecode that was still processing JP225/US100/US500. XAU_USD exclusive now.
-const BUILD_VERSION = "5.5.8"
+// v5.5.9-ENV-DIAGNOSTIC: Added comprehensive environment variable logging to data-fetcher to diagnose why OANDA credentials aren't being detected despite being set in Vercel.
+const BUILD_VERSION = "5.5.9"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"

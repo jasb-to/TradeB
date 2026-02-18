@@ -36,6 +36,12 @@ const OANDA_MAX_RETRIES = 2 // retry transient errors up to 2 times
 
 let detectedOandaServer: "practice" | "live" = "live"
 
+// Diagnostic: Log environment on module load
+console.log(`[v0] DATA-FETCHER INITIALIZED:`)
+console.log(`[v0]   OANDA_API_KEY=${process.env.OANDA_API_KEY ? "SET (length=" + process.env.OANDA_API_KEY.length + ")" : "MISSING"}`)
+console.log(`[v0]   OANDA_ACCOUNT_ID=${process.env.OANDA_ACCOUNT_ID ? "SET (value=" + process.env.OANDA_ACCOUNT_ID + ")" : "MISSING"}`)
+console.log(`[v0]   OANDA_ENVIRONMENT=${process.env.OANDA_ENVIRONMENT || "MISSING"}`)
+
 export class DataFetcher {
   private symbol: string
 
@@ -44,7 +50,13 @@ export class DataFetcher {
   }
 
   private hasOandaCredentials(): boolean {
-    return !!(process.env.OANDA_API_KEY && process.env.OANDA_ACCOUNT_ID)
+    const apiKey = process.env.OANDA_API_KEY
+    const accountId = process.env.OANDA_ACCOUNT_ID
+    const hasKeys = !!(apiKey && accountId)
+    
+    console.log(`[v0] CREDENTIAL CHECK: OANDA_API_KEY=${apiKey ? "SET" : "MISSING"} OANDA_ACCOUNT_ID=${accountId ? "SET" : "MISSING"} => hasCredentials=${hasKeys}`)
+    
+    return hasKeys
   }
 
   private getOandaBaseUrl(server: "practice" | "live"): string {
