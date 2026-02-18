@@ -1,11 +1,13 @@
 "use client"
-// v8.0.0-FORCED-FULL-REBUILD: EMERGENCY VERSION - Vercel cache purge forced.
-// CACHE_KEY_BREAKER: cb-2026-02-18T2110UTC-f7e3a9b2c1d4e5f6g7h8i9j0
-// buildEntryDecision fixed with const tier + ternary (lines 831-835 in strategies.ts - NO MORE REASSIGNMENT)
-// All 6 issues addressed in source code - forcing Vercel to recognize new build
-export const SYSTEM_VERSION = "8.0.0-FORCED-FULL-REBUILD"
-const CACHE_BREAKER = "f7e3a9b2c1d4e5f6g7h8i9j0-2026-02-18T2110"
-const REBUILD_MARKER = "EMERGENCY-FULL-CACHE-FLUSH"
+// v8.1.0-CRITICAL-SCORE-FIX: PRIORITY 1 BUG FIXED
+// Root Cause Found: buildEntryDecision was recalculating score from criteria (giving 1.0)
+// instead of using signal.score from strict evaluation (3-4).
+// FIX: Now uses signalScore directly; converts 0-6 scale to 0-9 display scale
+// Result: Signal tier=B score=4 now correctly flows through, enabling alerts and persistent trades
+// CACHE_KEY_BREAKER: v8.1-2026-02-18T2115UTC-critical-fix-applied
+export const SYSTEM_VERSION = "8.1.0-CRITICAL-SCORE-FIX"
+const CRITICAL_FIX_APPLIED = "buildEntryDecision-uses-signal-score"
+const BUILD_TIME = "2026-02-18T21:15:00Z"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"

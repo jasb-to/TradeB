@@ -12,10 +12,10 @@ import { SignalCache } from "@/lib/signal-cache"
 import { createTrade } from "@/lib/trade-lifecycle"
 
 // SYSTEM VERSION - Visible on homepage and all API responses
-// v8.0.0-FORCED-FULL-REBUILD: Emergency cache flush forced with unique identifier
-export const SYSTEM_VERSION = "8.0.0-FORCED-FULL-REBUILD"
-export const CACHE_BREAKER = "f7e3a9b2c1d4e5f6g7h8i9j0-2026-02-18T2110"
-export const REBUILD_TIMESTAMP = "2026-02-18T21:10:00Z-EMERGENCY"
+// v8.1.0-CRITICAL-SCORE-FIX: buildEntryDecision now uses signal.score instead of recalculating
+// Signal score 0-6 (from strict evaluation) flows correctly to entry decision with proper tier assignment
+export const SYSTEM_VERSION = "8.1.0-CRITICAL-SCORE-FIX"
+export const CRITICAL_FIX = "signal-score-preserved"
 
 // HARDCODED: Only XAU_USD - never import TRADING_SYMBOLS which gets cached by Vercel
 const TRADING_SYMBOLS = ["XAU_USD"] as const

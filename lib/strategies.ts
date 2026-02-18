@@ -821,20 +821,20 @@ export class TradingStrategies {
     if (htfTrendMatch) rawScore += 0.5 // Reduced from 1 to fit within 9-point scale
 
     // NORMALIZE SCORE TO 9-POINT SCALE
-    // Maximum possible: 2+2+1+1+0.5+1+0.5+0.5 = 8.5
-    // Round to 1 decimal place and cap at 9
-    const score = Math.min(Math.round(rawScore * 10) / 10, 9)
-
-    // TIER ASSIGNMENT: Based on SCORE from actual criteria evaluation (NOT from structuralTier)
-    // This ensures the tier reflects what we've actually verified
-    // Score ranges are calibrated to XAU/USD volatility and multi-timeframe behavior
+    // CRITICAL FIX: Use signal.score from strict evaluation instead of recalculating
+    // Signal.score (0-6) represents strict evaluation; convert to 9-point scale for display
+    const signalScore = (signal as any).score ?? 0
+    const score = Math.min(signalScore * 1.5, 9) // Scale 0-6 to 0-9 range
+    
+    // TIER ASSIGNMENT: Based on signal's ORIGINAL SCORE (not recalculated criteria)
+    // This ensures consistency between strict evaluation and entry decision
     const tier: "NO_TRADE" | "B" | "A" | "A+" = 
-      score >= 7.0 ? "A+" :
-      score >= 6.0 ? "A" :
-      score >= 5.0 ? "B" :
+      signalScore >= 5 ? "A+" :
+      signalScore >= 4 ? "A" :
+      signalScore >= 3 ? "B" :
       "NO_TRADE"
 
-    console.log(`[v0] buildEntryDecision SCORE-BASED TIER: score=${score.toFixed(1)} → tier=${tier}`)
+    console.log(`[v0] buildEntryDecision USING_SIGNAL_SCORE: signalScore=${signalScore}/6 → displayScore=${score.toFixed(1)}/9 → tier=${tier}`)
     
     // Calculate pass/total for logging
     const passCount = criteria.filter(c => c.passed).length
