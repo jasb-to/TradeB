@@ -42,12 +42,14 @@ export class StrictStrategyV7 {
     const latest4h = candle4h[candle4h.length - 1]
     const latestDaily = daily[daily.length - 1]
 
-    // HARD GATE 1: 4H Trend Direction (EMA20 ≠ EMA50, ADX ≥ 15)
+    // HARD GATE 1: 4H Trend Direction (EMA separation ≥ 0.01, ADX ≥ 10 for weak trend)
     const ema20_4h = this.calculateEMA(candle4h, 20)
     const ema50_4h = this.calculateEMA(candle4h, 50)
     const adx4h = latest4h.adx || 0
 
-    const has4hTrend = ema20_4h !== ema50_4h && adx4h >= 15
+    // Use tolerance for floating point comparison (allow 0.01 pip separation)
+    const emaGap = Math.abs(ema20_4h - ema50_4h)
+    const has4hTrend = emaGap >= 0.01 && adx4h >= 10
     const direction4h = ema20_4h > ema50_4h ? "UP" : "DOWN"
 
     if (!has4hTrend) {
@@ -56,7 +58,7 @@ export class StrictStrategyV7 {
         direction: "NONE",
         tier: "NO_TRADE",
         score: 0,
-        reason: `4H trend gate failed: EMA aligned=${ema20_4h === ema50_4h}, ADX=${adx4h}`,
+        reason: `4H trend gate failed: EMA20=${ema20_4h.toFixed(2)} EMA50=${ema50_4h.toFixed(2)} Gap=${emaGap.toFixed(4)}, ADX=${adx4h.toFixed(1)}`,
       }
     }
 
@@ -177,16 +179,17 @@ export class StrictStrategyV7 {
   }
 
   private detectBreakout(candles: Candle[], direction: string): boolean {
-    if (candles.length < 20) return false
+    if (candles.length < 10) return false
     
     const latest = candles[candles.length - 1]
-    const prev20High = Math.max(...candles.slice(-20).map(c => c.high))
-    const prev20Low = Math.min(...candles.slice(-20).map(c => c.low))
+    const prev10High = Math.max(...candles.slice(-10).map(c => c.high))
+    const prev10Low = Math.min(...candles.slice(-10).map(c => c.low))
     
+    // Breakout = close > 95% of recent high/low (5% tolerance)
     if (direction === "UP") {
-      return latest.close > prev20High
+      return latest.close > prev10High * 0.95
     } else {
-      return latest.close < prev20Low
+      return latest.close < prev10Low * 1.05
     }
   }
 

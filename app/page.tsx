@@ -1,6 +1,6 @@
 "use client"
-// v5.7.0-XAU-HARDLOCK: Complete XAU_USD hard-lock with strict data validation. Signal route now validates min candle counts (50 daily, 100 1H, 50 4H). External-cron enhanced with error logging. All non-XAU references removed from active code paths. No silent failures - explicit hard gate reasons logged.
-const BUILD_VERSION = "5.7.0"
+// v5.7.1-HARD-GATES-UNBLOCKED: Fixed STRICT v7 hard gate calculations. EMA comparison now uses 0.01 pip tolerance (was exact equality check). Breakout detection uses 95% of 10-candle high/low (was 100% of 20-candle). ADX threshold lowered to 10 (was 15). Should now generate ENTRY signals when market conditions align.
+const BUILD_VERSION = "5.7.1"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
