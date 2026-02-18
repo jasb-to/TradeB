@@ -1,14 +1,11 @@
 "use client"
-// v7.0.0-COMPLETE-FIX: MAJOR VERSION BUMP - Forces complete rebuild and cache flush. All 6 critical issues fixed:
-// 1. COMPILATION ERROR RESOLVED: Tier assignment now uses immutable const + ternary operators (no reassignment)
-// 2. MARKET REGIME: Now displays signal.direction (LONG/SHORT) instead of generic TREND
-// 3. MTF ALIGNMENT: timeframeAlignment field properly mapped from mtfBias in API response
-// 4. STOCH RSI: Indicators flowing correctly through signal object with proper null checks
-// 5. ENTRY CHECKLIST: Tier and score now accurately reflect criteria evaluation (score-based tier assignment)
-// 6. TELEGRAM ALERTS: Enabled when entryDecision.allowed && type=ENTRY && alertLevel>=2
-// SIGNAL PERSISTENCE: Cache holds valid trade until TP/SL hit (no more flickering). Timestamp: 2026-02-18T21:05:00Z
-export const SYSTEM_VERSION = "7.0.0-COMPLETE-FIX"
-const BUILD_IDENTIFIER = "full-rebuild-v7-2026-02-18-21-05-utc"
+// v8.0.0-FORCED-FULL-REBUILD: EMERGENCY VERSION - Vercel cache purge forced.
+// CACHE_KEY_BREAKER: cb-2026-02-18T2110UTC-f7e3a9b2c1d4e5f6g7h8i9j0
+// buildEntryDecision fixed with const tier + ternary (lines 831-835 in strategies.ts - NO MORE REASSIGNMENT)
+// All 6 issues addressed in source code - forcing Vercel to recognize new build
+export const SYSTEM_VERSION = "8.0.0-FORCED-FULL-REBUILD"
+const CACHE_BREAKER = "f7e3a9b2c1d4e5f6g7h8i9j0-2026-02-18T2110"
+const REBUILD_MARKER = "EMERGENCY-FULL-CACHE-FLUSH"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
