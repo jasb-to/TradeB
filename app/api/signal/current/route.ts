@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { DataFetcher } from "@/lib/data-fetcher"
 import { TradingStrategies } from "@/lib/strategies"
-import { DEFAULT_TRADING_CONFIG } from "@/lib/constants"
+import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
 import { calculateMarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
 import { sendTelegramNotification } from "@/lib/telegram"
