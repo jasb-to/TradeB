@@ -12,7 +12,12 @@ import { SignalCache } from "@/lib/signal-cache"
 import { createTrade } from "@/lib/trade-lifecycle"
 
 // SYSTEM VERSION - Visible on homepage and all API responses
-export const SYSTEM_VERSION = "6.2.0-FULLCACHEPURGE"
+// v7.0.0-COMPLETE-FIX: MAJOR version bump forces Vercel rebuild. All compilation errors resolved:
+// - buildEntryDecision tier assignment now uses immutable const with ternary (no var reassignment)
+// - MTF alignment properly mapped to timeframeAlignment field
+// - Signal indicators flow correctly with null handling
+// - Entry decision logic correctly evaluates B-tier entries without Daily/4H requirement
+export const SYSTEM_VERSION = "7.0.0-COMPLETE-FIX"
 
 // HARDCODED: Only XAU_USD - never import TRADING_SYMBOLS which gets cached by Vercel
 const TRADING_SYMBOLS = ["XAU_USD"] as const
