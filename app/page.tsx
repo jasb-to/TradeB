@@ -1,6 +1,6 @@
 "use client"
-// v5.5.11-CRON-FIX: Created fresh /api/xau-cron endpoint to bypass Vercel's stale bytecode cache. New endpoint ONLY processes XAU_USD (hardcoded, not imported). CRITICAL: Update cron-job.org to call https://traderb.vercel.app/api/xau-cron?secret=abc123xyz789 instead of /api/external-cron
-const BUILD_VERSION = "5.5.11"
+// v5.5.12-CRON-FINALLY-FIXED: REMOVED TRADING_SYMBOLS import from external-cron. Endpoint now hardcodes XAU_USD directly. Fixes cached bytecode issue where old JP225/US100/US500 were still being processed. Cron job will now return 200 OK.
+const BUILD_VERSION = "5.5.12"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
