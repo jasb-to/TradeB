@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    console.log(`[v0] CRON-JOB PROCESSING 2 symbols`)
+    console.log(`[v0] CRON-JOB PROCESSING ${TRADING_SYMBOLS.length} symbol(s): ${TRADING_SYMBOLS.join(", ")}`)
 
     const results: Record<string, any> = {}
 

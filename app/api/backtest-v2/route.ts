@@ -11,10 +11,7 @@ export const maxDuration = 300
 
 function getStrategyModeForSymbol(symbol: string): "STRICT" | "BALANCED" {
   if (symbol === "XAU_USD") return "STRICT"
-  if (symbol === "JP225") return "BALANCED"
-  if (symbol === "US100") return "BALANCED"
-  if (symbol === "US500") return "BALANCED"
-  throw new Error(`Unsupported symbol: ${symbol}`)
+  throw new Error(`Unsupported symbol: ${symbol}. Only XAU_USD is supported.`)
 }
 
 export async function GET(request: Request) {

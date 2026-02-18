@@ -17,7 +17,7 @@ if (!API_KEY || !ACCOUNT_ID) {
   process.exit(1)
 }
 
-const SYMBOLS = ['XAU_USD', 'US100', 'US500', 'JP225']
+const SYMBOLS = ['XAU_USD']
 const MODES = ['STRICT', 'BALANCED', 'REGIME_ADAPTIVE']
 
 async function fetchOandaCandles(symbol, granularity, count = 500) {
