@@ -1,6 +1,6 @@
 "use client"
-// v5.5.6-CRON-FIXED: Rewrote external-cron endpoint to remove problematic require() statement and use proper async/await with dynamic imports. Fixed 404 errors from cron-job.org.
-const BUILD_VERSION = "5.5.6"
+// v5.5.7-CRON-SIMPLIFIED: Simplified external-cron endpoint to proxy /api/signal/current instead of duplicating logic. Removes heavy DataFetcher dependencies that were causing timeouts and 404 errors.
+const BUILD_VERSION = "5.5.7"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"

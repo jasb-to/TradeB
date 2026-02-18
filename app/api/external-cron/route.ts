@@ -1,15 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { DataFetcher } from "@/lib/data-fetcher"
-import { TradingStrategies } from "@/lib/strategies"
-import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
-import { MarketHours } from "@/lib/market-hours"
-import { SignalCache } from "@/lib/signal-cache"
-import { CronHeartbeat } from "@/lib/cron-heartbeat"
 import { TRADING_SYMBOLS } from "@/lib/trading-symbols"
 
 export const maxDuration = 60
 export const dynamic = "force-dynamic"
 
+/**
+ * EXTERNAL CRON ENDPOINT
+ * Called by cron-job.org every 5 minutes
+ * 
+ * Simply proxies to /api/signal/current for each symbol
+ * and handles Telegram alerts if needed
+ */
 export async function GET(request: NextRequest) {
   const requestId = Math.random().toString(36).substring(7)
   const startTime = Date.now()
@@ -32,106 +33,60 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized", requestId }, { status: 401 })
     }
 
-    console.log(`[v0] CRON AUTH SUCCESS`)
+    console.log(`[v0] CRON AUTH SUCCESS: Processing ${TRADING_SYMBOLS.length} symbol(s)`)
 
-    // Check market hours
-    const marketStatus = MarketHours.getMarketStatus()
-    if (!marketStatus.isOpen) {
-      console.log(`[v0] CRON MARKET CLOSED`)
-      return NextResponse.json({
-        success: true,
-        marketClosed: true,
-        message: marketStatus.message,
-        timestamp: new Date().toISOString(),
-        requestId,
-      })
-    }
-
-    console.log(`[v0] CRON PROCESSING: ${TRADING_SYMBOLS.join(", ")}`)
-
+    const baseUrl = request.nextUrl.origin
     const results: Record<string, any> = {}
 
+    // Process each symbol by calling the signal API
     for (const symbol of TRADING_SYMBOLS) {
       try {
-        console.log(`[v0] CRON: Processing ${symbol}`)
+        console.log(`[v0] CRON: Fetching signal for ${symbol}`)
         
-        const dataFetcher = new DataFetcher(symbol)
+        const signalUrl = new URL(`/api/signal/current`, baseUrl)
+        signalUrl.searchParams.set("symbol", symbol)
+        
+        const response = await fetch(signalUrl.toString(), {
+          method: "GET",
+          headers: { "User-Agent": "external-cron" },
+        })
 
-        // Fetch candles for all timeframes
-        const dataDaily = await dataFetcher.fetchCandles("1d", 200)
-        const data8h = await dataFetcher.fetchCandles("8h", 200)
-        const data4h = await dataFetcher.fetchCandles("4h", 200)
-        const data1h = await dataFetcher.fetchCandles("1h", 200)
-        
-        let data15m = { candles: [], source: "oanda" }
-        let data5m = { candles: [], source: "oanda" }
-        
-        try {
-          data15m = await dataFetcher.fetchCandles("15m", 200)
-        } catch (e) {
-          console.warn(`[v0] CRON: 15m fetch failed for ${symbol}`)
-        }
-        
-        try {
-          data5m = await dataFetcher.fetchCandles("5m", 200)
-        } catch (e) {
-          console.warn(`[v0] CRON: 5m fetch failed for ${symbol}`)
-        }
-
-        // Check for synthetic data
-        const sources = [dataDaily.source, data8h.source, data4h.source, data1h.source]
-        if (sources.some(s => s === "synthetic")) {
-          console.error(`[v0] CRON: Synthetic data detected for ${symbol}`)
-          results[symbol] = { error: "Synthetic data", symbol }
+        if (!response.ok) {
+          console.error(`[v0] CRON: Signal API returned ${response.status} for ${symbol}`)
+          results[symbol] = { error: `API returned ${response.status}`, symbol }
           continue
         }
 
-        // Evaluate signal
-        const strategies = new TradingStrategies(DEFAULT_TRADING_CONFIG)
-        const signal = await strategies.evaluateSignals(
-          dataDaily.candles,
-          data8h.candles,
-          data4h.candles,
-          data1h.candles,
-          data15m.candles,
-          data5m.candles,
-        )
-
-        const signalWithSymbol = { ...signal, symbol }
-        SignalCache.set(signalWithSymbol, symbol)
+        const signal = await response.json()
+        results[symbol] = signal
+        
+        console.log(`[v0] CRON: ${symbol} signal received - type=${signal.type}`)
 
         // Check if we should send alert
-        const shouldAlert = SignalCache.shouldSendAlert(signalWithSymbol, symbol)
-        const isAlert = shouldAlert && signal.type === "ENTRY" && signal.alertLevel >= 1
-
-        if (isAlert && process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
+        if (signal.type === "ENTRY" && signal.alertLevel >= 1 && process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
           try {
+            console.log(`[v0] CRON: Sending Telegram alert for ${symbol}`)
             const { TelegramNotifier } = await import("@/lib/telegram")
             const notifier = new TelegramNotifier(
               process.env.TELEGRAM_BOT_TOKEN,
               process.env.TELEGRAM_CHAT_ID,
               "https://traderb.vercel.app",
             )
-            await notifier.sendSignalAlert(signalWithSymbol)
-            SignalCache.recordAlert(signalWithSymbol, symbol)
+            await notifier.sendSignalAlert(signal)
             console.log(`[v0] CRON: Alert sent for ${symbol}`)
           } catch (err) {
-            console.error(`[v0] CRON: Alert failed for ${symbol}:`, err)
+            console.error(`[v0] CRON: Alert send failed for ${symbol}:`, err)
           }
         }
 
-        results[symbol] = signalWithSymbol
-        await CronHeartbeat.recordExecution(symbol)
-        console.log(`[v0] CRON: ${symbol} complete`)
       } catch (error) {
         console.error(`[v0] CRON: Error processing ${symbol}:`, error)
         results[symbol] = { error: String(error), symbol }
-        await CronHeartbeat.recordFailure(symbol, error as Error)
       }
     }
 
     const duration = Date.now() - startTime
-    console.log(`[v0] EXTERNAL-CRON COMPLETED: ${duration}ms`)
+    console.log(`[v0] EXTERNAL-CRON COMPLETED: ${duration}ms, requestId=${requestId}`)
 
     return NextResponse.json({
       success: true,
@@ -139,9 +94,17 @@ export async function GET(request: NextRequest) {
       results,
       requestId,
       duration,
-    })
+      symbolsProcessed: TRADING_SYMBOLS.length,
+    }, { status: 200 })
   } catch (error) {
     console.error(`[v0] CRON ERROR:`, error)
-    return NextResponse.json({ error: String(error), requestId: "unknown" }, { status: 500 })
+    return NextResponse.json(
+      { 
+        error: String(error), 
+        requestId,
+        timestamp: new Date().toISOString()
+      }, 
+      { status: 500 }
+    )
   }
 }
