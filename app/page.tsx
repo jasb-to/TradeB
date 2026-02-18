@@ -1,6 +1,6 @@
 "use client"
-// v5.5.13-CRON-ULTRA-SIMPLE: Rewrote external-cron to ultra-minimal implementation. Removed TelegramNotifier dynamic import and result aggregation that were causing timeouts. Now just fetches signal/current and returns 200. Fixed: cron-job.org 404 errors.
-const BUILD_VERSION = "5.5.13"
+// v5.5.14-FINAL-CLEANUP: Hardcoded XAU_USD directly in /api/signal/current endpoint to eliminate cached TRADING_SYMBOLS import. This removes the last reference to old symbols (JP225/US100/US500) that was causing errors in compiled bytecode. System now XAU_USD exclusive everywhere.
+const BUILD_VERSION = "5.5.14"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"

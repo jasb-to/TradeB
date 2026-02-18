@@ -8,7 +8,12 @@ import { CACHE_BUSTER_V3_3 } from "@/lib/cache-buster"
 import { MarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
 import { createTrade } from "@/lib/trade-lifecycle"
-import { TRADING_SYMBOLS, isValidTradingSymbol } from "@/lib/trading-symbols"
+
+// HARDCODED: Only XAU_USD - never import TRADING_SYMBOLS which gets cached by Vercel
+const TRADING_SYMBOLS = ["XAU_USD"] as const
+function isValidTradingSymbol(symbol: string): symbol is typeof TRADING_SYMBOLS[number] {
+  return symbol === "XAU_USD"
+}
 
 // SYMBOL-SPECIFIC STRATEGY ROUTING
 // XAU_USD = STRICT (multi-TF alignment, conservative)
