@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { DataFetcher } from "@/lib/data-fetcher"
 import { TradingStrategies } from "@/lib/strategies"
 import { BalancedBreakoutStrategy } from "@/lib/balanced-strategy"
+import { StrictStrategyV7 } from "@/lib/strict-strategy-v7"
+import { BalancedStrategyV7 } from "@/lib/balanced-strategy-v7"
 import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
 import { CACHE_BUSTER_V3_3 } from "@/lib/cache-buster"
 // CACHE BUST v3.1: Force full rebuild - symbol scope fixed in catch block
@@ -15,8 +17,8 @@ function isValidTradingSymbol(symbol: string): symbol is typeof TRADING_SYMBOLS[
   return symbol === "XAU_USD"
 }
 
-// SYMBOL-SPECIFIC STRATEGY ROUTING
-// XAU_USD = STRICT (multi-TF alignment, conservative)
+// SYMBOL-SPECIFIC STRATEGY ROUTING - v7 Score-Based
+// XAU_USD = STRICT v7 (score ≥ 4/6)
 function getStrategyModeForSymbol(symbol: string): "STRICT" | "BALANCED" {
   if (symbol === "XAU_USD") return "STRICT"
   throw new Error(`Unsupported symbol for strategy routing: ${symbol}. Only XAU_USD is configured.`)
@@ -201,27 +203,29 @@ export async function GET(request: Request) {
       )
     }
 
-    // Symbol-specific strategy routing - no global mode
+    // Symbol-specific strategy routing - v7 Score-Based System
     const activeMode = getStrategyModeForSymbol(symbol)
-    console.log(`[ROUTE] ACTIVE_MODE_FOR_${symbol}=${activeMode}`)
+    console.log(`[v0] ACTIVE_MODE_FOR_${symbol}=${activeMode} (v7 Score-Based)`)
 
     let signal
     if (activeMode === "BALANCED") {
-      const balancedStrategy = new BalancedBreakoutStrategy(DEFAULT_TRADING_CONFIG)
-      balancedStrategy.setDataSource("oanda")
-      signal = await balancedStrategy.evaluateSignals(
+      const balancedV7 = new BalancedStrategyV7()
+      signal = balancedV7.evaluate(
         dataDaily.candles,
-        data4h.candles,
-        data1h.candles,
-      )
-    } else {
-      signal = await strategies.evaluateSignals(
-        dataDaily.candles,
-        data8h.candles,
         data4h.candles,
         data1h.candles,
         data15m.candles,
-        data5m.candles,
+        DEFAULT_TRADING_CONFIG,
+      )
+    } else {
+      // STRICT mode - v7 Score-Based
+      const strictV7 = new StrictStrategyV7()
+      signal = strictV7.evaluate(
+        dataDaily.candles,
+        data4h.candles,
+        data1h.candles,
+        data15m.candles,
+        DEFAULT_TRADING_CONFIG,
       )
     }
     

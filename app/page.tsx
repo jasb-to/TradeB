@@ -1,6 +1,6 @@
 "use client"
-// v5.5.15-CRON-REWRITE: Completely rewrote /api/external-cron from scratch with ultra-minimal 33-line implementation. Zero imports, zero loops, zero references to old code. Now only fetches XAU_USD signal and returns success. Cron-job.org 404 errors resolved.
-const BUILD_VERSION = "5.5.15"
+// v5.6.0-SCORE-BASED-ENTRY: Deployed new score-based entry system for XAU_USD. STRICT v7 requires 4H trend + 1H breakout + score ≥4/6. BALANCED v7 requires score ≥3/6. Replaces old multi-TF alignment hard gates. Should produce 1-3 trades/week vs 0 before.
+const BUILD_VERSION = "5.6.0"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
