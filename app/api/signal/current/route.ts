@@ -1,21 +1,18 @@
 import { NextResponse } from "next/server"
 import { DataFetcher } from "@/lib/data-fetcher"
 import { TradingStrategies } from "@/lib/strategies"
-import { BalancedBreakoutStrategy } from "@/lib/balanced-strategy"
-import { StrictStrategyV7 } from "@/lib/strict-strategy-v7"
-import { BalancedStrategyV7 } from "@/lib/balanced-strategy-v7"
-import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
-import { CACHE_BUSTER_V3_3 } from "@/lib/cache-buster"
-// CACHE BUST v3.1: Force full rebuild - symbol scope fixed in catch block
-import { MarketHours } from "@/lib/market-hours"
+import { DEFAULT_TRADING_CONFIG } from "@/lib/constants"
+import { calculateMarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
+import { sendTelegramNotification } from "@/lib/telegram"
 import { createTrade } from "@/lib/trade-lifecycle"
+import { InMemoryTrades } from "@/lib/in-memory-trades"
 
 // SYSTEM VERSION - Visible on homepage and all API responses
-// v9.0.0-ARCHITECTURAL-FIX: Full system correction complete - all 7 issues resolved
-// Single source of truth enforced: signal.type derives from entryDecision.allowed
-// Diagnostic logging added: [CONSISTENCY_CHECK] [TELEGRAM_TRIGGER_CHECK] [MTF_RENDER_CHECK]
-export const SYSTEM_VERSION = "9.0.0-ARCHITECTURAL-FIX"
+// v9.1.0-TRADE-PERSISTENCE: Signal flickering permanently fixed with in-memory trade persistence
+// Active trades override fresh evaluation to maintain display until TP/SL hit
+// Fallback persistence when Vercel KV not configured: InMemoryTrades system
+export const SYSTEM_VERSION = "9.1.0-TRADE-PERSISTENCE"
 
 // HARDCODED: Only XAU_USD - never import TRADING_SYMBOLS which gets cached by Vercel
 const TRADING_SYMBOLS = ["XAU_USD"] as const
@@ -413,9 +410,11 @@ export async function GET(request: Request) {
     // [DIAG] Entry Decision
     console.log(`[DIAG] ENTRY DECISION allowed=${entryDecision.allowed} tier=${entryDecision.tier} score=${entryDecision.score}`)
     
-    // Create trade file if entry is approved
+    // TRADE PERSISTENCE: Create trade file if entry is approved
+    // Uses Vercel KV if available, falls back to in-memory persistence
     if (entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.direction && enhancedSignal.entryPrice) {
       try {
+        // Try Vercel KV first
         await createTrade(
           symbol,
           enhancedSignal.direction as "BUY" | "SELL",
@@ -425,13 +424,50 @@ export async function GET(request: Request) {
           enhancedSignal.takeProfit2 || 0,
           entryDecision.tier as "A+" | "A" | "B"
         )
-        console.log(`[LIFECYCLE OK] Trade persisted successfully - ${symbol} ${enhancedSignal.direction} ${entryDecision.tier}`)
-      } catch (tradeError) {
-        console.error("[LIFECYCLE] Error creating trade file:", tradeError)
+        console.log(`[TRADE_PERSIST] Vercel KV: Trade persisted - ${symbol} ${enhancedSignal.direction} ${entryDecision.tier}`)
+      } catch (kvError: any) {
+        // Fallback to in-memory persistence if KV not configured
+        if (kvError.message?.includes("Missing required environment variables")) {
+          console.log(`[TRADE_PERSIST] Vercel KV not configured, using in-memory fallback`)
+          await InMemoryTrades.createTrade(
+            symbol,
+            enhancedSignal.direction as "BUY" | "SELL",
+            enhancedSignal.entryPrice,
+            enhancedSignal.stopLoss || 0,
+            enhancedSignal.takeProfit1 || 0,
+            enhancedSignal.takeProfit2 || 0,
+            entryDecision.tier as "A+" | "A" | "B"
+          )
+          console.log(`[TRADE_PERSIST] In-Memory: Trade persisted - ${symbol} ${enhancedSignal.direction} ${entryDecision.tier}`)
+        } else {
+          console.error("[TRADE_PERSIST] Error creating trade:", kvError)
+        }
       }
     }
     
     enhancedSignal.entryDecision = entryDecision
+
+    // CHECK FOR ACTIVE TRADE: If trade exists in memory, override signal.type to preserve display
+    try {
+      const activeTrade = await InMemoryTrades.getActiveTrade(symbol)
+      if (activeTrade) {
+        console.log(`[TRADE_OVERRIDE] Active trade found: ${symbol} ${activeTrade.direction} ${activeTrade.tier} @ ${activeTrade.entry}`)
+        
+        // Override signal to show active trade (even if fresh eval is NO_TRADE)
+        enhancedSignal.type = "ENTRY"
+        enhancedSignal.direction = activeTrade.direction === "BUY" ? "LONG" : "SHORT"
+        enhancedSignal.entryPrice = activeTrade.entry
+        enhancedSignal.stopLoss = activeTrade.stopLoss
+        enhancedSignal.takeProfit1 = activeTrade.takeProfit1
+        enhancedSignal.takeProfit2 = activeTrade.takeProfit2
+        entryDecision.tier = activeTrade.tier
+        entryDecision.allowed = true
+        
+        console.log(`[TRADE_OVERRIDE] Signal overridden to show active trade - type=ENTRY tier=${activeTrade.tier}`)
+      }
+    } catch (tradeCheckError) {
+      console.error("[TRADE_OVERRIDE] Error checking active trade:", tradeCheckError)
+    }
 
     SignalCache.set(enhancedSignal, symbol)
 
