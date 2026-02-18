@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now()
   
   console.log(`[v0] EXTERNAL-CRON STARTED: requestId=${requestId}`)
+  console.log(`[v0] EXTERNAL-CRON REQUEST URL: ${request.url}`)
   
   // CRITICAL FIX #4: Cooldown persistence warning
   // Current implementation: In-memory cooldown WILL reset on cold start/redeploy
@@ -42,12 +43,27 @@ export async function GET(request: NextRequest) {
     // Verify secret with detailed logging
     if (!cronSecret) {
       console.error(`[v0] CRON-JOB AUTH FAILED: CRON_SECRET env var not set`)
-      return NextResponse.json({ error: "CRON_SECRET not configured", requestId }, { status: 500 })
+      return NextResponse.json({ 
+        error: "CRON_SECRET not configured", 
+        requestId,
+        message: "Environment variable CRON_SECRET is missing. Set it in Vercel project settings.",
+        helpUrl: "https://vercel.com/docs/projects/environment-variables"
+      }, { status: 500 })
     }
 
+    console.log(`[v0] EXTERNAL-CRON SECRET CHECK: Provided=${secret ? `***${secret.slice(-6)}` : "MISSING"}, Expected=***${cronSecret.slice(-6)}`)
+
     if (secret !== cronSecret) {
-      console.error(`[v0] CRON-JOB AUTH FAILED: Secret mismatch. Provided=${secret ? "yes" : "no"}, Expected=set`)
-      return NextResponse.json({ error: "Unauthorized", requestId }, { status: 401 })
+      console.error(`[v0] CRON-JOB AUTH FAILED: Secret mismatch. Provided length=${secret?.length || 0}, Expected length=${cronSecret.length}`)
+      return NextResponse.json({ 
+        error: "Unauthorized", 
+        requestId,
+        message: "Secret mismatch. Ensure CRON_SECRET environment variable matches the secret in cron-job.org configuration.",
+        details: {
+          providedSecretLength: secret?.length || 0,
+          expectedSecretLength: cronSecret.length
+        }
+      }, { status: 401 })
     }
 
     console.log(`[v0] CRON-JOB AUTH SUCCESS: requestId=${requestId}`)

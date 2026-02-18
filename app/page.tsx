@@ -1,6 +1,6 @@
 "use client"
-// v5.5.3-CRON-FIX: Fixed legacy /api/cron/signal-xau endpoint - now proxies to /api/external-cron instead of returning 410. Restores cron-job.org functionality.
-const BUILD_VERSION = "5.5.3"
+// v5.5.4-CRON-DEBUG: Added detailed debugging to external-cron endpoint to diagnose secret mismatch and 401 auth failures. Shows secret length comparison for troubleshooting.
+const BUILD_VERSION = "5.5.4"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
