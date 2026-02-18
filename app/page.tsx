@@ -1,6 +1,6 @@
 "use client"
-// v5.5.14-FINAL-CLEANUP: Hardcoded XAU_USD directly in /api/signal/current endpoint to eliminate cached TRADING_SYMBOLS import. This removes the last reference to old symbols (JP225/US100/US500) that was causing errors in compiled bytecode. System now XAU_USD exclusive everywhere.
-const BUILD_VERSION = "5.5.14"
+// v5.5.15-CRON-REWRITE: Completely rewrote /api/external-cron from scratch with ultra-minimal 33-line implementation. Zero imports, zero loops, zero references to old code. Now only fetches XAU_USD signal and returns success. Cron-job.org 404 errors resolved.
+const BUILD_VERSION = "5.5.15"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
