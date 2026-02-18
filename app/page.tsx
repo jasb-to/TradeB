@@ -1,7 +1,7 @@
 "use client"
-// v6.0.4-HARD-GATES-RELAXED: Fixed STRICT v7.3 hard gate thresholds that were too restrictive. Hard Gate 1: ADX reduced from 25 to 20. Hard Gate 2: Breakout threshold reduced from 80% to 70%. Added detailed console logging for both gates to show calculation values. Should now generate entry signals in real market conditions.
-export const SYSTEM_VERSION = "6.0.4-HARD-GATES-RELAXED"
-const BUILD_VERSION = "6.0.4"
+// v6.0.5-ULTRA-RELAXED: Hard gates massively relaxed - ADX≥12 (was 20), EMA gap≥0.05% (was 0.1%). Unique rebuild timestamp: feb18-1825-ultra-relax-gates. This forces full Vercel cache clear and recompile.
+export const SYSTEM_VERSION = "6.0.5-ULTRA-RELAXED"
+const BUILD_VERSION = "6.0.5"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
