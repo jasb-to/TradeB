@@ -1,10 +1,10 @@
 "use client"
-// v9.1.1-BUILD-FIX: Import path corrected from @/lib/constants → @/lib/default-config
-// Previous version had correct code but Vercel build cache was stale
-// This version forces complete rebuild to clear import resolution errors
-// Trade persistence (v9.1.0) + All architectural fixes (v9.0.0) remain active
-export const SYSTEM_VERSION = "9.1.1-BUILD-FIX"
-const FORCE_REBUILD = "import-path-fix-2026-02-18T22:50:00Z"
+// v9.2.0-EMERGENCY-CACHE-CLEAR: Complete system reset - Vercel cache completely poisoned
+// Import path IS correct in source (@/lib/default-config) but build cache serving old version
+// This emergency version adds unique timestamp to force complete module graph rebuild
+export const SYSTEM_VERSION = "9.2.0-EMERGENCY-CACHE-CLEAR"
+export const EMERGENCY_REBUILD = "T1708298400000"
+export const MODULE_CACHE_BREAKER = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString()
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"

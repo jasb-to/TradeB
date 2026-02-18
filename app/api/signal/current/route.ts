@@ -1,3 +1,4 @@
+// EMERGENCY CACHE CLEAR: Force module re-evaluation timestamp: 2026-02-18T22:53:20.000Z
 import { NextResponse } from "next/server"
 import { DataFetcher } from "@/lib/data-fetcher"
 import { TradingStrategies } from "@/lib/strategies"
@@ -8,9 +9,10 @@ import { sendTelegramNotification } from "@/lib/telegram"
 import { createTrade } from "@/lib/trade-lifecycle"
 import { InMemoryTrades } from "@/lib/in-memory-trades"
 
-// SYSTEM VERSION - Visible on homepage and all API responses
-// v9.1.1-BUILD-FIX: Corrected import path to @/lib/default-config (was @/lib/constants)
-export const SYSTEM_VERSION = "9.1.1-BUILD-FIX"
+// SYSTEM VERSION - Visible on homepage and all API responses  
+// v9.2.0-EMERGENCY-CACHE-CLEAR: Import path is correct but Vercel serving cached bytecode
+export const SYSTEM_VERSION = "9.2.0-EMERGENCY-CACHE-CLEAR"
+export const CACHE_INVALIDATION_KEY = "REBUILD_" + Date.now()
 
 // HARDCODED: Only XAU_USD - never import TRADING_SYMBOLS which gets cached by Vercel
 const TRADING_SYMBOLS = ["XAU_USD"] as const
