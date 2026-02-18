@@ -31,10 +31,10 @@ export class StrictStrategyV7 {
         indicators: {
           ema20: ema20_4h,
           ema50: ema50_4h,
-          adx: h4Candle.adx || 0,
-          atr: h4Candle.atr || 0,
-          rsi: h4Candle.rsi || 50,
-          stochRSI: h4Candle.stochRSI,
+          adx: this.calculateADX(h4Candles),
+          atr: this.calculateATR(h4Candles),
+          rsi: this.calculateRSI(h4Candles),
+          stochRSI: undefined,
           vwap: this.calculateVWAP(h1Candles),
         },
       }
@@ -54,18 +54,18 @@ export class StrictStrategyV7 {
       scoreReasons.push("Daily aligned")
     }
 
-    // 2. ADX Strength (0-1)
-    const adx4h = h4Candle.adx || 0
-    if (adx4h >= 15) {
+    // 2. ADX Strength - Calculate instead of reading from candle
+    const adx4h = this.calculateADX(h4Candles)
+    if (adx4h >= 12) { // Lowered from 15
       score++
-      scoreReasons.push("ADX strong")
+      scoreReasons.push(`ADX ${adx4h.toFixed(1)}`)
     }
 
     // 3. RSI Momentum (0-1)
-    const rsi4h = h4Candle.rsi || 50
-    if ((direction4h === "UP" && rsi4h > 50) || (direction4h === "DOWN" && rsi4h < 50)) {
+    const rsi4h = this.calculateRSI(h4Candles, 14)
+    if ((direction4h === "UP" && rsi4h > 45) || (direction4h === "DOWN" && rsi4h < 55)) { // Relaxed from 50
       score++
-      scoreReasons.push("RSI aligned")
+      scoreReasons.push(`RSI ${rsi4h.toFixed(0)}`)
     }
 
     // 4. VWAP Alignment (0-1)
@@ -82,11 +82,11 @@ export class StrictStrategyV7 {
     }
 
     // 6. ATR Expanding (0-1)
-    const atr4h = h4Candle.atr || 0
-    const atrPrev = h4Candles[Math.max(0, h4Candles.length - 5)].atr || 0
-    if (atr4h > atrPrev * 1.05) {
+    const atr4h = this.calculateATR(h4Candles, 14)
+    const atrPrev = this.calculateATR(h4Candles.slice(0, -1), 14)
+    if (atr4h > atrPrev * 1.02) { // Relaxed from 1.05
       score++
-      scoreReasons.push("ATR expanding")
+      scoreReasons.push(`ATR ${atr4h.toFixed(1)}`)
     }
 
     // Entry Threshold: score >= 3
@@ -106,10 +106,29 @@ export class StrictStrategyV7 {
           adx: adx4h,
           atr: atr4h,
           rsi: rsi4h,
-          stochRSI: h4Candle.stochRSI,
-          vwap,
+          stochRSI: undefined,
+          vwap: vwap,
         },
       }
+    }
+
+    // Below Threshold: Score < 3
+    return {
+      type: "NO_TRADE",
+      direction: "NONE",
+      tier: "NO_TRADE",
+      score,
+      reason: `Score ${score}/6 < 3: ${scoreReasons.length ? scoreReasons.join(", ") : "insufficient signals"}`,
+      indicators: {
+        ema20: ema20_4h,
+        ema50: ema50_4h,
+        adx: adx4h,
+        atr: atr4h,
+        rsi: rsi4h,
+        stochRSI: undefined,
+        vwap: vwap,
+      },
+    }
     }
 
     // NO_TRADE: Below threshold
@@ -169,5 +188,59 @@ export class StrictStrategyV7 {
 
   private getEmptyIndicators() {
     return { ema20: 0, ema50: 0, adx: 0, atr: 0, rsi: 50, stochRSI: undefined, vwap: 0 }
+  }
+
+  private calculateRSI(candles: any[], period: number = 14): number {
+    if (candles.length < period + 1) return 50
+    let gains = 0
+    let losses = 0
+    for (let i = candles.length - period; i < candles.length; i++) {
+      const change = candles[i].close - candles[i - 1].close
+      if (change > 0) gains += change
+      else losses -= change
+    }
+    const avgGain = gains / period
+    const avgLoss = losses / period
+    const rs = avgGain / (avgLoss || 0.01)
+    return 100 - (100 / (1 + rs))
+  }
+
+  private calculateATR(candles: any[], period: number = 14): number {
+    if (candles.length < period) return 0
+    let sumTR = 0
+    for (let i = Math.max(1, candles.length - period); i < candles.length; i++) {
+      const high = candles[i].high
+      const low = candles[i].low
+      const prevClose = candles[i - 1].close
+      const tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose))
+      sumTR += tr
+    }
+    return sumTR / period
+  }
+
+  private calculateADX(candles: any[], period: number = 14): number {
+    if (candles.length < period * 2) return 20 // Return neutral value if insufficient data
+    let plusDM = 0
+    let minusDM = 0
+    let tr = 0
+    
+    // Simplified ADX: count trend bars
+    for (let i = Math.max(1, candles.length - period); i < candles.length; i++) {
+      const high = candles[i].high - candles[i - 1].high
+      const low = candles[i - 1].low - candles[i].low
+      
+      if (high > 0 && high > low) plusDM += high
+      if (low > 0 && low > high) minusDM += low
+      
+      const trValue = Math.max(
+        candles[i].high - candles[i].low,
+        Math.abs(candles[i].high - candles[i - 1].close),
+        Math.abs(candles[i].low - candles[i - 1].close)
+      )
+      tr += trValue
+    }
+    
+    const di = Math.abs(plusDM - minusDM) / (tr || 1)
+    return Math.min(100, di * 100)
   }
 }

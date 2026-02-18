@@ -1,6 +1,6 @@
 "use client"
-// v5.8.0-STRICT-V7.2-SCOREONLY: Complete architecture redesign - SINGLE hard gate (4H trend exists) with everything else score-based. Breakout, ADX, RSI, VWAP, ATR are now scoring components (0-1 each). Entry threshold: score ≥3/6. Should now generate 10-15 trades/6mo instead of 0.
-const BUILD_VERSION = "5.8.0"
+// v5.8.1-V7.2-INDICATORS-FIXED: Fixed STRICT v7.2 strategy - now calculates all indicators (ADX, RSI, ATR) instead of reading from candle objects. Relaxed thresholds: ADX>=12, RSI tolerance ±5 from 50, ATR expansion >=2%. Single hard gate (4H trend exists). Should now generate entry signals.
+const BUILD_VERSION = "5.8.1"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
