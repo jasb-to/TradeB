@@ -1,6 +1,6 @@
 "use client"
-// v5.9.1-STOCHRSI-RESTORED: Added calculateStochRSI method with proper %K and %D smoothing. STRICT v7.3 now returns stochRSI indicator data in all signal responses (both ENTRY and NO_TRADE). Indicator analysis card will now display complete stochRSI values with K/D lines.
-const BUILD_VERSION = "5.9.1"
+// v6.0.0-SELECTIVE-STRICT-V7.3: Deployed complete STRICT v7.3 strategy with genuine selectivity (targeting 8-20 trades per 6mo). Two hard gates: 4H trend (0.1% EMA sep + ADX≥25) + 1H breakout at 80%. Six strict scoring components (independent, not cumulative). Entry threshold ≥4/6. Rebuild to clear build cache.
+const BUILD_VERSION = "6.0.0"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
