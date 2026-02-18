@@ -1,6 +1,6 @@
 "use client"
-// v5.5.5-CLEANUP: Removed all references to JP225, US100, US500 from trading logic, backtest routes, signal routing, and scripts. System is now XAU_USD exclusive.
-const BUILD_VERSION = "5.5.5"
+// v5.5.6-CRON-FIXED: Rewrote external-cron endpoint to remove problematic require() statement and use proper async/await with dynamic imports. Fixed 404 errors from cron-job.org.
+const BUILD_VERSION = "5.5.6"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
