@@ -1,6 +1,6 @@
 "use client"
-// v6.0.9-FIXES-APPLIED: Fixed 4 critical issues - (1) Trade flickering (score threshold 4→3), (2) UI NO_TRADE display (relaxed entry decision for B tier), (3) Stochastic RSI ERROR display fixed, (4) Market Regime now shows LONG/SHORT. Timestamp: 2026-02-18T20:45:00Z
-export const SYSTEM_VERSION = "6.0.9-FIXES-APPLIED"
+// v6.1.0-TIER-FIX: Fixed critical tier calculation bug - tier now based on actual criteria score (7.0+=A+, 6.0+=A, 5.0+=B, <5.0=NO_TRADE) not pre-assigned structuralTier. This fixes the "1/7 criteria but A+ display" issue. Timestamp: 2026-02-18T20:52:00Z
+export const SYSTEM_VERSION = "6.1.0-TIER-FIX"
 const BUILD_VERSION = "6.0.8"
 // REBUILD_TRIGGER = "timestamp-2026-02-18-1835-utc"
 

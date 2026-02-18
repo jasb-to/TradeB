@@ -825,24 +825,27 @@ export class TradingStrategies {
     // Round to 1 decimal place and cap at 9
     const score = Math.min(Math.round(rawScore * 10) / 10, 9)
 
-    // Tier comes from signal's structural determination (HTF regime-based)
-    // Score does NOT override or upgrade tier - it only gates approval
-    // A B-tier signal (HTF neutral + 1H/15M aligned) stays B tier regardless of score
-    const structuralTier = (signal as any).structuralTier as "A+" | "A" | "B" | "NO_TRADE"
-    console.log(`[v0] buildEntryDecision RECEIVED: structuralTier=${structuralTier} type=${signal.type}`)
+    // TIER ASSIGNMENT: Based on SCORE from actual criteria evaluation (NOT from structuralTier)
+    // This ensures the tier reflects what we've actually verified
+    // Score ranges are calibrated to XAU/USD volatility and multi-timeframe behavior
     let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
     
-    if (structuralTier === "A+") {
-      tier = "A+"
-    } else if (structuralTier === "A") {
-      tier = "A"
-    } else if (structuralTier === "B") {
-      tier = "B"
+    if (score >= 7.0) {
+      tier = "A+"  // 7.0-9.0: Premium setup (5+ criteria met, high confidence)
+    } else if (score >= 6.0) {
+      tier = "A"   // 6.0-6.99: Good setup (4+ criteria met)
+    } else if (score >= 5.0) {
+      tier = "B"   // 5.0-5.99: Valid setup (3+ criteria met)
     } else {
-      tier = "NO_TRADE"
+      tier = "NO_TRADE"  // <5.0: Below threshold
     }
 
-    console.log(`[v0] buildEntryDecision TIER: ${tier} SCORE: ${score} APPROVED: ${signal.type === "ENTRY" && tier !== "NO_TRADE"}`)
+    console.log(`[v0] buildEntryDecision SCORE-BASED TIER: score=${score.toFixed(1)} → tier=${tier}`)
+    
+    // Calculate pass/total for logging
+    const passCount = criteria.filter(c => c.passed).length
+    const totalCount = criteria.length
+    console.log(`[v0] buildEntryDecision CRITERIA: ${passCount}/${totalCount} passed`)
 
     // Alert level based on tier
     let alertLevel: 0 | 1 | 2 | 3 = 0
