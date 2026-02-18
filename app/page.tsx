@@ -1,6 +1,6 @@
 "use client"
-// v5.5.12-CRON-FINALLY-FIXED: REMOVED TRADING_SYMBOLS import from external-cron. Endpoint now hardcodes XAU_USD directly. Fixes cached bytecode issue where old JP225/US100/US500 were still being processed. Cron job will now return 200 OK.
-const BUILD_VERSION = "5.5.12"
+// v5.5.13-CRON-ULTRA-SIMPLE: Rewrote external-cron to ultra-minimal implementation. Removed TelegramNotifier dynamic import and result aggregation that were causing timeouts. Now just fetches signal/current and returns 200. Fixed: cron-job.org 404 errors.
+const BUILD_VERSION = "5.5.13"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
