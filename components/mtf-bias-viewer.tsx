@@ -64,7 +64,7 @@ export function MTFBiasViewer({ signal }: MTFBiasViewerProps) {
   }
 
   const getAlignmentLabel = (state: string | undefined) => {
-    if (!state) return "—"
+    if (!state) return "-"
     if (state === "NO_CLEAR_BIAS") return "No Clear Bias"
     return state
   }
@@ -136,7 +136,7 @@ export function MTFBiasViewer({ signal }: MTFBiasViewerProps) {
           </>
         ) : (
           <Badge className="bg-slate-900/50 border-slate-700/50 text-slate-400 w-full text-center">
-            —N/A
+            N/A
           </Badge>
         )}
       </div>

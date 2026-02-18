@@ -151,7 +151,7 @@ export function IndicatorCards({ signal }: IndicatorCardsProps) {
         <CardContent className="space-y-2">
           <div className="flex justify-between items-baseline">
             {stochStatus.isCalculating ? (
-              <span className="text-2xl font-bold text-gray-500" title="Waiting for sufficient candles">—</span>
+              <span className="text-2xl font-bold text-gray-500" title="Waiting for sufficient candles">-</span>
             ) : stochRsiData.value !== null && stochRsiData.value !== undefined ? (
               <span className="text-2xl font-bold">{stochRsiData.value.toFixed(1)}</span>
             ) : (
@@ -180,7 +180,7 @@ export function IndicatorCards({ signal }: IndicatorCardsProps) {
         </CardHeader>
         <CardContent className="space-y-2">
           <div className="flex justify-between items-baseline">
-            <span className="text-2xl font-bold">{vwap === 0 ? "—" : `$${vwap.toFixed(2)}`}</span>
+            <span className="text-2xl font-bold">{vwap === 0 ? "-" : `$${vwap.toFixed(2)}`}</span>
             <span className={`text-xs font-mono ${vwapStatus.color}`}>{vwapStatus.label}</span>
           </div>
           <div className="w-full bg-slate-800 rounded h-2">
