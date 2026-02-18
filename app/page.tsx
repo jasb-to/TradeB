@@ -1,6 +1,6 @@
 "use client"
-// v5.5.2-XAU-FOCUS: System cleanup - removed US100/JP225/US500, relaxed BALANCED/REGIME_ADAPTIVE thresholds for more trades, STRICT remains conservative
-const BUILD_VERSION = "5.5.2"
+// v5.5.3-CRON-FIX: Fixed legacy /api/cron/signal-xau endpoint - now proxies to /api/external-cron instead of returning 410. Restores cron-job.org functionality.
+const BUILD_VERSION = "5.5.3"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
