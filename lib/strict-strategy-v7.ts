@@ -59,6 +59,15 @@ export class StrictStrategyV7 {
         tier: "NO_TRADE",
         score: 0,
         reason: `4H trend gate failed: EMA20=${ema20_4h.toFixed(2)} EMA50=${ema50_4h.toFixed(2)} Gap=${emaGap.toFixed(4)}, ADX=${adx4h.toFixed(1)}`,
+        indicators: {
+          ema20: ema20_4h,
+          ema50: ema50_4h,
+          adx: adx4h,
+          atr: latest4h.atr || 0,
+          rsi: latest4h.rsi || 50,
+          stochRSI: latest4h.stochRSI,
+          vwap: this.calculateVWAP(candle1h),
+        },
       }
     }
 
@@ -73,6 +82,15 @@ export class StrictStrategyV7 {
         tier: "NO_TRADE",
         score: 0,
         reason: "1H/15M breakout gate failed: No breakout detected",
+        indicators: {
+          ema20: ema20_4h,
+          ema50: ema50_4h,
+          adx: adx4h,
+          atr: latest4h.atr || 0,
+          rsi: latest4h.rsi || 50,
+          stochRSI: latest4h.stochRSI,
+          vwap: this.calculateVWAP(candle1h),
+        },
       }
     }
 
@@ -87,6 +105,15 @@ export class StrictStrategyV7 {
         tier: "NO_TRADE",
         score: score.total,
         reason: `Score ${score.total}/6 < threshold 4: ${score.reasons.join(", ")}`,
+        indicators: {
+          ema20: ema20_4h,
+          ema50: ema50_4h,
+          adx: adx4h,
+          atr: latest4h.atr || 0,
+          rsi: latest4h.rsi || 50,
+          stochRSI: latest4h.stochRSI,
+          vwap: this.calculateVWAP(candle1h),
+        },
       }
     }
 
@@ -102,6 +129,15 @@ export class StrictStrategyV7 {
       score: score.total,
       approved: true,
       reason: `Score ${score.total}/6: ${score.reasons.join(", ")}`,
+      indicators: {
+        ema20: ema20_4h,
+        ema50: ema50_4h,
+        adx: adx4h,
+        atr: latest4h.atr || 0,
+        rsi: latest4h.rsi || 50,
+        stochRSI: latest4h.stochRSI,
+        vwap: this.calculateVWAP(candle1h),
+      },
     }
   }
 

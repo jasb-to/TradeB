@@ -1,6 +1,6 @@
 "use client"
-// v5.7.1-HARD-GATES-UNBLOCKED: Fixed STRICT v7 hard gate calculations. EMA comparison now uses 0.01 pip tolerance (was exact equality check). Breakout detection uses 95% of 10-candle high/low (was 100% of 20-candle). ADX threshold lowered to 10 (was 15). Should now generate ENTRY signals when market conditions align.
-const BUILD_VERSION = "5.7.1"
+// v5.7.2-INDICATOR-CARDS-RESTORED: Fixed missing indicator data in API responses. STRICT v7 strategy now includes indicators (EMA, ADX, ATR, RSI, VWAP) in all response types (NO_TRADE, ENTRY). Indicator analysis cards will now display on frontend. Forced rebuild to clear cached US500 heartbeat errors.
+const BUILD_VERSION = "5.7.2"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
