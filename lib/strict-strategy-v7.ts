@@ -25,23 +25,28 @@ export class StrictStrategyV7 {
       return { type: "NO_TRADE", direction: "NONE", tier: "NO_TRADE", score: 0, reason: "Missing candle close prices", indicators: this.getEmptyIndicators() }
     }
 
-    // HARD GATE 1: 4H Trend Exists (EMA separation ≥ 0.05% + ADX ≥ 12 for weaker trends)
+    // HARD GATE 1: 4H Trend Exists - Relaxed for real market conditions
+    // Require: EMA20 distinct from EMA50 (ANY separation ≥1 pip) AND ADX ≥ 12
     const ema20_4h = this.calculateEMA(data4hCandles, 20)
     const ema50_4h = this.calculateEMA(data4hCandles, 50)
     const emaGap = Math.abs(ema20_4h - ema50_4h)
     const adx4h = this.calculateADX(data4hCandles)
     
-    console.log(`[v0] HARD_GATE_1: emaGap=${emaGap.toFixed(4)} (required ≥${(ema50_4h * 0.0005).toFixed(4)}) adx=${adx4h.toFixed(1)} (required ≥12)`)
+    const emaThreshold = 1.0 // 1 pip minimum separation
+    const adxThreshold = 12  // ADX ≥ 12
+    const gapOK = emaGap >= emaThreshold
+    const adxOK = adx4h >= adxThreshold
+    
+    console.log(`[v0] HARD_GATE_1: emaGap=${emaGap.toFixed(4)} pips (need ${emaThreshold}) adx=${adx4h.toFixed(1)} (need ${adxThreshold}) | Result: gap=${gapOK ? "PASS" : "FAIL"} adx=${adxOK ? "PASS" : "FAIL"}`)
 
-    // RELAXED: 0.05% EMA separation, ADX ≥ 12 (very permissive for more entries)
-    if (emaGap < ema50_4h * 0.0005 || adx4h < 12) {
-      console.log(`[v0] HARD_GATE_1 FAILED: emaGap=${emaGap.toFixed(4)}<${(ema50_4h * 0.0005).toFixed(4)} OR adx=${adx4h.toFixed(1)}<12`)
+    if (!gapOK || !adxOK) {
+      console.log(`[v0] HARD_GATE_1 FAILED: ${!gapOK ? `EMA gap only ${emaGap.toFixed(4)} pips` : ""} ${!adxOK ? `ADX only ${adx4h.toFixed(1)} (need 12)` : ""}`)
       return {
         type: "NO_TRADE",
         direction: "NONE",
         tier: "NO_TRADE",
         score: 0,
-        reason: `Hard Gate 1 FAILED: EMA gap ${(emaGap/ema50_4h*100).toFixed(3)}% (need 0.05%), ADX ${adx4h.toFixed(1)} (need 12)`,
+        reason: `Hard Gate 1 FAILED: ${!gapOK ? "EMA gap too small" : ""} ${!adxOK ? "ADX too weak" : ""}`,
         indicators: this.buildIndicators(ema20_4h, ema50_4h, adx4h, data4hCandles, data1hCandles),
       }
     }

@@ -1,7 +1,7 @@
 "use client"
-// v6.0.5-ULTRA-RELAXED: Hard gates massively relaxed - ADX≥12 (was 20), EMA gap≥0.05% (was 0.1%). Unique rebuild timestamp: feb18-1825-ultra-relax-gates. This forces full Vercel cache clear and recompile.
-export const SYSTEM_VERSION = "6.0.5-ULTRA-RELAXED"
-const BUILD_VERSION = "6.0.5"
+// v6.0.6-GATE1-FIX: Fixed hard gate 1 EMA threshold calculation bug. Was computing percentage threshold as ema50*0.0005, causing wrong comparisons. Now uses fixed 1-pip minimum separation + ADX≥12. Unique rebuild: 2026-feb18-v606-gate-fix. MUST COMMIT TO GIT TO DEPLOY.
+export const SYSTEM_VERSION = "6.0.6-GATE1-FIX"
+const BUILD_VERSION = "6.0.6"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
