@@ -1,6 +1,6 @@
 "use client"
-// v5.5.10-CRON-UNBLOCKED: Removed synthetic data blocking that was causing 503 errors. System now processes signals regardless of data source. Fixed detailed env var logging to diagnose credential issues. Cron job will now return 200 OK and execute trades.
-const BUILD_VERSION = "5.5.10"
+// v5.5.11-CRON-FIX: Created fresh /api/xau-cron endpoint to bypass Vercel's stale bytecode cache. New endpoint ONLY processes XAU_USD (hardcoded, not imported). CRITICAL: Update cron-job.org to call https://traderb.vercel.app/api/xau-cron?secret=abc123xyz789 instead of /api/external-cron
+const BUILD_VERSION = "5.5.11"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
