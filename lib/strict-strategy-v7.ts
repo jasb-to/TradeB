@@ -6,129 +6,82 @@ export class StrictStrategyV7 {
         direction: "NONE",
         tier: "NO_TRADE",
         score: 0,
+        component_scores: { trend: 0, pullback: 0, breakout: 0, momentum: 0, volatility: 0, distance: 0 },
         reason: "Insufficient candles",
         indicators: this.getEmptyIndicators(),
       }
     }
 
-    const dailyCandle = dailyCandles[dailyCandles.length - 1]
     const h4Candle = h4Candles[h4Candles.length - 1]
     const h1Candle = h1Candles[h1Candles.length - 1]
-    const m15Candle = m15Candles[m15Candles.length - 1]
+    const dailyCandle = dailyCandles[dailyCandles.length - 1]
 
-    // ONLY HARD GATE: 4H Trend Direction Must Exist
+    // Calculate base indicators
     const ema20_4h = this.calculateEMA(h4Candles, 20)
     const ema50_4h = this.calculateEMA(h4Candles, 50)
-    const emaGap = Math.abs(ema20_4h - ema50_4h)
+    const ema20_daily = this.calculateEMA(dailyCandles, 20)
+    const ema50_daily = this.calculateEMA(dailyCandles, 50)
+    const adx4h = this.calculateADX(h4Candles)
+    const rsi4h = this.calculateRSI(h4Candles)
+    const atr4h = this.calculateATR(h4Candles)
+    const vwap = this.calculateVWAP(h1Candles)
 
-    if (emaGap < 0.01) {
+    // HARD GATE 1: 4H Trend Must Exist (EMA20 ≠ EMA50 with 0.01 pip tolerance, ADX ≥ 10)
+    const emaGap = Math.abs(ema20_4h - ema50_4h)
+    if (emaGap < 0.01 || adx4h < 10) {
       return {
         type: "NO_TRADE",
         direction: "NONE",
         tier: "NO_TRADE",
         score: 0,
-        reason: `No 4H trend: EMA20=${ema20_4h.toFixed(2)} EMA50=${ema50_4h.toFixed(2)} Gap=${emaGap.toFixed(5)}`,
-        indicators: {
-          ema20: ema20_4h,
-          ema50: ema50_4h,
-          adx: this.calculateADX(h4Candles),
-          atr: this.calculateATR(h4Candles),
-          rsi: this.calculateRSI(h4Candles),
-          stochRSI: undefined,
-          vwap: this.calculateVWAP(h1Candles),
-        },
+        component_scores: { trend: 0, pullback: 0, breakout: 0, momentum: 0, volatility: 0, distance: 0 },
+        reason: `Hard gate failed: EMA gap=${emaGap.toFixed(5)}, ADX=${adx4h.toFixed(1)}`,
+        indicators: { ema20: ema20_4h, ema50: ema50_4h, adx: adx4h, atr: atr4h, rsi: rsi4h, vwap },
       }
     }
 
-    const direction4h = ema20_4h > ema50_4h ? "UP" : "DOWN"
+    const direction = ema20_4h > ema50_4h ? "UP" : "DOWN"
 
-    // SCORING SYSTEM (0-6 points) - Everything is now scoring, not hard gates
-    let score = 0
-    const scoreReasons = []
-
-    // 1. Daily Trend Alignment (0-1)
-    const ema20_daily = this.calculateEMA(dailyCandles, 20)
-    const ema50_daily = this.calculateEMA(dailyCandles, 50)
-    if ((direction4h === "UP" && ema20_daily > ema50_daily) || (direction4h === "DOWN" && ema20_daily < ema50_daily)) {
-      score++
-      scoreReasons.push("Daily aligned")
+    // HARD GATE 2: 1H Breakout or Pullback Must Exist
+    const breakout1h = this.detectBreakout(h1Candles, direction)
+    const pullback1h = this.detectPullback(h1Candles, direction)
+    if (!breakout1h && !pullback1h) {
+      return {
+        type: "NO_TRADE",
+        direction: "NONE",
+        tier: "NO_TRADE",
+        score: 0,
+        component_scores: { trend: 0, pullback: 0, breakout: 0, momentum: 0, volatility: 0, distance: 0 },
+        reason: "No 1H breakout or pullback",
+        indicators: { ema20: ema20_4h, ema50: ema50_4h, adx: adx4h, atr: atr4h, rsi: rsi4h, vwap },
+      }
     }
 
-    // 2. ADX Strength - Calculate instead of reading from candle
-    const adx4h = this.calculateADX(h4Candles)
-    if (adx4h >= 12) { // Lowered from 15
-      score++
-      scoreReasons.push(`ADX ${adx4h.toFixed(1)}`)
+    // SCORING: 6 independent components (0-1 each)
+    const component_scores = {
+      trend: this.scoreTrendDirection(ema20_daily, ema50_daily, direction),
+      pullback: pullback1h ? 1 : 0,
+      breakout: breakout1h ? 1 : 0,
+      momentum: this.scoreMomentum(rsi4h, direction),
+      volatility: this.scoreVolatility(atr4h, h4Candles),
+      distance: this.scoreDistance(h4Candle.close, h4Candles),
     }
 
-    // 3. RSI Momentum (0-1)
-    const rsi4h = this.calculateRSI(h4Candles, 14)
-    if ((direction4h === "UP" && rsi4h > 45) || (direction4h === "DOWN" && rsi4h < 55)) { // Relaxed from 50
-      score++
-      scoreReasons.push(`RSI ${rsi4h.toFixed(0)}`)
-    }
+    const score = Object.values(component_scores).reduce((sum, val) => sum + val, 0)
 
-    // 4. VWAP Alignment (0-1)
-    const vwap = this.calculateVWAP(h1Candles)
-    if ((direction4h === "UP" && h1Candle.close > vwap) || (direction4h === "DOWN" && h1Candle.close < vwap)) {
-      score++
-      scoreReasons.push("VWAP aligned")
-    }
-
-    // 5. Breakout Detected (0-1)
-    if (this.detectBreakout(h1Candles, direction4h)) {
-      score++
-      scoreReasons.push("Breakout detected")
-    }
-
-    // 6. ATR Expanding (0-1)
-    const atr4h = this.calculateATR(h4Candles, 14)
-    const atrPrev = this.calculateATR(h4Candles.slice(0, -1), 14)
-    if (atr4h > atrPrev * 1.02) { // Relaxed from 1.05
-      score++
-      scoreReasons.push(`ATR ${atr4h.toFixed(1)}`)
-    }
-
-    // Entry Threshold: score >= 3
-    if (score >= 3) {
+    // ENTRY THRESHOLD: score >= 4/6 (selective: ~1 trade per week, 8-20 per 6 months)
+    if (score >= 4) {
       const tier = score === 6 ? "A+" : score === 5 ? "A" : "B"
-      console.log(`[v0] STRICT v7.2 ENTRY: ${direction4h} | Score ${score}/6 | ${scoreReasons.join(", ")}`)
       return {
         type: "ENTRY",
-        direction: direction4h,
+        direction,
         tier,
         score,
+        component_scores,
         approved: true,
-        reason: `Score ${score}/6: ${scoreReasons.join(", ")}`,
-        indicators: {
-          ema20: ema20_4h,
-          ema50: ema50_4h,
-          adx: adx4h,
-          atr: atr4h,
-          rsi: rsi4h,
-          stochRSI: undefined,
-          vwap: vwap,
-        },
+        reason: `Score ${score}/6 (components: ${Object.entries(component_scores).map(([k, v]) => `${k}=${v}`).join(", ")})`,
+        indicators: { ema20: ema20_4h, ema50: ema50_4h, adx: adx4h, atr: atr4h, rsi: rsi4h, vwap },
       }
-    }
-
-    // Below Threshold: Score < 3
-    return {
-      type: "NO_TRADE",
-      direction: "NONE",
-      tier: "NO_TRADE",
-      score,
-      reason: `Score ${score}/6 < 3: ${scoreReasons.length ? scoreReasons.join(", ") : "insufficient signals"}`,
-      indicators: {
-        ema20: ema20_4h,
-        ema50: ema50_4h,
-        adx: adx4h,
-        atr: atr4h,
-        rsi: rsi4h,
-        stochRSI: undefined,
-        vwap: vwap,
-      },
-    }
     }
 
     // NO_TRADE: Below threshold
@@ -137,17 +90,56 @@ export class StrictStrategyV7 {
       direction: "NONE",
       tier: "NO_TRADE",
       score,
-      reason: `Score ${score}/6 < threshold 3: ${scoreReasons.length ? scoreReasons.join(", ") : "No conditions met"}`,
-      indicators: {
-        ema20: ema20_4h,
-        ema50: ema50_4h,
-        adx: adx4h,
-        atr: h4Candle.atr || 0,
-        rsi: rsi4h,
-        stochRSI: h4Candle.stochRSI,
-        vwap,
-      },
+      component_scores,
+      reason: `Score ${score}/6 < 4 (components: ${Object.entries(component_scores).map(([k, v]) => `${k}=${v}`).join(", ")})`,
+      indicators: { ema20: ema20_4h, ema50: ema50_4h, adx: adx4h, atr: atr4h, rsi: rsi4h, vwap },
     }
+  }
+
+  // Component Scoring Functions
+  private scoreTrendDirection(ema20: number, ema50: number, direction: string): number {
+    return (direction === "UP" && ema20 > ema50) || (direction === "DOWN" && ema20 < ema50) ? 1 : 0
+  }
+
+  private scoreMomentum(rsi: number, direction: string): number {
+    if (direction === "UP") return rsi >= 55 && rsi <= 70 ? 1 : 0
+    return rsi >= 30 && rsi <= 45 ? 1 : 0
+  }
+
+  private scoreVolatility(atr: number, candles: any[]): number {
+    const atrPrev = this.calculateATR(candles.slice(0, -1))
+    return atr > atrPrev * 1.05 ? 1 : 0
+  }
+
+  private scoreDistance(price: number, candles: any[]): number {
+    const high = Math.max(...candles.slice(-20).map(c => c.high))
+    const low = Math.min(...candles.slice(-20).map(c => c.low))
+    const range = high - low
+    const from_high = (high - price) / range
+    const from_low = (price - low) / range
+    // Price not overextended (not beyond 70% from either extreme)
+    return from_high > 0.3 && from_low > 0.3 ? 1 : 0
+  }
+
+  // Detection & Calculation Methods
+  private detectBreakout(candles: any[], direction: string): boolean {
+    if (candles.length < 10) return false
+    const latest = candles[candles.length - 1]
+    const prev10High = Math.max(...candles.slice(-10).map(c => c.high))
+    const prev10Low = Math.min(...candles.slice(-10).map(c => c.low))
+    if (direction === "UP") return latest.close > prev10High * 0.95
+    return latest.close < prev10Low * 1.05
+  }
+
+  private detectPullback(candles: any[], direction: string): boolean {
+    if (candles.length < 10) return false
+    const latest = candles[candles.length - 1]
+    const ema20 = this.calculateEMA(candles, 20)
+    if (direction === "UP") {
+      const tolerance = 0.5 // 0.5 pips from EMA20
+      return Math.abs(latest.close - ema20) < tolerance
+    }
+    return Math.abs(latest.close - ema20) < 0.5
   }
 
   private calculateEMA(candles: any[], period: number): number {
@@ -160,40 +152,28 @@ export class StrictStrategyV7 {
     return ema
   }
 
-  private detectBreakout(candles: any[], direction: string): boolean {
-    if (candles.length < 10) return false
-    const latest = candles[candles.length - 1]
-    const prev10High = Math.max(...candles.slice(-10).map(c => c.high))
-    const prev10Low = Math.min(...candles.slice(-10).map(c => c.low))
-
-    if (direction === "UP") {
-      return latest.close > prev10High * 0.95
-    } else {
-      return latest.close < prev10Low * 1.05
+  private calculateADX(candles: any[], period: number = 14): number {
+    if (candles.length < period * 2) return 20
+    let plusDM = 0, minusDM = 0, tr = 0
+    for (let i = Math.max(1, candles.length - period); i < candles.length; i++) {
+      const high = candles[i].high - candles[i - 1].high
+      const low = candles[i - 1].low - candles[i].low
+      if (high > 0 && high > low) plusDM += high
+      if (low > 0 && low > high) minusDM += low
+      const trValue = Math.max(
+        candles[i].high - candles[i].low,
+        Math.abs(candles[i].high - candles[i - 1].close),
+        Math.abs(candles[i].low - candles[i - 1].close)
+      )
+      tr += trValue
     }
-  }
-
-  private calculateVWAP(candles: any[]): number {
-    if (!candles.length) return 0
-    let cumVolPrice = 0
-    let cumVol = 0
-    for (const c of candles.slice(-20)) {
-      const tp = (c.high + c.low + c.close) / 3
-      const vol = c.volume || 1
-      cumVolPrice += tp * vol
-      cumVol += vol
-    }
-    return cumVolPrice / (cumVol || 1)
-  }
-
-  private getEmptyIndicators() {
-    return { ema20: 0, ema50: 0, adx: 0, atr: 0, rsi: 50, stochRSI: undefined, vwap: 0 }
+    const di = Math.abs(plusDM - minusDM) / (tr || 1)
+    return Math.min(100, di * 100)
   }
 
   private calculateRSI(candles: any[], period: number = 14): number {
     if (candles.length < period + 1) return 50
-    let gains = 0
-    let losses = 0
+    let gains = 0, losses = 0
     for (let i = candles.length - period; i < candles.length; i++) {
       const change = candles[i].close - candles[i - 1].close
       if (change > 0) gains += change
@@ -218,29 +198,19 @@ export class StrictStrategyV7 {
     return sumTR / period
   }
 
-  private calculateADX(candles: any[], period: number = 14): number {
-    if (candles.length < period * 2) return 20 // Return neutral value if insufficient data
-    let plusDM = 0
-    let minusDM = 0
-    let tr = 0
-    
-    // Simplified ADX: count trend bars
-    for (let i = Math.max(1, candles.length - period); i < candles.length; i++) {
-      const high = candles[i].high - candles[i - 1].high
-      const low = candles[i - 1].low - candles[i].low
-      
-      if (high > 0 && high > low) plusDM += high
-      if (low > 0 && low > high) minusDM += low
-      
-      const trValue = Math.max(
-        candles[i].high - candles[i].low,
-        Math.abs(candles[i].high - candles[i - 1].close),
-        Math.abs(candles[i].low - candles[i - 1].close)
-      )
-      tr += trValue
+  private calculateVWAP(candles: any[]): number {
+    if (!candles.length) return 0
+    let cumVolPrice = 0, cumVol = 0
+    for (const c of candles.slice(-20)) {
+      const tp = (c.high + c.low + c.close) / 3
+      const vol = c.volume || 1
+      cumVolPrice += tp * vol
+      cumVol += vol
     }
-    
-    const di = Math.abs(plusDM - minusDM) / (tr || 1)
-    return Math.min(100, di * 100)
+    return cumVolPrice / (cumVol || 1)
+  }
+
+  private getEmptyIndicators() {
+    return { ema20: 0, ema50: 0, adx: 0, atr: 0, rsi: 50, vwap: 0 }
   }
 }

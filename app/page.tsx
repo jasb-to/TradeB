@@ -1,6 +1,6 @@
 "use client"
-// v5.8.1-V7.2-INDICATORS-FIXED: Fixed STRICT v7.2 strategy - now calculates all indicators (ADX, RSI, ATR) instead of reading from candle objects. Relaxed thresholds: ADX>=12, RSI tolerance ±5 from 50, ATR expansion >=2%. Single hard gate (4H trend exists). Should now generate entry signals.
-const BUILD_VERSION = "5.8.1"
+// v5.9.0-STRICT-V7.3-SELECTIVE: Complete rewrite with selective scoring targeting 8-20 trades per 6 months. Two hard gates: 4H trend (EMA sep ≥0.01, ADX≥10) + 1H breakout/pullback. Six independent 1-point scoring components (trend, pullback, breakout, momentum, volatility, distance). Entry threshold ≥4/6. Component scores transparent in logs.
+const BUILD_VERSION = "5.9.0"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
