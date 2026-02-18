@@ -1,6 +1,6 @@
 "use client"
-// v5.5.7-CRON-SIMPLIFIED: Simplified external-cron endpoint to proxy /api/signal/current instead of duplicating logic. Removes heavy DataFetcher dependencies that were causing timeouts and 404 errors.
-const BUILD_VERSION = "5.5.7"
+// v5.5.8-BUILD-CACHE-BUST: Modified next.config with dynamic buildId to force complete .next rebuild. Removes stale compiled bytecode that was still processing JP225/US100/US500. XAU_USD exclusive now.
+const BUILD_VERSION = "5.5.8"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
