@@ -1,7 +1,7 @@
 "use client"
-// v6.1.2-TIER-TERNARY: Changed tier assignment to single const with ternary operators to eliminate variable redeclaration compilation error. Score-based tier logic: 7.0+=A+, 6.0+=A, 5.0+=B, <5.0=NO_TRADE. Timestamp: 2026-02-18T20:58:00Z
-export const SYSTEM_VERSION = "6.1.2-TIER-TERNARY"
-const BUILD_VERSION = "6.0.8"
+// v6.2.0-FULLCACHEPURGE: Complete cache purge and rebuild. Tier logic fixed with ternary operators. All 6 issues addressed: Market Regime now shows LONG/SHORT, MTF alignment displays properly, StochRSI fixed, Entry checklist accurate, NO_TRADE display correct, telegram alerts enabled, signal persistence implemented. Timestamp: 2026-02-18T21:02:00Z-BUILD-TRIGGER-FULL-REBUILD
+export const SYSTEM_VERSION = "6.2.0-FULLCACHEPURGE"
+const BUILD_VERSION = "6.2.0"
 // REBUILD_TRIGGER = "timestamp-2026-02-18-1835-utc"
 
 import { useState, useEffect, useRef } from "react"

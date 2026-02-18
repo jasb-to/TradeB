@@ -12,7 +12,7 @@ import { SignalCache } from "@/lib/signal-cache"
 import { createTrade } from "@/lib/trade-lifecycle"
 
 // SYSTEM VERSION - Visible on homepage and all API responses
-export const SYSTEM_VERSION = "6.1.2-TIER-TERNARY"
+export const SYSTEM_VERSION = "6.2.0-FULLCACHEPURGE"
 
 // HARDCODED: Only XAU_USD - never import TRADING_SYMBOLS which gets cached by Vercel
 const TRADING_SYMBOLS = ["XAU_USD"] as const
@@ -361,6 +361,7 @@ export async function GET(request: Request) {
       ...signal,
       structuralTier: signal.structuralTier,  // Explicitly preserve tier
       mtfBias,
+      timeframeAlignment: mtfBias,  // Map mtfBias to timeframeAlignment for MTFBiasViewer component
       entryPrice: signal.direction ? entryPrice : undefined,
       stopLoss: signal.direction ? stopLoss : undefined,
       takeProfit1: signal.direction ? takeProfit1 : undefined,
