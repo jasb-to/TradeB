@@ -850,12 +850,6 @@ export class TradingStrategies {
     // Alert level based on tier
     let alertLevel: 0 | 1 | 2 | 3 = 0
     
-    // DEFENSIVE: Ensure tier is never undefined
-    if (!tier) {
-      console.error("[v0] CRITICAL: Missing tier in buildEntryDecision - forcing NO_TRADE")
-      tier = "NO_TRADE"
-    }
-    
     if (tier === "A+") {
       alertLevel = 3
     } else if (tier === "A") {

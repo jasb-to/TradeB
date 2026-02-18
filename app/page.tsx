@@ -1,6 +1,6 @@
 "use client"
-// v6.1.0-TIER-FIX: Fixed critical tier calculation bug - tier now based on actual criteria score (7.0+=A+, 6.0+=A, 5.0+=B, <5.0=NO_TRADE) not pre-assigned structuralTier. This fixes the "1/7 criteria but A+ display" issue. Timestamp: 2026-02-18T20:52:00Z
-export const SYSTEM_VERSION = "6.1.0-TIER-FIX"
+// v6.1.1-COMPILE-FIX: Removed redundant tier assignment code causing variable redeclaration error. Tier assignment now purely score-based. Force recompile. Timestamp: 2026-02-18T20:55:00Z
+export const SYSTEM_VERSION = "6.1.1-COMPILE-FIX"
 const BUILD_VERSION = "6.0.8"
 // REBUILD_TRIGGER = "timestamp-2026-02-18-1835-utc"
 
