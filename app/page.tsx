@@ -1,6 +1,6 @@
 "use client"
-// v5.6.0-SCORE-BASED-ENTRY: Deployed new score-based entry system for XAU_USD. STRICT v7 requires 4H trend + 1H breakout + score ≥4/6. BALANCED v7 requires score ≥3/6. Replaces old multi-TF alignment hard gates. Should produce 1-3 trades/week vs 0 before.
-const BUILD_VERSION = "5.6.0"
+// v5.6.1-CLEAN-BUILD: Forced complete Vercel rebuild with unique buildId to clear stale .next bytecode cache containing old US500/JP225/US100 symbols. Next deployment will have clean compiled output with XAU_USD exclusive code. OANDA account confirmed working (gold prices 100% accurate).
+const BUILD_VERSION = "5.6.1"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"

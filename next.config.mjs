@@ -7,9 +7,9 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // CRITICAL v5.5.8: FORCE CLEAN BUILD - Remove stale bytecode with old JP225/US100/US500 symbols
-  // This marker forces Vercel to invalidate entire .next build cache
-  buildId: 'xau-usd-exclusive-v5.5.8-' + Date.now(),
+  // CRITICAL v5.6.1: FORCE COMPLETE CLEAN BUILD - Remove all stale .next bytecode
+  // Vercel was caching old symbol references (US500, JP225) in compiled output despite source files being correct
+  buildId: 'xau-exclusive-v5.6.1-clean-' + Date.now() + '-' + Math.random().toString(36).substring(7),
   onDemandEntries: {
     maxInactiveAge: 60 * 1000,
     pagesBufferLength: 5,
