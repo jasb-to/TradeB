@@ -34,13 +34,18 @@ const OANDA_CACHE_TTL = 60 * 1000 // 1 minute cache for OANDA
 const OANDA_FETCH_TIMEOUT_MS = 15_000 // 15s timeout per request
 const OANDA_MAX_RETRIES = 2 // retry transient errors up to 2 times
 
-let detectedOandaServer: "practice" | "live" = "live"
-
 // Diagnostic: Log environment on module load
-console.log(`[v0] DATA-FETCHER INITIALIZED:`)
-console.log(`[v0]   OANDA_API_KEY=${process.env.OANDA_API_KEY ? "SET (length=" + process.env.OANDA_API_KEY.length + ")" : "MISSING"}`)
-console.log(`[v0]   OANDA_ACCOUNT_ID=${process.env.OANDA_ACCOUNT_ID ? "SET (value=" + process.env.OANDA_ACCOUNT_ID + ")" : "MISSING"}`)
-console.log(`[v0]   OANDA_ENVIRONMENT=${process.env.OANDA_ENVIRONMENT || "MISSING"}`)
+const envApiKey = process.env.OANDA_API_KEY
+const envAccountId = process.env.OANDA_ACCOUNT_ID
+console.log(`[v0-INIT] OANDA_API_KEY available: ${!!envApiKey}`)
+console.log(`[v0-INIT] OANDA_ACCOUNT_ID available: ${!!envAccountId}`)
+if (envApiKey && envAccountId) {
+  console.log(`[v0-INIT] CREDENTIALS VERIFIED: API key length=${envApiKey.length}, account ID=${envAccountId}`)
+} else {
+  console.error(`[v0-INIT] MISSING CREDENTIALS: API=${!!envApiKey}, Account=${!!envAccountId}`)
+}
+
+let detectedOandaServer: "practice" | "live" = "live"
 
 export class DataFetcher {
   private symbol: string
@@ -52,11 +57,13 @@ export class DataFetcher {
   private hasOandaCredentials(): boolean {
     const apiKey = process.env.OANDA_API_KEY
     const accountId = process.env.OANDA_ACCOUNT_ID
-    const hasKeys = !!(apiKey && accountId)
+    const result = !!(apiKey && accountId)
     
-    console.log(`[v0] CREDENTIAL CHECK: OANDA_API_KEY=${apiKey ? "SET" : "MISSING"} OANDA_ACCOUNT_ID=${accountId ? "SET" : "MISSING"} => hasCredentials=${hasKeys}`)
-    
-    return hasKeys
+    if (!result) {
+      console.error(`[v0-CRED] MISSING CREDENTIALS: apiKey=${!!apiKey}, accountId=${!!accountId}`)
+      console.error(`[v0-CRED] Env vars: API=${process.env.OANDA_API_KEY ? "exists" : "missing"}, Account=${process.env.OANDA_ACCOUNT_ID ? "exists" : "missing"}`)
+    }
+    return result
   }
 
   private getOandaBaseUrl(server: "practice" | "live"): string {

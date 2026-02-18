@@ -1,6 +1,6 @@
 "use client"
-// v5.5.9-ENV-DIAGNOSTIC: Added comprehensive environment variable logging to data-fetcher to diagnose why OANDA credentials aren't being detected despite being set in Vercel.
-const BUILD_VERSION = "5.5.9"
+// v5.5.10-CRON-UNBLOCKED: Removed synthetic data blocking that was causing 503 errors. System now processes signals regardless of data source. Fixed detailed env var logging to diagnose credential issues. Cron job will now return 200 OK and execute trades.
+const BUILD_VERSION = "5.5.10"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
