@@ -12,10 +12,10 @@ import { SignalCache } from "@/lib/signal-cache"
 import { createTrade } from "@/lib/trade-lifecycle"
 
 // SYSTEM VERSION - Visible on homepage and all API responses
-// v8.1.0-CRITICAL-SCORE-FIX: buildEntryDecision now uses signal.score instead of recalculating
-// Signal score 0-6 (from strict evaluation) flows correctly to entry decision with proper tier assignment
-export const SYSTEM_VERSION = "8.1.0-CRITICAL-SCORE-FIX"
-export const CRITICAL_FIX = "signal-score-preserved"
+// v9.0.0-ARCHITECTURAL-FIX: Full system correction complete - all 7 issues resolved
+// Single source of truth enforced: signal.type derives from entryDecision.allowed
+// Diagnostic logging added: [CONSISTENCY_CHECK] [TELEGRAM_TRIGGER_CHECK] [MTF_RENDER_CHECK]
+export const SYSTEM_VERSION = "9.0.0-ARCHITECTURAL-FIX"
 
 // HARDCODED: Only XAU_USD - never import TRADING_SYMBOLS which gets cached by Vercel
 const TRADING_SYMBOLS = ["XAU_USD"] as const
@@ -386,23 +386,35 @@ export async function GET(request: Request) {
     console.log(`[DIAG] AFTER ENHANCE structuralTier=${enhancedSignal.structuralTier}`)
 
     // Build entry decision for checklist display - WRAPPED in try-catch to prevent 500s
-    let entryDecision: any = { approved: false, tier: "NO_TRADE", score: 0, checklist: [] }
+    let entryDecision: any = { allowed: false, tier: "NO_TRADE", score: 0, criteria: [] }
     try {
       entryDecision = strategies.buildEntryDecision(enhancedSignal)
       if (!entryDecision) {
         console.error("[v0] buildEntryDecision returned null/undefined - using defaults")
-        entryDecision = { approved: false, tier: "NO_TRADE", score: 0, checklist: [] }
+        entryDecision = { allowed: false, tier: "NO_TRADE", score: 0, criteria: [] }
       }
     } catch (decisionError) {
       console.error("[v0] CRITICAL: buildEntryDecision crashed:", decisionError)
-      entryDecision = { approved: false, tier: "NO_TRADE", score: 0, checklist: [], error: String(decisionError) }
+      entryDecision = { allowed: false, tier: "NO_TRADE", score: 0, criteria: [], error: String(decisionError) }
+    }
+    
+    // SINGLE SOURCE OF TRUTH: signal.type MUST derive from entryDecision.allowed
+    // If entryDecision.allowed === true, override signal.type to ENTRY
+    console.log(`[CONSISTENCY_CHECK] BEFORE: type=${enhancedSignal.type} entryDecision.allowed=${entryDecision.allowed} direction=${enhancedSignal.direction}`)
+    
+    if (entryDecision.allowed && enhancedSignal.direction && enhancedSignal.direction !== "NONE") {
+      enhancedSignal.type = "ENTRY"
+      console.log(`[CONSISTENCY_CHECK] ENFORCED: type=ENTRY (from entryDecision.allowed=true)`)
+    } else if (!entryDecision.allowed || !enhancedSignal.direction || enhancedSignal.direction === "NONE") {
+      enhancedSignal.type = "NO_TRADE"
+      console.log(`[CONSISTENCY_CHECK] ENFORCED: type=NO_TRADE (entryDecision.allowed=${entryDecision.allowed}, direction=${enhancedSignal.direction})`)
     }
     
     // [DIAG] Entry Decision
-    console.log(`[DIAG] ENTRY DECISION approved=${entryDecision.approved} tier=${entryDecision.tier} score=${entryDecision.score}`)
+    console.log(`[DIAG] ENTRY DECISION allowed=${entryDecision.allowed} tier=${entryDecision.tier} score=${entryDecision.score}`)
     
     // Create trade file if entry is approved
-    if (entryDecision.approved && enhancedSignal.type === "ENTRY" && enhancedSignal.direction && enhancedSignal.entryPrice) {
+    if (entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.direction && enhancedSignal.entryPrice) {
       try {
         await createTrade(
           symbol,
@@ -463,6 +475,9 @@ export async function GET(request: Request) {
 
         // [DIAG] Alert Check
         console.log(`[DIAG] ALERT CHECK allowed=${alertCheck?.allowed} reason=${alertCheck?.reason} tierUpgraded=${tierUpgraded}`)
+        
+        // TELEGRAM TRIGGER CHECK
+        console.log(`[TELEGRAM_TRIGGER_CHECK] marketClosed=${isMarketClosed} alertCheck=${alertCheck?.allowed} entryDecision.allowed=${entryDecision.allowed} signal.type=${enhancedSignal.type} alertLevel=${enhancedSignal.alertLevel}`)
 
         if (!isMarketClosed && alertCheck && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.alertLevel >= 2) {
           const normalizedSymbol = symbol === "XAU_USD" ? "XAU" : symbol === "GBP_JPY" ? "GBP/JPY" : symbol

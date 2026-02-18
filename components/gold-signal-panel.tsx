@@ -90,7 +90,7 @@ export function GoldSignalPanel({ signal, loading, onManualExit }: GoldSignalPan
             <div>
               <p className="text-slate-400 text-xs">Market Regime</p>
               <Badge className="bg-green-900/50 border-green-700/50">
-                {signal.direction === "LONG" ? "📈 LONG" : signal.direction === "SHORT" ? "📉 SHORT" : signal.entrySetup || "TREND"}
+                {signal.direction === "LONG" ? "LONG" : signal.direction === "SHORT" ? "SHORT" : "RANGE"}
               </Badge>
             </div>
           </div>
