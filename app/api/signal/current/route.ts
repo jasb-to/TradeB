@@ -592,12 +592,6 @@ export async function GET(request: Request) {
             }
           } catch (telegramError) {
             console.error("[TELEGRAM] Error sending alert:", telegramError)
-              }
-            } else {
-              console.error("[v0] Telegram send failed:", await telegramResponse.text())
-            }
-          } catch (telegramError) {
-            console.error("[v0] Error sending Telegram alert:", telegramError)
           }
         } else {
           let skipReason = ""
