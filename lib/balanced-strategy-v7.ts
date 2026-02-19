@@ -1,4 +1,5 @@
 import { Candle, Signal, StrategyConfig } from "@/lib/types"
+import { SYMBOL_CONFIG } from "@/lib/symbol-config"
 
 /**
  * BALANCED Strategy v7 - Score-Based Entry System
@@ -8,6 +9,7 @@ import { Candle, Signal, StrategyConfig } from "@/lib/types"
  * 
  * Same scoring as STRICT v7 but lower threshold (3/6 vs 4/6)
  * Allows more frequent entries with slightly lower confidence
+ * Uses instrument-aware ADX thresholds from symbol-config
  */
 
 interface ScoreBreakdown {
@@ -28,21 +30,26 @@ export class BalancedStrategyV7 {
     candle1h: Candle[],
     candle15m: Candle[],
     config: StrategyConfig,
+    symbol: string = "XAU_USD"
   ): Signal {
     if (!daily.length || !candle4h.length || !candle1h.length) {
       return { type: "NO_TRADE", direction: "NONE", tier: "NO_TRADE", score: 0, reason: "Insufficient data" }
     }
 
+    // Get symbol-aware configuration
+    const symbolConfig = SYMBOL_CONFIG[symbol as keyof typeof SYMBOL_CONFIG]
+    const adxMinimum = symbolConfig?.adxMinimum || 10
+
     const latest1h = candle1h[candle1h.length - 1]
     const latest4h = candle4h[candle4h.length - 1]
     const latestDaily = daily[daily.length - 1]
 
-    // HARD GATE 1: 4H Trend Direction (EMA20 ≠ EMA50, ADX ≥ 15)
+    // HARD GATE 1: 4H Trend Direction (EMA20 ≠ EMA50, ADX ≥ symbol-specific minimum)
     const ema20_4h = this.calculateEMA(candle4h, 20)
     const ema50_4h = this.calculateEMA(candle4h, 50)
     const adx4h = latest4h.adx || 0
 
-    const has4hTrend = ema20_4h !== ema50_4h && adx4h >= 15
+    const has4hTrend = ema20_4h !== ema50_4h && adx4h >= adxMinimum
     const direction4h = ema20_4h > ema50_4h ? "UP" : "DOWN"
 
     if (!has4hTrend) {

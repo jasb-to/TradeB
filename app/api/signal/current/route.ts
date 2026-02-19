@@ -262,11 +262,11 @@ export async function GET(request: Request) {
     console.log(`[v0] ACTIVE_MODE_FOR_${symbol}=${activeMode} (v7 Score-Based)`)
 
     let signal
-    // Strategy evaluation based on mode
+    // Strategy evaluation based on mode - pass symbol for instrument-aware thresholds
     console.log(`[v0] STRICT EVALUATION START: activeMode=${activeMode} symbol=${symbol}`)
     
     if (activeMode === "BALANCED") {
-      // BALANCED mode
+      // BALANCED mode with symbol-aware configuration
       const balancedV7 = new BalancedStrategyV7()
       signal = balancedV7.evaluate(
         dataDaily.candles,
@@ -276,9 +276,10 @@ export async function GET(request: Request) {
         data15m.candles,
         data5m.candles,
         DEFAULT_TRADING_CONFIG,
+        symbol
       )
     } else {
-      // STRICT mode - v7 Score-Based
+      // STRICT mode - v7 Score-Based with symbol-aware configuration
       const strictV7 = new StrictStrategyV7()
       signal = strictV7.evaluate(
         dataDaily.candles,
@@ -288,6 +289,7 @@ export async function GET(request: Request) {
         data15m.candles,
         data5m.candles,
         DEFAULT_TRADING_CONFIG,
+        symbol
       )
       console.log(`[v0] STRICT EVALUATION RESULT: type=${signal.type} score=${(signal as any).score} direction=${signal.direction}`)
     }

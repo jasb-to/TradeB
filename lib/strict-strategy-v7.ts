@@ -1,4 +1,5 @@
 import type { Candle, Signal } from "@/lib/types"
+import { SYMBOL_CONFIG } from "@/lib/symbol-config"
 
 export class StrictStrategyV7 {
   evaluate(
@@ -8,12 +9,18 @@ export class StrictStrategyV7 {
     data1hCandles: Candle[],
     data15mCandles: Candle[],
     data5mCandles: Candle[],
-    config: any
+    config: any,
+    symbol: string = "XAU_USD"
   ): Signal {
     // Input validation
     if (!dailyCandles?.length || !data4hCandles?.length || !data1hCandles?.length) {
       return { type: "NO_TRADE", direction: "NONE", tier: "NO_TRADE", score: 0, indicators: this.getEmptyIndicators() }
     }
+
+    // Get symbol-aware configuration
+    const symbolConfig = SYMBOL_CONFIG[symbol as keyof typeof SYMBOL_CONFIG]
+    const adxMinimum = symbolConfig?.adxMinimum || 10
+    const emaGapMinimum = symbolConfig?.emaGapMinimum || 1.0
 
     const dailyClose = dailyCandles[dailyCandles.length - 1]?.close || 0
     const h4Close = data4hCandles[data4hCandles.length - 1]?.close || 0
@@ -25,22 +32,20 @@ export class StrictStrategyV7 {
       return { type: "NO_TRADE", direction: "NONE", tier: "NO_TRADE", score: 0, reason: "Missing candle close prices", indicators: this.getEmptyIndicators() }
     }
 
-    // HARD GATE 1: 4H Trend Exists - Relaxed for real market conditions
-    // Require: EMA20 distinct from EMA50 (ANY separation ≥1 pip) AND ADX ≥ 10 (very permissive)
+    // HARD GATE 1: 4H Trend Exists - Instrument-Aware Thresholds
+    // Use symbol-specific ADX and EMA Gap minimums for indices vs commodities
     const ema20_4h = this.calculateEMA(data4hCandles, 20)
     const ema50_4h = this.calculateEMA(data4hCandles, 50)
     const emaGap = Math.abs(ema20_4h - ema50_4h)
     const adx4h = this.calculateADX(data4hCandles)
     
-    const emaThreshold = 1.0 // 1 pip minimum separation
-    const adxThreshold = 10  // ADX ≥ 10 (very permissive, was 12)
-    const gapOK = emaGap >= emaThreshold
-    const adxOK = adx4h >= adxThreshold
+    const gapOK = emaGap >= emaGapMinimum
+    const adxOK = adx4h >= adxMinimum
     
-    console.log(`[v0] HARD_GATE_1: emaGap=${emaGap.toFixed(4)} pips (need ${emaThreshold}) adx=${adx4h.toFixed(1)} (need ${adxThreshold}) | Result: gap=${gapOK ? "PASS" : "FAIL"} adx=${adxOK ? "PASS" : "FAIL"}`)
+    console.log(`[v0] HARD_GATE_1: emaGap=${emaGap.toFixed(4)} pips (need ${emaGapMinimum}) adx=${adx4h.toFixed(1)} (need ${adxMinimum}) | Result: gap=${gapOK ? "PASS" : "FAIL"} adx=${adxOK ? "PASS" : "FAIL"} [${symbol}]`)
 
     if (!gapOK || !adxOK) {
-      console.log(`[v0] HARD_GATE_1 FAILED: ${!gapOK ? `EMA gap only ${emaGap.toFixed(4)} pips` : ""} ${!adxOK ? `ADX only ${adx4h.toFixed(1)} (need 10)` : ""}`)
+      console.log(`[v0] HARD_GATE_1 FAILED [${symbol}]: ${!gapOK ? `EMA gap only ${emaGap.toFixed(4)} pips (need ${emaGapMinimum})` : ""} ${!adxOK ? `ADX only ${adx4h.toFixed(1)} (need ${adxMinimum})` : ""}`)
       return {
         type: "NO_TRADE",
         direction: "NONE",
