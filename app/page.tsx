@@ -1,5 +1,5 @@
 "use client"
-export const SYSTEM_VERSION = "10.2.0-ATOMIC-LOCKS"
+export const SYSTEM_VERSION = "10.3.0-MULTI-SYMBOL-READY"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { RedisTrades, TradeStatus } from "@/lib/redis-trades"
 import { DataFetcher } from "@/lib/data-fetcher"
 
-export const SYSTEM_VERSION = "10.2.0-ATOMIC-LOCKS"
+export const SYSTEM_VERSION = "10.3.0-MULTI-SYMBOL-READY"
 export const dynamic = "force-dynamic"
 
 // Global monitor state to prevent duplicate alerts within same execution

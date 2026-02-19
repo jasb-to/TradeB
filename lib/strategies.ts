@@ -55,6 +55,7 @@ export class TradingStrategies {
     data1h: Candle[],
     data15m: Candle[],
     data5m: Candle[],
+    symbol: string = "XAU_USD"
   ): Promise<Signal> {
     console.log("ENGINE_ACTIVE: STRICT")
     const indicatorsDaily = await this.calculateIndicators(dataDaily, "daily")

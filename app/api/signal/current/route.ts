@@ -8,7 +8,7 @@ import { RedisTrades } from "@/lib/redis-trades"
 import { StrictStrategyV7 } from "@/lib/strict-strategy-v7"
 import { BalancedStrategyV7 } from "@/lib/balanced-strategy-v7"
 
-export const SYSTEM_VERSION = "10.2.0-ATOMIC-LOCKS"
+export const SYSTEM_VERSION = "10.3.0-MULTI-SYMBOL-READY"
 
 // HARDCODED: Only XAU_USD - never import TRADING_SYMBOLS which gets cached by Vercel
 const TRADING_SYMBOLS = ["XAU_USD"] as const
