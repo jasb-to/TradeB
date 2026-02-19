@@ -437,26 +437,29 @@ export async function GET(request: Request) {
     
     enhancedSignal.entryDecision = entryDecision
 
-    // CHECK FOR ACTIVE TRADE IN REDIS: If trade exists, override signal.type to preserve display
+    // CHECK FOR ACTIVE TRADE IN REDIS: Display only - DO NOT override entry approval decision
+    // This just updates the display to show the active trade, but respects entryDecision.allowed
     try {
       const activeTrade = await RedisTrades.getActiveTrade(symbol)
       if (activeTrade) {
-        console.log(`[TRADE_OVERRIDE] Active trade found: ${symbol} ${activeTrade.direction} ${activeTrade.tier} @ ${activeTrade.entry}`)
+        console.log(`[TRADE_DISPLAY] Active trade found: ${symbol} ${activeTrade.direction} ${activeTrade.tier} @ ${activeTrade.entry}`)
         
-        // Override signal to show active trade (even if fresh eval is NO_TRADE)
+        // Update display fields only (for monitoring active positions)
+        // DO NOT change entryDecision.allowed - it must remain based on strategy evaluation
         enhancedSignal.type = "ENTRY"
         enhancedSignal.direction = activeTrade.direction
         enhancedSignal.entryPrice = activeTrade.entry
         enhancedSignal.stopLoss = activeTrade.stopLoss
         enhancedSignal.takeProfit1 = activeTrade.takeProfit1
         enhancedSignal.takeProfit2 = activeTrade.takeProfit2
-        entryDecision.tier = activeTrade.tier
-        entryDecision.allowed = true
         
-        console.log(`[TRADE_OVERRIDE] Signal overridden to show active trade - type=ENTRY tier=${activeTrade.tier}`)
+        // tier display is updated but entryDecision.allowed reflects strategy enforcement
+        entryDecision.tier = activeTrade.tier
+        
+        console.log(`[TRADE_DISPLAY] Signal display updated to show active trade (tier=${activeTrade.tier}, but entryDecision.allowed=${entryDecision.allowed})`)
       }
     } catch (tradeCheckError) {
-      console.error("[TRADE_OVERRIDE] Error checking active trade:", tradeCheckError)
+      console.error("[TRADE_DISPLAY] Error checking active trade:", tradeCheckError)
     }
 
     SignalCache.set(enhancedSignal, symbol)
