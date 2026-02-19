@@ -515,6 +515,33 @@ export async function GET(request: Request) {
         // B-tier (alertLevel=1) and above send alerts (all tiers)
         if (!isMarketClosed && alertCheck && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && (entryDecision.alertLevel || 0) >= 1) {
           const normalizedSymbol = symbol === "XAU_USD" ? "XAU" : symbol === "GBP_JPY" ? "GBP/JPY" : symbol
+          
+          // Build detailed breakdown from criteria
+          const breakdown: any = {
+            scoreTotal: entryDecision.score,
+            scoreMax: 9,
+            tier: entryDecision.tier,
+            breakdown: {
+              trend: {
+                daily: enhancedSignal.mtfBias?.daily === enhancedSignal.direction,
+                h4: enhancedSignal.mtfBias?.["4h"] === enhancedSignal.direction,
+                h1: enhancedSignal.mtfBias?.["1h"] === enhancedSignal.direction,
+              },
+              momentum: {
+                adx: (enhancedSignal.indicators?.adx || 0) > 15,
+                rsi: (enhancedSignal.indicators?.rsi || 50) > 30 && (enhancedSignal.indicators?.rsi || 50) < 70,
+              },
+              entry: {
+                m15: enhancedSignal.mtfBias?.["15m"] === enhancedSignal.direction,
+                m5: enhancedSignal.mtfBias?.["5m"] === enhancedSignal.direction,
+              },
+              filters: {
+                volatility: enhancedSignal.indicators?.atr ? enhancedSignal.indicators.atr > 50 : false,
+                session: true,
+              },
+            },
+          }
+          
           const telegramPayload = {
             symbol: normalizedSymbol,
             tier: entryDecision.tier,
@@ -530,20 +557,37 @@ export async function GET(request: Request) {
           // [DIAG] Telegram Payload
           console.log(`[DIAG] TELEGRAM PAYLOAD ${JSON.stringify(telegramPayload)}`)
           
-          // Send to Telegram
+          // Send to Telegram - Main alert
           try {
+            const mainText = `🔥 ${normalizedSymbol} ${enhancedSignal.direction} Entry\nTier: ${entryDecision.tier}\nScore: ${entryDecision.score}/9\nEntry: ${enhancedSignal.entryPrice?.toFixed(2)}\nTP1: ${enhancedSignal.takeProfit1?.toFixed(2)}\nTP2: ${enhancedSignal.takeProfit2?.toFixed(2)}\nSL: ${enhancedSignal.stopLoss?.toFixed(2)}`
+            
             const telegramResponse = await fetch("https://api.telegram.org/bot" + process.env.TELEGRAM_BOT_TOKEN + "/sendMessage", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 chat_id: process.env.TELEGRAM_CHAT_ID,
-                text: `🔥 ${normalizedSymbol} ${enhancedSignal.direction} Entry\nTier: ${entryDecision.tier}\nScore: ${entryDecision.score}/9\nEntry: ${enhancedSignal.entryPrice?.toFixed(2)}\nTP1: ${enhancedSignal.takeProfit1?.toFixed(2)}\nTP2: ${enhancedSignal.takeProfit2?.toFixed(2)}\nSL: ${enhancedSignal.stopLoss?.toFixed(2)}`,
+                text: mainText,
               }),
             })
 
             if (telegramResponse.ok) {
-              // [DIAG] Alert Sent
               console.log(`[DIAG] ALERT SENT symbol=${normalizedSymbol} tier=${entryDecision.tier}`)
+              
+              // Send breakdown as second message
+              try {
+                const breakdownText = `\`\`\`json\n${JSON.stringify(breakdown, null, 2)}\n\`\`\``
+                await fetch("https://api.telegram.org/bot" + process.env.TELEGRAM_BOT_TOKEN + "/sendMessage", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chat_id: process.env.TELEGRAM_CHAT_ID,
+                    text: breakdownText,
+                    parse_mode: "Markdown",
+                  }),
+                })
+              } catch (breakdownError) {
+                console.error("[v0] Error sending breakdown:", breakdownError)
+              }
             } else {
               console.error("[v0] Telegram send failed:", await telegramResponse.text())
             }
