@@ -414,6 +414,9 @@ export async function GET(request: Request) {
       try {
         const directionForRedis = enhancedSignal.direction === "LONG" ? "LONG" : "SHORT"
         
+        // Extract breakdown from signal if available (may be undefined for simple strategies)
+        const tradeBreakdown = (signal as any).breakdown || (signal as any).component_scores || {}
+        
         await RedisTrades.createTrade(
           symbol,
           directionForRedis,
@@ -424,7 +427,7 @@ export async function GET(request: Request) {
           entryDecision.tier as "A+" | "A" | "B",
           entryDecision.score,
           entryDecision.tier,
-          breakdown
+          tradeBreakdown
         )
         console.log(`[REDIS_TRADE] Persisted - ${symbol} ${directionForRedis} ${entryDecision.tier} @ ${enhancedSignal.entryPrice.toFixed(2)}`)
       } catch (redisError: any) {
