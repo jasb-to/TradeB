@@ -7,8 +7,9 @@ import { SignalCache } from "@/lib/signal-cache"
 import { RedisTrades } from "@/lib/redis-trades"
 import { StrictStrategyV7 } from "@/lib/strict-strategy-v7"
 import { BalancedStrategyV7 } from "@/lib/balanced-strategy-v7"
+import { TelegramNotifier } from "@/lib/telegram"
 
-export const SYSTEM_VERSION = "10.5.0-ENTRY-ENFORCEMENT"
+export const SYSTEM_VERSION = "11.0.0-ARCHITECTURAL-RESET"
 
 // HARDCODED: Only XAU_USD - never import TRADING_SYMBOLS which gets cached by Vercel
 const TRADING_SYMBOLS = ["XAU_USD"] as const
@@ -437,29 +438,23 @@ export async function GET(request: Request) {
     
     enhancedSignal.entryDecision = entryDecision
 
-    // CHECK FOR ACTIVE TRADE IN REDIS: Display only - DO NOT override entry approval decision
-    // This just updates the display to show the active trade, but respects entryDecision.allowed
+    // ARCHITECTURAL SEPARATION: Active trade display is SEPARATE from entry approval
+    // Fetch active trade for display purposes ONLY - do NOT merge with strategy result
+    let activeTradeForDisplay = null
     try {
-      const activeTrade = await RedisTrades.getActiveTrade(symbol)
-      if (activeTrade) {
-        console.log(`[TRADE_DISPLAY] Active trade found: ${symbol} ${activeTrade.direction} ${activeTrade.tier} @ ${activeTrade.entry}`)
-        
-        // Update display fields only (for monitoring active positions)
-        // DO NOT change entryDecision.allowed - it must remain based on strategy evaluation
-        enhancedSignal.type = "ENTRY"
-        enhancedSignal.direction = activeTrade.direction
-        enhancedSignal.entryPrice = activeTrade.entry
-        enhancedSignal.stopLoss = activeTrade.stopLoss
-        enhancedSignal.takeProfit1 = activeTrade.takeProfit1
-        enhancedSignal.takeProfit2 = activeTrade.takeProfit2
-        
-        // tier display is updated but entryDecision.allowed reflects strategy enforcement
-        entryDecision.tier = activeTrade.tier
-        
-        console.log(`[TRADE_DISPLAY] Signal display updated to show active trade (tier=${activeTrade.tier}, but entryDecision.allowed=${entryDecision.allowed})`)
+      activeTradeForDisplay = await RedisTrades.getActiveTrade(symbol)
+      if (activeTradeForDisplay) {
+        console.log(`[TRADE_STATE] Active trade found in Redis: ${symbol} ${activeTradeForDisplay.direction} ${activeTradeForDisplay.tier} @ ${activeTradeForDisplay.entry}`)
       }
     } catch (tradeCheckError) {
-      console.error("[TRADE_DISPLAY] Error checking active trade:", tradeCheckError)
+      console.error("[TRADE_STATE] Error checking active trade:", tradeCheckError)
+    }
+
+    // RUNTIME ASSERTION: Detect tier corruption
+    if (entryDecision.allowed === false && entryDecision.tier !== "NO_TRADE") {
+      const tierCorruptionError = `TIER STATE CORRUPTION DETECTED: approved=${entryDecision.allowed} but tier=${entryDecision.tier} (expected NO_TRADE)`
+      console.error(`[CRITICAL] ${tierCorruptionError}`)
+      throw new Error(tierCorruptionError)
     }
 
     SignalCache.set(enhancedSignal, symbol)
@@ -475,7 +470,7 @@ export async function GET(request: Request) {
       enhancedSignal.timeframeAlignment || 0
     ].join("|")
     
-    // ALERTS: Send telegram notification if conditions met
+    // ALERTS: Send telegram notification ONLY on entry approval (not on display state)
     try {
       let alertCheck: any = null
       let tierUpgraded = false
@@ -508,9 +503,29 @@ export async function GET(request: Request) {
         // TELEGRAM TRIGGER CHECK
         console.log(`[TELEGRAM_TRIGGER_CHECK] marketClosed=${isMarketClosed} alertCheck=${alertCheck?.allowed} entryDecision.allowed=${entryDecision.allowed} signal.type=${enhancedSignal.type} alertLevel=${entryDecision.alertLevel}`)
 
-        // B-tier (alertLevel=1) and above send alerts (all tiers)
-        if (!isMarketClosed && alertCheck && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && (entryDecision.alertLevel || 0) >= 1) {
-          const normalizedSymbol = symbol === "XAU_USD" ? "XAU" : symbol === "GBP_JPY" ? "GBP/JPY" : symbol
+    // DEFENSIVE GUARD: Verify no mutations occurred to approval state
+    // Runtime assertion: If strategy rejected but somehow allowed=true, crash loudly
+    if (enhancedSignal.type === "NO_TRADE" && entryDecision.allowed === true) {
+      console.error("[CRITICAL] APPROVAL STATE MUTATION DETECTED")
+      console.error(`[CRITICAL] Strategy returned NO_TRADE but entryDecision.allowed=true`)
+      console.error(`[CRITICAL] This indicates an override path exists that should not`)
+      throw new Error("CRITICAL: Approval state was mutated after strategy evaluation. Enforcement violation detected.")
+    }
+
+    // B-tier (alertLevel=1) and above send alerts (all tiers)
+    // DEFENSIVE GATE: All three conditions must be true to send alert
+    if (!isMarketClosed && alertCheck && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && (entryDecision.alertLevel || 0) >= 1) {
+          try {
+            // BLOCKED ALERT CHECK: Verify approval state one more time before sending
+            if (!entryDecision.allowed) {
+              console.error(`[BLOCKED] Attempted alert on rejected trade - entryDecision.allowed=false`)
+              return NextResponse.json(
+                { success: false, error: "Alert blocked: entry not approved", signal: enhancedSignal, entryDecision },
+                { status: 403 }
+              )
+            }
+
+            const normalizedSymbol = symbol === "XAU_USD" ? "XAU" : symbol === "GBP_JPY" ? "GBP/JPY" : symbol
           
           // Build detailed breakdown from criteria
           const breakdown: any = {
@@ -553,36 +568,30 @@ export async function GET(request: Request) {
           // [DIAG] Telegram Payload
           console.log(`[DIAG] TELEGRAM PAYLOAD ${JSON.stringify(telegramPayload)}`)
           
-          // Send to Telegram - Main alert
+          // Send to Telegram using HTML formatter
           try {
-            const mainText = `🔥 ${normalizedSymbol} ${enhancedSignal.direction} Entry\nTier: ${entryDecision.tier}\nScore: ${entryDecision.score}/9\nEntry: ${enhancedSignal.entryPrice?.toFixed(2)}\nTP1: ${enhancedSignal.takeProfit1?.toFixed(2)}\nTP2: ${enhancedSignal.takeProfit2?.toFixed(2)}\nSL: ${enhancedSignal.stopLoss?.toFixed(2)}`
+            const telegramNotifier = new TelegramNotifier()
+            
+            // Format as HTML using the formatter
+            const htmlMessage = `<b>🔥 ${normalizedSymbol} ${enhancedSignal.direction}</b>\n\n<b>Tier:</b> <code>${entryDecision.tier}</code>\n<b>Score:</b> ${entryDecision.score}/9\n\n<b>Prices:</b>\n├ Entry: <code>$${enhancedSignal.entryPrice?.toFixed(2)}</code>\n├ TP1: <code>$${enhancedSignal.takeProfit1?.toFixed(2)}</code>\n├ TP2: <code>$${enhancedSignal.takeProfit2?.toFixed(2)}</code>\n└ SL: <code>$${enhancedSignal.stopLoss?.toFixed(2)}</code>\n\n<i>${new Date().toISOString()}</i>`
             
             const telegramResponse = await fetch("https://api.telegram.org/bot" + process.env.TELEGRAM_BOT_TOKEN + "/sendMessage", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 chat_id: process.env.TELEGRAM_CHAT_ID,
-                text: mainText,
+                text: htmlMessage,
+                parse_mode: "HTML",
               }),
             })
 
             if (telegramResponse.ok) {
-              console.log(`[DIAG] ALERT SENT symbol=${normalizedSymbol} tier=${entryDecision.tier}`)
-              
-              // Send breakdown as second message
-              try {
-                const breakdownText = `\`\`\`json\n${JSON.stringify(breakdown, null, 2)}\n\`\`\``
-                await fetch("https://api.telegram.org/bot" + process.env.TELEGRAM_BOT_TOKEN + "/sendMessage", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    chat_id: process.env.TELEGRAM_CHAT_ID,
-                    text: breakdownText,
-                    parse_mode: "Markdown",
-                  }),
-                })
-              } catch (breakdownError) {
-                console.error("[v0] Error sending breakdown:", breakdownError)
+              console.log(`[TELEGRAM] Alert sent: ${normalizedSymbol} ${enhancedSignal.direction} ${entryDecision.tier}`)
+            } else {
+              console.error(`[TELEGRAM] Failed to send alert:`, await telegramResponse.text())
+            }
+          } catch (telegramError) {
+            console.error("[TELEGRAM] Error sending alert:", telegramError)
               }
             } else {
               console.error("[v0] Telegram send failed:", await telegramResponse.text())
@@ -607,11 +616,12 @@ export async function GET(request: Request) {
     }
 
     // [DIAG] Final Response
-    console.log(`[DIAG] RESPONSE SENT symbol=${symbol} type=${enhancedSignal.type} tier=${enhancedSignal.entryDecision?.tier}`)
+    console.log(`[DIAG] RESPONSE SENT symbol=${symbol} type=${enhancedSignal.type} tier=${enhancedSignal.entryDecision?.tier} activeTradeState=${activeTradeForDisplay ? "EXISTS" : "NONE"}`)
 
     return NextResponse.json({
       success: true,
       signal: enhancedSignal,
+      activeTradeState: activeTradeForDisplay,  // Separate from strategy result
       timestamp: new Date().toISOString(),
       systemVersion: SYSTEM_VERSION,
       strategyDetails: {
