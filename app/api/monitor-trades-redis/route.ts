@@ -106,22 +106,3 @@ export async function GET(request: Request) {
     )
   }
 }
-    }
-
-    const stats = await RedisTrades.getStats()
-
-    return NextResponse.json({
-      success: true,
-      tradesChecked: allActiveTrades.length,
-      updates,
-      stats,
-      timestamp: new Date().toISOString(),
-    })
-  } catch (error) {
-    console.error("[v0] Trade monitor error:", error)
-    return NextResponse.json(
-      { success: false, error: String(error) },
-      { status: 500 }
-    )
-  }
-}
