@@ -521,7 +521,8 @@ export async function GET(request: Request) {
             score: entryDecision.score,
             direction: enhancedSignal.direction,
             entryPrice: enhancedSignal.entryPrice,
-            takeProfit: enhancedSignal.takeProfit2,
+            takeProfit1: enhancedSignal.takeProfit1,
+            takeProfit2: enhancedSignal.takeProfit2,
             stopLoss: enhancedSignal.stopLoss,
             timestamp: new Date().toISOString(),
           }
@@ -536,7 +537,7 @@ export async function GET(request: Request) {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 chat_id: process.env.TELEGRAM_CHAT_ID,
-                text: `🔥 ${normalizedSymbol} ${enhancedSignal.direction} Entry\nTier: ${entryDecision.tier}\nScore: ${entryDecision.score}/9\nEntry: ${enhancedSignal.entryPrice?.toFixed(2)}\nTP: ${enhancedSignal.takeProfit2?.toFixed(2)}\nSL: ${enhancedSignal.stopLoss?.toFixed(2)}`,
+                text: `🔥 ${normalizedSymbol} ${enhancedSignal.direction} Entry\nTier: ${entryDecision.tier}\nScore: ${entryDecision.score}/9\nEntry: ${enhancedSignal.entryPrice?.toFixed(2)}\nTP1: ${enhancedSignal.takeProfit1?.toFixed(2)}\nTP2: ${enhancedSignal.takeProfit2?.toFixed(2)}\nSL: ${enhancedSignal.stopLoss?.toFixed(2)}`,
               }),
             })
 
