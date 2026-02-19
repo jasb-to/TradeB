@@ -331,6 +331,7 @@ export const RedisTrades = {
       console.error("[REDIS_TRADE] Error checking trade exit:", error)
       return {closed: false}
     }
+  },
 
   /**
    * Get trade history with pagination
