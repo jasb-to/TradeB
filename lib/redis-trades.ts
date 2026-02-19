@@ -1,20 +1,35 @@
 import { Redis } from "@upstash/redis"
 
-// Initialize Redis client with Upstash REST API credentials (not rediss:// protocol)
-// Upstash provides REST API URL in KV_REST_API_URL format
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL || "",
-  token: process.env.KV_REST_API_TOKEN || "",
-})
+// PRODUCTION SAFETY: Redis is MANDATORY for live trading systems
+// Fail fast if not configured - silent fallback is dangerous
+const validateRedisConfig = () => {
+  const url = process.env.KV_REST_API_URL
+  const token = process.env.KV_REST_API_TOKEN
+  
+  if (!url || !token) {
+    const env = process.env.NODE_ENV || "development"
+    const message = `Redis not configured (KV_REST_API_URL/KV_REST_API_TOKEN missing)`
+    
+    if (env === "production") {
+      console.error(`[REDIS] CRITICAL: ${message}`)
+      console.error("[REDIS] Production requires Redis for trade persistence & atomic operations")
+      throw new Error(`${message}. Production boot aborted.`)
+    } else {
+      console.warn(`[REDIS] ${message}. Development mode - falling back to in-memory (NOT persistent)`)
+      return null
+    }
+  }
+  
+  return { url, token }
+}
 
-// Trade Status Enum - SINGLE SOURCE OF TRUTH for all state transitions
-export enum TradeStatus {
-  ACTIVE = "ACTIVE",
-  TP1_HIT = "TP1_HIT",
-  TP2_HIT = "TP2_HIT",
-  SL_HIT = "SL_HIT",
-  CLOSED = "CLOSED",
-  MANUALLY_CLOSED = "MANUALLY_CLOSED",
+const redisConfig = validateRedisConfig()
+const redis: Redis | null = redisConfig ? new Redis(redisConfig) : null
+
+if (redis) {
+  console.log("[REDIS] Connected to Upstash Redis - trade persistence ACTIVE")
+} else {
+  console.warn("[REDIS] Running in memory-only mode - trades will NOT persist across deployments")
 }
 
 export interface ActiveTrade {

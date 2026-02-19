@@ -83,7 +83,7 @@ export async function GET() {
     const avgProgressToSL = allActiveTrades.length > 0 ? Math.round(totalProgressToSL / allActiveTrades.length) : 0
 
     return NextResponse.json({
-        systemVersion: "10.3.0-MULTI-SYMBOL-READY",
+        systemVersion: "10.4.0-PRODUCTION-SAFETY",
       activeTradeCount: allActiveTrades.length,
       averageProgressToTP1: avgProgressToTP,
       averageProgressToSL: avgProgressToSL,
@@ -96,7 +96,7 @@ export async function GET() {
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Unknown error",
-      systemVersion: "10.3.0-MULTI-SYMBOL-READY",
+      systemVersion: "10.4.0-PRODUCTION-SAFETY",
         redisConnected: false,
       },
       { status: 500 }
