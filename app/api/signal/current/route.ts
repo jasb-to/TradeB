@@ -527,51 +527,6 @@ export async function GET(request: Request) {
 
         const normalizedSymbol = symbol === "XAU_USD" ? "XAU" : symbol === "GBP_JPY" ? "GBP/JPY" : symbol
       
-        // Build detailed breakdown from criteria
-        const breakdown: any = {
-          scoreTotal: entryDecision.score,
-          scoreMax: 9,
-          tier: entryDecision.tier,
-          breakdown: {
-            trend: {
-              daily: enhancedSignal.mtfBias?.daily === enhancedSignal.direction,
-              h4: enhancedSignal.mtfBias?.["4h"] === enhancedSignal.direction,
-              h1: enhancedSignal.mtfBias?.["1h"] === enhancedSignal.direction,
-            },
-            momentum: {
-              adx: (enhancedSignal.indicators?.adx || 0) > 15,
-              rsi: (enhancedSignal.indicators?.rsi || 50) > 30 && (enhancedSignal.indicators?.rsi || 50) < 70,
-            },
-            entry: {
-              m15: enhancedSignal.mtfBias?.["15m"] === enhancedSignal.direction,
-              m5: enhancedSignal.mtfBias?.["5m"] === enhancedSignal.direction,
-            },
-            filters: {
-              volatility: enhancedSignal.indicators?.atr ? enhancedSignal.indicators.atr > 50 : false,
-              session: true,
-            },
-          },
-        }
-        
-        const telegramPayload = {
-          symbol: normalizedSymbol,
-          tier: entryDecision.tier,
-          score: entryDecision.score,
-          direction: enhancedSignal.direction,
-          entryPrice: enhancedSignal.entryPrice,
-          takeProfit1: enhancedSignal.takeProfit1,
-          takeProfit2: enhancedSignal.takeProfit2,
-          stopLoss: enhancedSignal.stopLoss,
-          timestamp: new Date().toISOString(),
-        }
-        
-        // [DIAG] Telegram Payload
-        console.log(`[DIAG] TELEGRAM PAYLOAD ${JSON.stringify(telegramPayload)}`)
-        
-        // Send to Telegram using HTML formatter
-        const telegramNotifier = new TelegramNotifier()
-        
-        // Format as HTML using the formatter
         const htmlMessage = `<b>🔥 ${normalizedSymbol} ${enhancedSignal.direction}</b>\n\n<b>Tier:</b> <code>${entryDecision.tier}</code>\n<b>Score:</b> ${entryDecision.score}/9\n\n<b>Prices:</b>\n├ Entry: <code>$${enhancedSignal.entryPrice?.toFixed(2)}</code>\n├ TP1: <code>$${enhancedSignal.takeProfit1?.toFixed(2)}</code>\n├ TP2: <code>$${enhancedSignal.takeProfit2?.toFixed(2)}</code>\n└ SL: <code>$${enhancedSignal.stopLoss?.toFixed(2)}</code>\n\n<i>${new Date().toISOString()}</i>`
         
         const telegramResponse = await fetch("https://api.telegram.org/bot" + process.env.TELEGRAM_BOT_TOKEN + "/sendMessage", {
@@ -585,22 +540,22 @@ export async function GET(request: Request) {
         })
 
         if (telegramResponse.ok) {
-          console.log(`[TELEGRAM] Alert sent: ${normalizedSymbol} ${enhancedSignal.direction} ${entryDecision.tier}`);
+          console.log(`[TELEGRAM] Alert sent: ${normalizedSymbol} ${enhancedSignal.direction} ${entryDecision.tier}`)
         } else {
-          console.error(`[TELEGRAM] Failed to send alert:`, await telegramResponse.text());
+          console.error(`[TELEGRAM] Failed to send alert:`, await telegramResponse.text())
         }
-      } catch (error) {
-        console.error("[TELEGRAM] Error in alert block:", error);
+      } catch (telegramError) {
+        console.error("[TELEGRAM] Error sending alert:", telegramError)
       }
     } else {
-      let skipReason = "";
-      if (isMarketClosed) skipReason = "Market closed";
-      else if (!alertCheck?.allowed) skipReason = `Fingerprint check: ${alertCheck?.reason}`;
-      else if (!entryDecision.allowed) skipReason = "Entry decision not approved";
-      else if (enhancedSignal.type !== "ENTRY") skipReason = `Not ENTRY signal (type=${enhancedSignal.type})`;
-      else if ((entryDecision.alertLevel || 0) < 1) skipReason = `Alert level too low (${entryDecision.alertLevel} < 1)`;
+      let skipReason = ""
+      if (isMarketClosed) skipReason = "Market closed"
+      else if (!alertCheck?.allowed) skipReason = `Fingerprint check: ${alertCheck?.reason}`
+      else if (!entryDecision.allowed) skipReason = "Entry decision not approved"
+      else if (enhancedSignal.type !== "ENTRY") skipReason = `Not ENTRY signal (type=${enhancedSignal.type})`
+      else if ((entryDecision.alertLevel || 0) < 1) skipReason = `Alert level too low (${entryDecision.alertLevel} < 1)`
       
-      console.log(`[DIAG] ALERT SKIPPED reason=${skipReason}`);
+      console.log(`[DIAG] ALERT SKIPPED reason=${skipReason}`)
     }
 
     // [DIAG] Final Response
