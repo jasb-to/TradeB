@@ -471,14 +471,14 @@ export async function GET(request: Request) {
     ].join("|")
     
     // ALERTS: Send telegram notification ONLY on entry approval (not on display state)
+    // Declare isMarketClosed BEFORE try block so it's accessible in final response
+    const now = new Date()
+    const ukHours = now.toLocaleString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
+    const isMarketClosed = !marketStatus.isOpen || (now.getUTCHours() === 22) // 22:00-23:00 UTC = 10 PM-11 PM UK time
+    
     try {
       let alertCheck: any = null
       let tierUpgraded = false
-      
-      // [DIAG] Market Hours Check
-      const now = new Date()
-      const ukHours = now.toLocaleString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
-      const isMarketClosed = !marketStatus.isOpen || (now.getUTCHours() === 22) // 22:00-23:00 UTC = 10 PM-11 PM UK time
       
       if (isMarketClosed) {
         console.log(`[DIAG] ALERT SKIPPED - MARKET CLOSED ukTime=${ukHours}`)
