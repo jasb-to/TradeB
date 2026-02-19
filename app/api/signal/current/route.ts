@@ -2,13 +2,14 @@ import { NextResponse } from "next/server"
 import { DataFetcher } from "@/lib/data-fetcher"
 import { TradingStrategies } from "@/lib/strategies"
 import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
-import { calculateMarketHours } from "@/lib/market-hours"
+import { MarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
-import { sendTelegramNotification } from "@/lib/telegram"
 import { createTrade } from "@/lib/trade-lifecycle"
 import { InMemoryTrades } from "@/lib/in-memory-trades"
+import { StrictStrategyV7 } from "@/lib/strict-strategy-v7"
+import { BalancedStrategyV7 } from "@/lib/balanced-strategy-v7"
 
-export const SYSTEM_VERSION = "9.3.0-STABLE"
+export const SYSTEM_VERSION = "9.3.1-IMPORT-FIX"
 
 // HARDCODED: Only XAU_USD - never import TRADING_SYMBOLS which gets cached by Vercel
 const TRADING_SYMBOLS = ["XAU_USD"] as const
@@ -293,7 +294,7 @@ export async function GET(request: Request) {
     }
     
     // [DIAG] Route Entry
-    console.log(`[DIAG] SIGNAL ROUTE HIT - symbol=${symbol} time=${new Date().toISOString()} marketOpen=${!marketStatus.isClosed}`)
+    console.log(`[DIAG] SIGNAL ROUTE HIT - symbol=${symbol} time=${new Date().toISOString()} marketOpen=${marketStatus.isOpen}`)
     console.log(`[DIAG] SYSTEM_VERSION=${SYSTEM_VERSION}`)
     
     // [DIAG] Strategy Details for STRICT v7
@@ -486,7 +487,7 @@ export async function GET(request: Request) {
       // [DIAG] Market Hours Check
       const now = new Date()
       const ukHours = now.toLocaleString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
-      const isMarketClosed = marketStatus.isClosed || (now.getUTCHours() === 22) // 22:00-23:00 UTC = 10 PM-11 PM UK time
+      const isMarketClosed = !marketStatus.isOpen || (now.getUTCHours() === 22) // 22:00-23:00 UTC = 10 PM-11 PM UK time
       
       if (isMarketClosed) {
         console.log(`[DIAG] ALERT SKIPPED - MARKET CLOSED ukTime=${ukHours}`)

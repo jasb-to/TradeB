@@ -1,5 +1,5 @@
 "use client"
-export const SYSTEM_VERSION = "9.3.0-STABLE"
+export const SYSTEM_VERSION = "9.3.1-IMPORT-FIX"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
