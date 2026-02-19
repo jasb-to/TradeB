@@ -2,7 +2,197 @@
 
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+
+interface DiagnosticReport {
+  timestamp: string
+  systemVersion: string
+  sections: Record<string, any>
+  summary: { passed: number; warnings: number; failures: number }
+  overallStatus: string
+  executionTime: string
+}
+
+export default function DiagnosticDashboard() {
+  const [report, setReport] = useState<DiagnosticReport | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [expandedSection, setExpandedSection] = useState<string | null>("summary")
+
+  useEffect(() => {
+    const fetchDiagnostic = async () => {
+      try {
+        const response = await fetch("/api/diagnostic/full-system")
+        if (!response.ok) throw new Error("Failed to fetch diagnostic")
+        const data = await response.json()
+        setReport(data)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unknown error")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDiagnostic()
+    const interval = setInterval(fetchDiagnostic, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>System Diagnostic</CardTitle>
+            <CardDescription>Loading diagnostic data...</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen p-4">
+        <Card className="w-full max-w-md border-red-200 bg-red-50">
+          <CardHeader>
+            <CardTitle className="text-red-900">Diagnostic Error</CardTitle>
+            <CardDescription className="text-red-800">{error}</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    )
+  }
+
+  if (!report) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>No Data</CardTitle>
+            <CardDescription>Unable to retrieve diagnostic data</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    )
+  }
+
+  const getStatusColor = (status: string) => {
+    if (status.includes("✅") || status.includes("PASS")) return "bg-green-100"
+    if (status.includes("⚠️") || status.includes("WARN")) return "bg-yellow-100"
+    return "bg-red-100"
+  }
+
+  const getStatusBadge = (status: string) => {
+    if (status.includes("✅") || status.includes("PASS")) return "bg-green-600"
+    if (status.includes("⚠️") || status.includes("WARN")) return "bg-yellow-600"
+    return "bg-red-600"
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-4 md:p-8">
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="space-y-2">
+          <h1 className="text-4xl font-bold text-white">System Diagnostic Dashboard</h1>
+          <p className="text-gray-400">v11.0.0-ARCHITECTURAL-RESET | Real-time monitoring and health status</p>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Overall Status</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{report.overallStatus}</div>
+              <Badge className={`mt-2 ${getStatusBadge(report.overallStatus)}`}>{report.overallStatus}</Badge>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Passed</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{report.summary.passed}</div>
+              <p className="text-xs text-gray-500 mt-2">diagnostic checks</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Warnings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-600">{report.summary.warnings}</div>
+              <p className="text-xs text-gray-500 mt-2">items flagged</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Failures</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">{report.summary.failures}</div>
+              <p className="text-xs text-gray-500 mt-2">critical errors</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Detailed Sections */}
+        <div className="space-y-4">
+          {Object.entries(report.sections).map(([sectionName, sectionData]) => (
+            <Card key={sectionName} className={getStatusColor(sectionData?.status || "")}>
+              <CardHeader className="cursor-pointer" onClick={() => setExpandedSection(expandedSection === sectionName ? null : sectionName)}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <CardTitle className="text-lg">{sectionName}</CardTitle>
+                    <Badge variant="outline">{sectionData?.status || "UNKNOWN"}</Badge>
+                  </div>
+                  <Button variant="ghost" size="sm">
+                    {expandedSection === sectionName ? "−" : "+"}
+                  </Button>
+                </div>
+                <CardDescription>{sectionData?.description || "No description available"}</CardDescription>
+              </CardHeader>
+
+              {expandedSection === sectionName && (
+                <CardContent className="space-y-3">
+                  {sectionData?.tests && Object.entries(sectionData.tests).map(([testName, testResult]: [string, any]) => (
+                    <div key={testName} className="p-3 bg-white bg-opacity-50 rounded border border-gray-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-sm">{testName}</span>
+                        <span className="text-xs">{testResult?.status || "N/A"}</span>
+                      </div>
+                      {testResult?.details && (
+                        <p className="text-xs text-gray-600 mt-2">{JSON.stringify(testResult.details, null, 2)}</p>
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              )}
+            </Card>
+          ))}
+        </div>
+
+        {/* Metadata Footer */}
+        <Card className="bg-gray-800 text-gray-100">
+          <CardHeader>
+            <CardTitle className="text-sm">System Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-xs">
+            <p>System Version: <span className="font-mono">{report.systemVersion}</span></p>
+            <p>Last Run: <span className="font-mono">{report.timestamp}</span></p>
+            <p>Execution Time: <span className="font-mono">{report.executionTime}</span></p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
 
 interface DiagnosticReport {
   timestamp: string
