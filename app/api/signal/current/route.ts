@@ -557,52 +557,52 @@ export async function GET(request: Request) {
           symbol: normalizedSymbol,
           tier: entryDecision.tier,
           score: entryDecision.score,
-            direction: enhancedSignal.direction,
-            entryPrice: enhancedSignal.entryPrice,
-            takeProfit1: enhancedSignal.takeProfit1,
-            takeProfit2: enhancedSignal.takeProfit2,
-            stopLoss: enhancedSignal.stopLoss,
-            timestamp: new Date().toISOString(),
-          }
-          
-          // [DIAG] Telegram Payload
-          console.log(`[DIAG] TELEGRAM PAYLOAD ${JSON.stringify(telegramPayload)}`)
-          
-          // Send to Telegram using HTML formatter
-          try {
-            const telegramNotifier = new TelegramNotifier()
-            
-            // Format as HTML using the formatter
-            const htmlMessage = `<b>🔥 ${normalizedSymbol} ${enhancedSignal.direction}</b>\n\n<b>Tier:</b> <code>${entryDecision.tier}</code>\n<b>Score:</b> ${entryDecision.score}/9\n\n<b>Prices:</b>\n├ Entry: <code>$${enhancedSignal.entryPrice?.toFixed(2)}</code>\n├ TP1: <code>$${enhancedSignal.takeProfit1?.toFixed(2)}</code>\n├ TP2: <code>$${enhancedSignal.takeProfit2?.toFixed(2)}</code>\n└ SL: <code>$${enhancedSignal.stopLoss?.toFixed(2)}</code>\n\n<i>${new Date().toISOString()}</i>`
-            
-            const telegramResponse = await fetch("https://api.telegram.org/bot" + process.env.TELEGRAM_BOT_TOKEN + "/sendMessage", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                chat_id: process.env.TELEGRAM_CHAT_ID,
-                text: htmlMessage,
-                parse_mode: "HTML",
-              }),
-            })
-
-            if (telegramResponse.ok) {
-              console.log(`[TELEGRAM] Alert sent: ${normalizedSymbol} ${enhancedSignal.direction} ${entryDecision.tier}`)
-            } else {
-              console.error(`[TELEGRAM] Failed to send alert:`, await telegramResponse.text())
-            }
-          } catch (telegramError) {
-            console.error("[TELEGRAM] Error sending alert:", telegramError)
-          }
-        } else {
-          let skipReason = ""
-          if (isMarketClosed) skipReason = "Market closed"
-          else if (!alertCheck?.allowed) skipReason = `Fingerprint check: ${alertCheck?.reason}`
-          else if (!entryDecision.allowed) skipReason = "Entry decision not approved"
-          else if (enhancedSignal.type !== "ENTRY") skipReason = `Not ENTRY signal (type=${enhancedSignal.type})`
-          else if ((entryDecision.alertLevel || 0) < 1) skipReason = `Alert level too low (${entryDecision.alertLevel} < 1)`
-          
-          console.log(`[DIAG] ALERT SKIPPED reason=${skipReason}`)
+          direction: enhancedSignal.direction,
+          entryPrice: enhancedSignal.entryPrice,
+          takeProfit1: enhancedSignal.takeProfit1,
+          takeProfit2: enhancedSignal.takeProfit2,
+          stopLoss: enhancedSignal.stopLoss,
+          timestamp: new Date().toISOString(),
         }
+        
+        // [DIAG] Telegram Payload
+        console.log(`[DIAG] TELEGRAM PAYLOAD ${JSON.stringify(telegramPayload)}`)
+        
+        // Send to Telegram using HTML formatter
+        try {
+          const telegramNotifier = new TelegramNotifier()
+          
+          // Format as HTML using the formatter
+          const htmlMessage = `<b>🔥 ${normalizedSymbol} ${enhancedSignal.direction}</b>\n\n<b>Tier:</b> <code>${entryDecision.tier}</code>\n<b>Score:</b> ${entryDecision.score}/9\n\n<b>Prices:</b>\n├ Entry: <code>$${enhancedSignal.entryPrice?.toFixed(2)}</code>\n├ TP1: <code>$${enhancedSignal.takeProfit1?.toFixed(2)}</code>\n├ TP2: <code>$${enhancedSignal.takeProfit2?.toFixed(2)}</code>\n└ SL: <code>$${enhancedSignal.stopLoss?.toFixed(2)}</code>\n\n<i>${new Date().toISOString()}</i>`
+          
+          const telegramResponse = await fetch("https://api.telegram.org/bot" + process.env.TELEGRAM_BOT_TOKEN + "/sendMessage", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: process.env.TELEGRAM_CHAT_ID,
+              text: htmlMessage,
+              parse_mode: "HTML",
+            }),
+          })
+
+          if (telegramResponse.ok) {
+            console.log(`[TELEGRAM] Alert sent: ${normalizedSymbol} ${enhancedSignal.direction} ${entryDecision.tier}`)
+          } else {
+            console.error(`[TELEGRAM] Failed to send alert:`, await telegramResponse.text())
+          }
+        } catch (telegramError) {
+          console.error("[TELEGRAM] Error sending alert:", telegramError)
+        }
+    } else {
+      let skipReason = ""
+      if (isMarketClosed) skipReason = "Market closed"
+      else if (!alertCheck?.allowed) skipReason = `Fingerprint check: ${alertCheck?.reason}`
+      else if (!entryDecision.allowed) skipReason = "Entry decision not approved"
+      else if (enhancedSignal.type !== "ENTRY") skipReason = `Not ENTRY signal (type=${enhancedSignal.type})`
+      else if ((entryDecision.alertLevel || 0) < 1) skipReason = `Alert level too low (${entryDecision.alertLevel} < 1)`
+      
+      console.log(`[DIAG] ALERT SKIPPED reason=${skipReason}`)
+    }
 
     // [DIAG] Final Response
     console.log(`[DIAG] RESPONSE SENT symbol=${symbol} type=${enhancedSignal.type} tier=${enhancedSignal.entryDecision?.tier} activeTradeState=${activeTradeForDisplay ? "EXISTS" : "NONE"}`)
