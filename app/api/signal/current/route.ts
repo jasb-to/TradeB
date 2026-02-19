@@ -4,12 +4,11 @@ import { TradingStrategies } from "@/lib/strategies"
 import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
 import { MarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
-import { createTrade } from "@/lib/trade-lifecycle"
-import { InMemoryTrades } from "@/lib/in-memory-trades"
+import { RedisTrades } from "@/lib/redis-trades"
 import { StrictStrategyV7 } from "@/lib/strict-strategy-v7"
 import { BalancedStrategyV7 } from "@/lib/balanced-strategy-v7"
 
-export const SYSTEM_VERSION = "9.7.0-ALL-TIERS-ALERTS"
+export const SYSTEM_VERSION = "10.0.0-REDIS-TRADES"
 
 // HARDCODED: Only XAU_USD - never import TRADING_SYMBOLS which gets cached by Vercel
 const TRADING_SYMBOLS = ["XAU_USD"] as const
@@ -407,52 +406,41 @@ export async function GET(request: Request) {
     // [DIAG] Entry Decision
     console.log(`[DIAG] ENTRY DECISION allowed=${entryDecision.allowed} tier=${entryDecision.tier} score=${entryDecision.score}`)
     
-    // TRADE PERSISTENCE: Create trade file if entry is approved
-    // Uses Vercel KV if available, falls back to in-memory persistence
+    // TRADE PERSISTENCE: Create trade in Redis if entry is approved
+    // Redis provides persistent storage across deployments
     if (entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.direction && enhancedSignal.entryPrice) {
       try {
-        // Try Vercel KV first
-        await createTrade(
+        const directionForRedis = enhancedSignal.direction === "LONG" ? "LONG" : "SHORT"
+        
+        await RedisTrades.createTrade(
           symbol,
-          enhancedSignal.direction as "BUY" | "SELL",
+          directionForRedis,
           enhancedSignal.entryPrice,
           enhancedSignal.stopLoss || 0,
           enhancedSignal.takeProfit1 || 0,
           enhancedSignal.takeProfit2 || 0,
-          entryDecision.tier as "A+" | "A" | "B"
+          entryDecision.tier as "A+" | "A" | "B",
+          entryDecision.score,
+          entryDecision.tier,
+          breakdown
         )
-        console.log(`[TRADE_PERSIST] Vercel KV: Trade persisted - ${symbol} ${enhancedSignal.direction} ${entryDecision.tier}`)
-      } catch (kvError: any) {
-        // Fallback to in-memory persistence if KV not configured
-        if (kvError.message?.includes("Missing required environment variables")) {
-          console.log(`[TRADE_PERSIST] Vercel KV not configured, using in-memory fallback`)
-          await InMemoryTrades.createTrade(
-            symbol,
-            enhancedSignal.direction as "BUY" | "SELL",
-            enhancedSignal.entryPrice,
-            enhancedSignal.stopLoss || 0,
-            enhancedSignal.takeProfit1 || 0,
-            enhancedSignal.takeProfit2 || 0,
-            entryDecision.tier as "A+" | "A" | "B"
-          )
-          console.log(`[TRADE_PERSIST] In-Memory: Trade persisted - ${symbol} ${enhancedSignal.direction} ${entryDecision.tier}`)
-        } else {
-          console.error("[TRADE_PERSIST] Error creating trade:", kvError)
-        }
+        console.log(`[REDIS_TRADE] Persisted - ${symbol} ${directionForRedis} ${entryDecision.tier} @ ${enhancedSignal.entryPrice.toFixed(2)}`)
+      } catch (redisError: any) {
+        console.error("[REDIS_TRADE] Error persisting trade:", redisError)
       }
     }
     
     enhancedSignal.entryDecision = entryDecision
 
-    // CHECK FOR ACTIVE TRADE: If trade exists in memory, override signal.type to preserve display
+    // CHECK FOR ACTIVE TRADE IN REDIS: If trade exists, override signal.type to preserve display
     try {
-      const activeTrade = await InMemoryTrades.getActiveTrade(symbol)
+      const activeTrade = await RedisTrades.getActiveTrade(symbol)
       if (activeTrade) {
         console.log(`[TRADE_OVERRIDE] Active trade found: ${symbol} ${activeTrade.direction} ${activeTrade.tier} @ ${activeTrade.entry}`)
         
         // Override signal to show active trade (even if fresh eval is NO_TRADE)
         enhancedSignal.type = "ENTRY"
-        enhancedSignal.direction = activeTrade.direction === "BUY" ? "LONG" : "SHORT"
+        enhancedSignal.direction = activeTrade.direction
         enhancedSignal.entryPrice = activeTrade.entry
         enhancedSignal.stopLoss = activeTrade.stopLoss
         enhancedSignal.takeProfit1 = activeTrade.takeProfit1
