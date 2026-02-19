@@ -264,35 +264,12 @@ export class StrictStrategyV7 {
 
     console.log(`[v0] STRICT v7.4 ENTRY: ${direction} | Score ${finalScore}/6 | Tier ${entryTier} | Components: ${Object.entries(componentDetails).map(([k, v]) => v ? k : null).filter(Boolean).join(", ")}`)
     return {
-        type: "ENTRY",
-        direction,
-        tier: entryTier,
-        score: finalScore,
-        approved: true,
-        reason: `Tier ${entryTier}: Score ${finalScore}/6 with ${Object.values(componentDetails).filter(Boolean).length}+ components aligned`,
-        indicators: this.buildIndicators(ema20_4h, ema50_4h, adx4h, data4hCandles, data1hCandles),
-      }
-    } else {
-      console.log(`[v0] REJECTED: Score ${finalScore} does not meet minimum (3/6)`)
-      return {
-        type: "NO_TRADE",
-        direction: "NONE",
-        tier: "NO_TRADE",
-        score: finalScore,
-        reason: `Score below threshold`,
-        indicators: this.buildIndicators(ema20_4h, ema50_4h, adx4h, data4hCandles, data1hCandles),
-      }
-    }
-  }
-    }
-
-    // Below threshold
-    return {
-      type: "NO_TRADE",
-      direction: "NONE",
-      tier: "NO_TRADE",
-      score,
-      reason: `Score ${score}/6 < 4: ${Object.entries(componentDetails).map(([k, v]) => v ? k : null).filter(Boolean).join(", ")}`,
+      type: "ENTRY",
+      direction,
+      tier: entryTier,
+      score: finalScore,
+      approved: true,
+      reason: `Tier ${entryTier}: Score ${finalScore}/6 with ${Object.values(componentDetails).filter(Boolean).length}+ components aligned`,
       indicators: this.buildIndicators(ema20_4h, ema50_4h, adx4h, data4hCandles, data1hCandles),
     }
   }
