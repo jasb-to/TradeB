@@ -550,9 +550,10 @@ export async function GET(request: Request) {
           
           console.log(`[DIAG] ALERT SKIPPED reason=${skipReason}`)
         }
-      } catch (alertError) {
-        console.error("[v0] Error in alerts block:", alertError)
       }
+    } catch (alertError) {
+      console.error("[v0] Error in alerts block:", alertError)
+    }
 
     // [DIAG] Final Response
     console.log(`[DIAG] RESPONSE SENT symbol=${symbol} type=${enhancedSignal.type} tier=${enhancedSignal.entryDecision?.tier} activeTradeState=${activeTradeForDisplay ? "EXISTS" : "NONE"}`)
