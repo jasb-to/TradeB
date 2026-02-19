@@ -1,7 +1,5 @@
 "use client"
-// v9.2.1-EMERGENCY-HOTFIX: Removed build-time crypto call causing Turbopack panic
-// Fixed import path back to @/lib/default-config and removed undefined CACHE_BUSTER_V3_3
-export const SYSTEM_VERSION = "9.2.1-EMERGENCY-HOTFIX"
+export const SYSTEM_VERSION = "9.3.0-STABLE"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
