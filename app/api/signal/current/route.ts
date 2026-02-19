@@ -590,19 +590,19 @@ export async function GET(request: Request) {
             } else {
               console.error(`[TELEGRAM] Failed to send alert:`, await telegramResponse.text())
             }
-        } catch (telegramError) {
-          console.error("[TELEGRAM] Error sending alert:", telegramError)
+          } catch (telegramError) {
+            console.error("[TELEGRAM] Error sending alert:", telegramError)
+          }
+        } else {
+          let skipReason = ""
+          if (isMarketClosed) skipReason = "Market closed"
+          else if (!alertCheck?.allowed) skipReason = `Fingerprint check: ${alertCheck?.reason}`
+          else if (!entryDecision.allowed) skipReason = "Entry decision not approved"
+          else if (enhancedSignal.type !== "ENTRY") skipReason = `Not ENTRY signal (type=${enhancedSignal.type})`
+          else if ((entryDecision.alertLevel || 0) < 1) skipReason = `Alert level too low (${entryDecision.alertLevel} < 1)`
+          
+          console.log(`[DIAG] ALERT SKIPPED reason=${skipReason}`)
         }
-    } else {
-      let skipReason = ""
-      if (isMarketClosed) skipReason = "Market closed"
-      else if (!alertCheck?.allowed) skipReason = `Fingerprint check: ${alertCheck?.reason}`
-      else if (!entryDecision.allowed) skipReason = "Entry decision not approved"
-      else if (enhancedSignal.type !== "ENTRY") skipReason = `Not ENTRY signal (type=${enhancedSignal.type})`
-      else if ((entryDecision.alertLevel || 0) < 1) skipReason = `Alert level too low (${entryDecision.alertLevel} < 1)`
-      
-      console.log(`[DIAG] ALERT SKIPPED reason=${skipReason}`)
-    }
 
     // [DIAG] Final Response
     console.log(`[DIAG] RESPONSE SENT symbol=${symbol} type=${enhancedSignal.type} tier=${enhancedSignal.entryDecision?.tier} activeTradeState=${activeTradeForDisplay ? "EXISTS" : "NONE"}`)
