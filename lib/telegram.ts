@@ -1,4 +1,12 @@
 import type { Signal } from "@/types/trading"
+import {
+  formatSignalHTML,
+  formatTP1AlertHTML,
+  formatTP2AlertHTML,
+  formatSLAlertHTML,
+  formatTestMessageHTML,
+  type SignalBreakdown,
+} from "@/lib/telegram-html-formatter"
 
 export class TelegramNotifier {
   private botToken: string;
@@ -12,27 +20,9 @@ export class TelegramNotifier {
   }
 
   async sendTestMessage(): Promise<void> {
-    const message = `✅ TELEGRAM TEST SUCCESSFUL
-━━━━━━━━━━━━━━━━━━━━
-Your TradeB trading system is now connected to Telegram!
-
-This test confirms:
-✓ Bot token is valid
-✓ Chat ID is correct
-✓ API connection is working
-✓ Messages will be delivered
-
-You will now receive:
-📈 Entry signals with full trade details
-⚠️ TP1 alerts when positions are scaled
-🚨 Stop loss alerts when risk breaches
-✅ TP2 alerts when full position closes
-
-⏰ *Time:* ${new Date().toISOString()}
-━━━━━━━━━━━━━━━━━━━━`;
-
+    const message = formatTestMessageHTML()
     console.log("[v0] TelegramNotifier - Sending test message")
-    await this.sendMessage(message);
+    await this.sendMessage(message, "HTML")
   }
 
   async sendSignalAlert(signal: any): Promise<void> {
@@ -228,42 +218,14 @@ Alert Level: ${this.getAlertLevelBadge(signal.alertLevel)}
   }
 
   async sendTP1Alert(symbol: string, entryPrice: number, tp1Price: number, currentPrice: number, isBTier: boolean = false): Promise<void> {
-    const priceGain = ((currentPrice - entryPrice) / entryPrice * 100).toFixed(2)
-
-    if (isBTier) {
-      // B TIER: Hard TP1 closes entire position
-      const message = `🚨 B TIER TP1 - FULL POSITION CLOSED
-═══════════════════════════════════════
-Symbol: ${symbol}
-Entry Price: $${entryPrice.toFixed(2)}
-TP1 Level (Full Exit): $${tp1Price.toFixed(2)}
-Exit Price: $${currentPrice.toFixed(2)}
-Profit: +${priceGain}%
-
-✅ B TIER Trade Closed at Target
-Position fully exited at TP1 level (no TP2 ladder for B tier)
-
-⏰ Time: ${new Date().toISOString()}
-═══════════════════════════════════════`
-      await this.sendMessage(message, false)
-    } else {
-      // A/A+ TIER: TP1 scales 50%, hold 50% for TP2
-      const message = `✅ TP1 REACHED - SCALE OUT
-═══════════════════════════
-Symbol: ${symbol}
-Entry Price: $${entryPrice.toFixed(2)}
-TP1 Level: $${tp1Price.toFixed(2)}
-Current Price: $${currentPrice.toFixed(2)}
-Profit: +${priceGain}%
-
-📊 Action: Take 50% profit
-🔒 Move SL to: Entry ($${entryPrice.toFixed(2)})
-📈 Hold remaining 50% for TP2
-
-⏰ Time: ${new Date().toISOString()}
-═══════════════════════════`
-      await this.sendMessage(message, false)
-    }
+    const message = formatTP1AlertHTML({
+      symbol,
+      entryPrice,
+      tp1Price,
+      currentPrice,
+      tier: isBTier ? "B" : "A",
+    })
+    await this.sendMessage(message, "HTML")
   }
 
   async sendDirectionChangeAlert(symbol: string, message: string): Promise<void> {
@@ -285,43 +247,23 @@ Dashboard: ${this.dashboardUrl}
   }
 
   async sendTP2Alert(symbol: string, entryPrice: number, tp2Price: number, currentPrice: number): Promise<void> {
-    const priceGain = ((currentPrice - entryPrice) / entryPrice * 100).toFixed(2)
-
-    const message = `🎯 TP2 REACHED - FULL EXIT
-═══════════════════════════
-Symbol: ${symbol}
-Entry Price: $${entryPrice.toFixed(2)}
-TP2 Level: $${tp2Price.toFixed(2)}
-Exit Price: $${currentPrice.toFixed(2)}
-Total Profit: +${priceGain}%
-
-✅ Trade Closed Successfully
-Position fully exited at target
-
-⏰ Time: ${new Date().toISOString()}
-═══════════════════════════`
-
-    await this.sendMessage(message, false)
+    const message = formatTP2AlertHTML({
+      symbol,
+      entryPrice,
+      tp2Price,
+      currentPrice,
+    })
+    await this.sendMessage(message, "HTML")
   }
 
   async sendSLAlert(symbol: string, entryPrice: number, slPrice: number, currentPrice: number): Promise<void> {
-    const loss = ((currentPrice - entryPrice) / entryPrice * 100).toFixed(2)
-
-    const message = `🛑 STOP LOSS HIT
-═══════════════════════════
-Symbol: ${symbol}
-Entry Price: $${entryPrice.toFixed(2)}
-Stop Loss: $${slPrice.toFixed(2)}
-Exit Price: $${currentPrice.toFixed(2)}
-Loss: ${loss}%
-
-❌ *Trade Closed*
-Risk management triggered - Position exited at stop loss
-
-⏰ *Time:* ${new Date().toISOString()}
-━━━━━━━━━━━━━━━━━━━━`;
-
-    await this.sendMessage(message);
+    const message = formatSLAlertHTML({
+      symbol,
+      entryPrice,
+      slPrice,
+      currentPrice,
+    })
+    await this.sendMessage(message, "HTML")
   }
 
   async sendExitAlert(
@@ -535,13 +477,14 @@ This is an informational status update only.
     await this.sendMessage(message, false)
   }
 
-  private async sendMessage(message: string, parseMarkdown: boolean = false): Promise<void> {
+  private async sendMessage(message: string, parseMode?: "HTML" | "Markdown"): Promise<void> {
     const url = `https://api.telegram.org/bot${this.botToken}/sendMessage`;
 
     try {
       console.log(`[v0] TELEGRAM: Attempting to send message to chat ${this.chatId}`);
       console.log(`[v0] TELEGRAM: API URL: ${url}`)
       console.log(`[v0] TELEGRAM: Message length: ${message.length} characters`)
+      console.log(`[v0] TELEGRAM: Parse mode: ${parseMode || "None"}`)
       
       const response = await fetch(url, {
         method: "POST",
@@ -549,7 +492,7 @@ This is an informational status update only.
         body: JSON.stringify({
           chat_id: this.chatId,
           text: message,
-          parse_mode: parseMarkdown ? "Markdown" : undefined,
+          parse_mode: parseMode,
         }),
       });
 
