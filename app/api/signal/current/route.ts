@@ -9,7 +9,7 @@ import { InMemoryTrades } from "@/lib/in-memory-trades"
 import { StrictStrategyV7 } from "@/lib/strict-strategy-v7"
 import { BalancedStrategyV7 } from "@/lib/balanced-strategy-v7"
 
-export const SYSTEM_VERSION = "9.3.1-IMPORT-FIX"
+export const SYSTEM_VERSION = "9.4.0-TELEGRAM-ALERT-FIX"
 
 // HARDCODED: Only XAU_USD - never import TRADING_SYMBOLS which gets cached by Vercel
 const TRADING_SYMBOLS = ["XAU_USD"] as const
@@ -510,9 +510,10 @@ export async function GET(request: Request) {
         console.log(`[DIAG] ALERT CHECK allowed=${alertCheck?.allowed} reason=${alertCheck?.reason} tierUpgraded=${tierUpgraded}`)
         
         // TELEGRAM TRIGGER CHECK
-        console.log(`[TELEGRAM_TRIGGER_CHECK] marketClosed=${isMarketClosed} alertCheck=${alertCheck?.allowed} entryDecision.allowed=${entryDecision.allowed} signal.type=${enhancedSignal.type} alertLevel=${enhancedSignal.alertLevel}`)
+        console.log(`[TELEGRAM_TRIGGER_CHECK] marketClosed=${isMarketClosed} alertCheck=${alertCheck?.allowed} entryDecision.allowed=${entryDecision.allowed} signal.type=${enhancedSignal.type} alertLevel=${entryDecision.alertLevel}`)
 
-        if (!isMarketClosed && alertCheck && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.alertLevel >= 2) {
+        // B-tier (alertLevel=1) and above send alerts
+        if (!isMarketClosed && alertCheck && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && (entryDecision.alertLevel || 0) >= 1) {
           const normalizedSymbol = symbol === "XAU_USD" ? "XAU" : symbol === "GBP_JPY" ? "GBP/JPY" : symbol
           const telegramPayload = {
             symbol: normalizedSymbol,
@@ -554,7 +555,7 @@ export async function GET(request: Request) {
           else if (!alertCheck?.allowed) skipReason = `Fingerprint check: ${alertCheck?.reason}`
           else if (!entryDecision.allowed) skipReason = "Entry decision not approved"
           else if (enhancedSignal.type !== "ENTRY") skipReason = `Not ENTRY signal (type=${enhancedSignal.type})`
-          else if (enhancedSignal.alertLevel < 2) skipReason = `Alert level too low (${enhancedSignal.alertLevel} < 2)`
+          else if ((entryDecision.alertLevel || 0) < 1) skipReason = `Alert level too low (${entryDecision.alertLevel} < 1)`
           
           console.log(`[DIAG] ALERT SKIPPED reason=${skipReason}`)
         }

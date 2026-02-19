@@ -1,5 +1,5 @@
 "use client"
-export const SYSTEM_VERSION = "9.3.1-IMPORT-FIX"
+export const SYSTEM_VERSION = "9.4.0-TELEGRAM-ALERT-FIX"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
