@@ -1,5 +1,5 @@
 "use client"
-export const SYSTEM_VERSION = "10.4.0-PRODUCTION-SAFETY"
+export const SYSTEM_VERSION = "10.5.0-ENTRY-ENFORCEMENT"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
