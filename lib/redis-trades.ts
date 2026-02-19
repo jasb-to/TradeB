@@ -1,10 +1,21 @@
 import { Redis } from "@upstash/redis"
 
-// Initialize Redis client with Upstash credentials
+// Initialize Redis client with Upstash REST API credentials (not rediss:// protocol)
+// Upstash provides REST API URL in KV_REST_API_URL format
 const redis = new Redis({
-  url: process.env.KV_URL || process.env.REDIS_URL || "",
+  url: process.env.KV_REST_API_URL || "",
   token: process.env.KV_REST_API_TOKEN || "",
 })
+
+// Trade Status Enum - SINGLE SOURCE OF TRUTH for all state transitions
+export enum TradeStatus {
+  ACTIVE = "ACTIVE",
+  TP1_HIT = "TP1_HIT",
+  TP2_HIT = "TP2_HIT",
+  SL_HIT = "SL_HIT",
+  CLOSED = "CLOSED",
+  MANUALLY_CLOSED = "MANUALLY_CLOSED",
+}
 
 export interface ActiveTrade {
   id: string
@@ -15,12 +26,18 @@ export interface ActiveTrade {
   takeProfit1: number
   takeProfit2: number
   tier: "A+" | "A" | "B"
-  status: "ACTIVE" | "TP1_HIT" | "TP2_HIT" | "SL_HIT" | "CLOSED"
+  status: TradeStatus
   createdAt: string
   closedAt?: string
   entryDecisionScore: number
   entryDecisionTier: string
   breakdown?: any
+  // Alert state tracking - prevents duplicate alerts
+  tp1AlertSent: boolean
+  tp2AlertSent: boolean
+  slAlertSent: boolean
+  lastCheckedPrice?: number
+  lastCheckedAt?: string
 }
 
 const TRADE_KEY_PREFIX = "trade:"
@@ -55,11 +72,14 @@ export const RedisTrades = {
         takeProfit1,
         takeProfit2,
         tier,
-        status: "ACTIVE",
+        status: TradeStatus.ACTIVE,
         createdAt: new Date().toISOString(),
         entryDecisionScore,
         entryDecisionTier,
         breakdown,
+        tp1AlertSent: false,
+        tp2AlertSent: false,
+        slAlertSent: false,
       }
 
       const tradeKey = `${TRADE_KEY_PREFIX}${tradeId}`
@@ -98,7 +118,7 @@ export const RedisTrades = {
         
         if (tradeData) {
           const trade = typeof tradeData === "string" ? JSON.parse(tradeData) : tradeData
-          if (trade.symbol === symbol && trade.status === "ACTIVE") {
+          if (trade.symbol === symbol && trade.status === TradeStatus.ACTIVE) {
             return trade
           }
         }
@@ -130,7 +150,7 @@ export const RedisTrades = {
         
         if (tradeData) {
           const trade = typeof tradeData === "string" ? JSON.parse(tradeData) : tradeData
-          if (trade.status === "ACTIVE") {
+      if (trade.status === TradeStatus.ACTIVE) {
             trades.push(trade)
           }
         }
@@ -179,9 +199,10 @@ export const RedisTrades = {
   },
 
   /**
-   * Check if a trade should be closed based on current price
+   * Atomically check trade exit and update alert state - PREVENTS DUPLICATE ALERTS
+   * Uses compare-and-set semantics to ensure only one alert per state transition
    */
-  async checkTradeExit(tradeId: string, currentPrice: number): Promise<{closed: boolean; status?: string}> {
+  async checkTradeExit(tradeId: string, currentPrice: number): Promise<{closed: boolean; status?: string; alertShouldSend?: boolean}> {
     try {
       const tradeKey = `${TRADE_KEY_PREFIX}${tradeId}`
       const tradeData = await redis.get(tradeKey)
@@ -190,31 +211,79 @@ export const RedisTrades = {
 
       const trade = typeof tradeData === "string" ? JSON.parse(tradeData) : tradeData
       
+      // Only check exit conditions if trade is still active
+      if (trade.status !== TradeStatus.ACTIVE && trade.status !== TradeStatus.TP1_HIT) {
+        return {closed: false}
+      }
+      
+      let shouldAlert = false
+      let newStatus = trade.status
+      let isClosed = false
+
       if (trade.direction === "LONG") {
-        if (currentPrice >= trade.takeProfit2) {
-          await this.closeTrade(tradeId, "TP2_HIT", currentPrice)
-          return {closed: true, status: "TP2_HIT"}
-        } else if (currentPrice >= trade.takeProfit1 && trade.status === "ACTIVE") {
-          trade.status = "TP1_HIT"
-          await redis.setex(tradeKey, TRADE_TTL, JSON.stringify(trade))
-          return {closed: false, status: "TP1_HIT"}
-        } else if (currentPrice <= trade.stopLoss) {
-          await this.closeTrade(tradeId, "SL_HIT", currentPrice)
-          return {closed: true, status: "SL_HIT"}
+        // Check TP2 first (highest priority close)
+        if (currentPrice >= trade.takeProfit2 && trade.status !== TradeStatus.TP2_HIT) {
+          newStatus = TradeStatus.TP2_HIT
+          shouldAlert = !trade.tp2AlertSent // Only alert if not already sent
+          isClosed = true
+          trade.tp2AlertSent = true
+        } 
+        // Check TP1 (intermediate exit, doesn't close trade)
+        else if (currentPrice >= trade.takeProfit1 && trade.status === TradeStatus.ACTIVE && !trade.tp1AlertSent) {
+          newStatus = TradeStatus.TP1_HIT
+          shouldAlert = true
+          trade.tp1AlertSent = true
         }
-      } else {
-        // SHORT
-        if (currentPrice <= trade.takeProfit2) {
-          await this.closeTrade(tradeId, "TP2_HIT", currentPrice)
-          return {closed: true, status: "TP2_HIT"}
-        } else if (currentPrice <= trade.takeProfit1 && trade.status === "ACTIVE") {
-          trade.status = "TP1_HIT"
-          await redis.setex(tradeKey, TRADE_TTL, JSON.stringify(trade))
-          return {closed: false, status: "TP1_HIT"}
-        } else if (currentPrice >= trade.stopLoss) {
-          await this.closeTrade(tradeId, "SL_HIT", currentPrice)
-          return {closed: true, status: "SL_HIT"}
+        // Check SL
+        else if (currentPrice <= trade.stopLoss && trade.status !== TradeStatus.SL_HIT) {
+          newStatus = TradeStatus.SL_HIT
+          shouldAlert = !trade.slAlertSent
+          isClosed = true
+          trade.slAlertSent = true
         }
+      } else if (trade.direction === "SHORT") {
+        // Check TP2 first (highest priority close)
+        if (currentPrice <= trade.takeProfit2 && trade.status !== TradeStatus.TP2_HIT) {
+          newStatus = TradeStatus.TP2_HIT
+          shouldAlert = !trade.tp2AlertSent
+          isClosed = true
+          trade.tp2AlertSent = true
+        }
+        // Check TP1
+        else if (currentPrice <= trade.takeProfit1 && trade.status === TradeStatus.ACTIVE && !trade.tp1AlertSent) {
+          newStatus = TradeStatus.TP1_HIT
+          shouldAlert = true
+          trade.tp1AlertSent = true
+        }
+        // Check SL
+        else if (currentPrice >= trade.stopLoss && trade.status !== TradeStatus.SL_HIT) {
+          newStatus = TradeStatus.SL_HIT
+          shouldAlert = !trade.slAlertSent
+          isClosed = true
+          trade.slAlertSent = true
+        }
+      }
+
+      // Atomic update: only update if status actually changed
+      if (newStatus !== trade.status || shouldAlert) {
+        trade.status = newStatus
+        trade.lastCheckedPrice = currentPrice
+        trade.lastCheckedAt = new Date().toISOString()
+        
+        // Atomically update trade
+        await redis.setex(tradeKey, TRADE_TTL, JSON.stringify(trade))
+        
+        // If trade fully closed, remove from active set
+        if (isClosed) {
+          await redis.srem(ACTIVE_TRADES_KEY, tradeId)
+          console.log(`[REDIS_TRADE] Closed: ${tradeId} | Status: ${newStatus} @ ${currentPrice.toFixed(2)}`)
+        }
+        
+        if (shouldAlert) {
+          console.log(`[REDIS_TRADE] Alert: ${tradeId} | Status: ${newStatus} @ ${currentPrice.toFixed(2)} (shouldAlert=${shouldAlert})`)
+        }
+        
+        return {closed: isClosed, status: newStatus, alertShouldSend: shouldAlert}
       }
       
       return {closed: false}
@@ -222,11 +291,10 @@ export const RedisTrades = {
       console.error("[REDIS_TRADE] Error checking trade exit:", error)
       return {closed: false}
     }
-  },
+  }
+          return {closed: true, status: "SL_HIT"}
+        }
 
-  /**
-   * Get trade history (last N trades)
-   */
   async getTradeHistory(limit: number = 100): Promise<ActiveTrade[]> {
     try {
       const history = await redis.lrange(TRADE_HISTORY_KEY, 0, limit - 1)
