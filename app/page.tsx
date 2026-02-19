@@ -203,10 +203,11 @@ export default function GoldTradingDashboard() {
         const xauData = await xauResponse.json()
         console.log("[v0] Signal fetch result:", { type: xauData.signal?.type, direction: xauData.signal?.direction, indicators: !!xauData.signal?.indicators })
 
-        // Check if market status changed
-        if (xauData.marketClosed) {
+        // Check if market status changed - use new marketStatus field from API
+        const isMarketClosed = xauData.marketStatus === "CLOSED"
+        if (isMarketClosed) {
           setMarketClosed(true)
-          setMarketMessage(xauData.marketStatus || "Market closed")
+          setMarketMessage("Market Closed")
           if (xauData.signal) {
             setSignalXAU(xauData.signal)
           }
@@ -218,7 +219,7 @@ export default function GoldTradingDashboard() {
             const retryResponse = await fetch("/api/signal/current?symbol=XAU_USD")
             if (retryResponse.ok) {
               const retryData = await retryResponse.json()
-              if (!retryData.marketClosed) {
+              if (retryData.marketStatus === "OPEN") {
                 // Market reopened, restart normal polling
                 setMarketClosed(false)
                 setMarketMessage(null)

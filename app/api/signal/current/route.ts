@@ -556,12 +556,18 @@ export async function GET(request: Request) {
     }
 
     // [DIAG] Final Response
-    console.log(`[DIAG] RESPONSE SENT symbol=${symbol} type=${enhancedSignal.type} tier=${enhancedSignal.entryDecision?.tier} activeTradeState=${activeTradeForDisplay ? "EXISTS" : "NONE"}`)
+    console.log(`[DIAG] RESPONSE SENT symbol=${symbol} type=${enhancedSignal.type} tier=${enhancedSignal.entryDecision?.tier} activeTradeState=${activeTradeForDisplay ? "EXISTS" : "NONE"} marketOpen=${!isMarketClosed}`)
 
     return NextResponse.json({
       success: true,
       signal: enhancedSignal,
-      activeTradeState: activeTradeForDisplay,  // Separate from strategy result
+      entryDecision: {
+        approved: enhancedSignal.entryDecision?.allowed || false,
+        tier: enhancedSignal.entryDecision?.tier || "NO_TRADE",
+        score: enhancedSignal.entryDecision?.score || 0,
+      },
+      activeTradeState: activeTradeForDisplay,  // Separate from strategy result - display only
+      marketStatus: isMarketClosed ? "CLOSED" : "OPEN",
       timestamp: new Date().toISOString(),
       systemVersion: SYSTEM_VERSION,
       strategyDetails: {

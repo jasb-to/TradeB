@@ -16,6 +16,12 @@ interface GoldSignalPanelProps {
 export function GoldSignalPanel({ signal, loading, onManualExit }: GoldSignalPanelProps) {
   const [exiting, setExiting] = useState(false)
 
+  // DEFENSIVE ASSERTION: Catch tier mismatch regressions
+  if (signal && signal.type === "ENTRY" && signal.entryDecision?.approved === false) {
+    console.error("[CRITICAL] REGRESSION DETECTED: signal.type=ENTRY but entryDecision.approved=false")
+    console.error("[CRITICAL] This indicates approval state mutation or improper tier display")
+  }
+
   // Show signal as soon as we have one -- even if loading hasn't flipped to false yet
   if (!signal) {
     if (loading) {
