@@ -515,48 +515,48 @@ export async function GET(request: Request) {
     // B-tier (alertLevel=1) and above send alerts (all tiers)
     // DEFENSIVE GATE: All three conditions must be true to send alert
     if (!isMarketClosed && alertCheck && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && (entryDecision.alertLevel || 0) >= 1) {
-          try {
-            // BLOCKED ALERT CHECK: Verify approval state one more time before sending
-            if (!entryDecision.allowed) {
-              console.error(`[BLOCKED] Attempted alert on rejected trade - entryDecision.allowed=false`)
-              return NextResponse.json(
-                { success: false, error: "Alert blocked: entry not approved", signal: enhancedSignal, entryDecision },
-                { status: 403 }
-              )
-            }
+      try {
+        // BLOCKED ALERT CHECK: Verify approval state one more time before sending
+        if (!entryDecision.allowed) {
+          console.error(`[BLOCKED] Attempted alert on rejected trade - entryDecision.allowed=false`)
+          return NextResponse.json(
+            { success: false, error: "Alert blocked: entry not approved", signal: enhancedSignal, entryDecision },
+            { status: 403 }
+          )
+        }
 
-            const normalizedSymbol = symbol === "XAU_USD" ? "XAU" : symbol === "GBP_JPY" ? "GBP/JPY" : symbol
-          
-          // Build detailed breakdown from criteria
-          const breakdown: any = {
-            scoreTotal: entryDecision.score,
-            scoreMax: 9,
-            tier: entryDecision.tier,
-            breakdown: {
-              trend: {
-                daily: enhancedSignal.mtfBias?.daily === enhancedSignal.direction,
-                h4: enhancedSignal.mtfBias?.["4h"] === enhancedSignal.direction,
-                h1: enhancedSignal.mtfBias?.["1h"] === enhancedSignal.direction,
-              },
-              momentum: {
-                adx: (enhancedSignal.indicators?.adx || 0) > 15,
-                rsi: (enhancedSignal.indicators?.rsi || 50) > 30 && (enhancedSignal.indicators?.rsi || 50) < 70,
-              },
-              entry: {
-                m15: enhancedSignal.mtfBias?.["15m"] === enhancedSignal.direction,
-                m5: enhancedSignal.mtfBias?.["5m"] === enhancedSignal.direction,
-              },
-              filters: {
-                volatility: enhancedSignal.indicators?.atr ? enhancedSignal.indicators.atr > 50 : false,
-                session: true,
-              },
+        const normalizedSymbol = symbol === "XAU_USD" ? "XAU" : symbol === "GBP_JPY" ? "GBP/JPY" : symbol
+      
+        // Build detailed breakdown from criteria
+        const breakdown: any = {
+          scoreTotal: entryDecision.score,
+          scoreMax: 9,
+          tier: entryDecision.tier,
+          breakdown: {
+            trend: {
+              daily: enhancedSignal.mtfBias?.daily === enhancedSignal.direction,
+              h4: enhancedSignal.mtfBias?.["4h"] === enhancedSignal.direction,
+              h1: enhancedSignal.mtfBias?.["1h"] === enhancedSignal.direction,
             },
-          }
-          
-          const telegramPayload = {
-            symbol: normalizedSymbol,
-            tier: entryDecision.tier,
-            score: entryDecision.score,
+            momentum: {
+              adx: (enhancedSignal.indicators?.adx || 0) > 15,
+              rsi: (enhancedSignal.indicators?.rsi || 50) > 30 && (enhancedSignal.indicators?.rsi || 50) < 70,
+            },
+            entry: {
+              m15: enhancedSignal.mtfBias?.["15m"] === enhancedSignal.direction,
+              m5: enhancedSignal.mtfBias?.["5m"] === enhancedSignal.direction,
+            },
+            filters: {
+              volatility: enhancedSignal.indicators?.atr ? enhancedSignal.indicators.atr > 50 : false,
+              session: true,
+            },
+          },
+        }
+        
+        const telegramPayload = {
+          symbol: normalizedSymbol,
+          tier: entryDecision.tier,
+          score: entryDecision.score,
             direction: enhancedSignal.direction,
             entryPrice: enhancedSignal.entryPrice,
             takeProfit1: enhancedSignal.takeProfit1,
@@ -590,19 +590,19 @@ export async function GET(request: Request) {
             } else {
               console.error(`[TELEGRAM] Failed to send alert:`, await telegramResponse.text())
             }
-          } catch (telegramError) {
-            console.error("[TELEGRAM] Error sending alert:", telegramError)
-          }
-        } else {
-          let skipReason = ""
-          if (isMarketClosed) skipReason = "Market closed"
-          else if (!alertCheck?.allowed) skipReason = `Fingerprint check: ${alertCheck?.reason}`
-          else if (!entryDecision.allowed) skipReason = "Entry decision not approved"
-          else if (enhancedSignal.type !== "ENTRY") skipReason = `Not ENTRY signal (type=${enhancedSignal.type})`
-          else if ((entryDecision.alertLevel || 0) < 1) skipReason = `Alert level too low (${entryDecision.alertLevel} < 1)`
-          
-          console.log(`[DIAG] ALERT SKIPPED reason=${skipReason}`)
+        } catch (telegramError) {
+          console.error("[TELEGRAM] Error sending alert:", telegramError)
         }
+    } else {
+      let skipReason = ""
+      if (isMarketClosed) skipReason = "Market closed"
+      else if (!alertCheck?.allowed) skipReason = `Fingerprint check: ${alertCheck?.reason}`
+      else if (!entryDecision.allowed) skipReason = "Entry decision not approved"
+      else if (enhancedSignal.type !== "ENTRY") skipReason = `Not ENTRY signal (type=${enhancedSignal.type})`
+      else if ((entryDecision.alertLevel || 0) < 1) skipReason = `Alert level too low (${entryDecision.alertLevel} < 1)`
+      
+      console.log(`[DIAG] ALERT SKIPPED reason=${skipReason}`)
+    }
 
     // [DIAG] Final Response
     console.log(`[DIAG] RESPONSE SENT symbol=${symbol} type=${enhancedSignal.type} tier=${enhancedSignal.entryDecision?.tier} activeTradeState=${activeTradeForDisplay ? "EXISTS" : "NONE"}`)
