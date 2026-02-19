@@ -156,6 +156,10 @@ export const RedisTrades = {
    */
   async getActiveTrade(symbol: string): Promise<ActiveTrade | null> {
     try {
+      if (!redis) {
+        return null
+      }
+      
       // EFFICIENT: Direct lookup using symbol-indexed key (not set iteration)
       const tradeId = await redis.get(`active_trade:${symbol}`)
       
@@ -172,7 +176,7 @@ export const RedisTrades = {
 
       const trade = typeof tradeData === "string" ? JSON.parse(tradeData) : tradeData
       
-      // Verify this trade is still active
+      // Verify this trade is still active (compare string values since status is from enum)
       if (trade.status === TradeStatus.ACTIVE) {
         return trade
       }
@@ -207,7 +211,7 @@ export const RedisTrades = {
         
         if (tradeData) {
           const trade = typeof tradeData === "string" ? JSON.parse(tradeData) : tradeData
-      if (trade.status === TradeStatus.ACTIVE) {
+          if (trade.status === TradeStatus.ACTIVE) {
             trades.push(trade)
           }
         }
