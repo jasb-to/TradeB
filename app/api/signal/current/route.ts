@@ -9,7 +9,7 @@ import { InMemoryTrades } from "@/lib/in-memory-trades"
 import { StrictStrategyV7 } from "@/lib/strict-strategy-v7"
 import { BalancedStrategyV7 } from "@/lib/balanced-strategy-v7"
 
-export const SYSTEM_VERSION = "9.5.0-A-PLUS-A-ONLY"
+export const SYSTEM_VERSION = "9.6.0-TURBOPACK-FIX"
 
 // HARDCODED: Only XAU_USD - never import TRADING_SYMBOLS which gets cached by Vercel
 const TRADING_SYMBOLS = ["XAU_USD"] as const
