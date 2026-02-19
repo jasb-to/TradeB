@@ -1,5 +1,4 @@
 import type { Signal } from "@/types/trading"
-import { ActiveTradeTracker } from "@/lib/active-trade-tracker"
 
 export class TelegramNotifier {
   private botToken: string;
@@ -395,7 +394,7 @@ No action required — stay on trade.
 
 Reason: ${reason}
 ⏰ Time: ${new Date().toISOString()}
-═══════════════════════════════════════`
+═══════��═══════════════════════════════`
         break
 
       case "NEAR_INVALIDATION":
