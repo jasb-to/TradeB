@@ -1,5 +1,5 @@
 "use client"
-export const SYSTEM_VERSION = "9.6.0-TURBOPACK-FIX"
+export const SYSTEM_VERSION = "9.7.0-ALL-TIERS-ALERTS"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
