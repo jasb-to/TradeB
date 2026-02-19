@@ -1,5 +1,14 @@
 import { Redis } from "@upstash/redis"
 
+// Trade status enum - tracks lifecycle from entry to close
+export enum TradeStatus {
+  ACTIVE = "ACTIVE",
+  TP1_HIT = "TP1_HIT",
+  TP2_HIT = "TP2_HIT",
+  SL_HIT = "SL_HIT",
+  MANUALLY_CLOSED = "MANUALLY_CLOSED",
+}
+
 // PRODUCTION SAFETY: Redis is MANDATORY for live trading systems
 // Fail fast if not configured - silent fallback is dangerous
 const validateRedisConfig = () => {
@@ -78,6 +87,11 @@ export const RedisTrades = {
     breakdown?: any
   ): Promise<string> {
     try {
+      if (!redis) {
+        console.warn("[REDIS_TRADE] Redis not configured - trade not persisted")
+        return `${symbol}-${Date.now()}`
+      }
+      
       const activeTradeKey = `active_trade:${symbol}`
       
       // ATOMIC: Check if active trade already exists for this symbol (NX = only set if not exists)
@@ -175,6 +189,10 @@ export const RedisTrades = {
    */
   async getAllActiveTrades(): Promise<ActiveTrade[]> {
     try {
+      if (!redis) {
+        return []
+      }
+      
       const members = await redis.smembers(ACTIVE_TRADES_KEY)
       
       if (!members || members.length === 0) {
@@ -207,10 +225,14 @@ export const RedisTrades = {
    */
   async closeTrade(
     tradeId: string,
-    status: "TP1_HIT" | "TP2_HIT" | "SL_HIT" | "CLOSED",
+    status: "TP1_HIT" | "TP2_HIT" | "SL_HIT" | "CLOSED" | "MANUALLY_CLOSED",
     closePrice: number
   ): Promise<boolean> {
     try {
+      if (!redis) {
+        return false
+      }
+      
       const tradeKey = `${TRADE_KEY_PREFIX}${tradeId}`
       const tradeData = await redis.get(tradeKey)
       
@@ -242,10 +264,14 @@ export const RedisTrades = {
    * Uses Redis NX (only set if not exists) for atomic compare-and-set semantics
    */
   async checkTradeExit(tradeId: string, currentPrice: number): Promise<{closed: boolean; status?: string; alertShouldSend?: boolean}> {
-    const lockKey = `lock:${tradeId}`
-    const lockTTL = 5 // 5 second lock to prevent duplicate processing
-    
     try {
+      if (!redis) {
+        return {closed: false}
+      }
+      
+      const lockKey = `lock:${tradeId}`
+      const lockTTL = 5 // 5 second lock to prevent duplicate processing
+      
       // ATOMIC: Try to acquire lock (fails if another monitor is processing this trade)
       const lockAcquired = await redis.set(lockKey, "1", { nx: true, ex: lockTTL })
       
