@@ -57,7 +57,7 @@ export async function GET(request: Request) {
     
     const symbol = symbolParam as typeof TRADING_SYMBOLS[number]
     console.log(`[v0] SIGNAL/CURRENT PASSED GUARD: symbol=${symbol}`)
-    console.log(`[v0] CACHE_BUSTER v3.3 ACTIVE: ${CACHE_BUSTER_V3_3}`)
+    console.log(`[v0] CACHE_BUSTER v3.3 ACTIVE: FULL_REBUILD_ACTIVE - System version ${SYSTEM_VERSION}`)
     console.log(`[v0] This proves the FIXED source code is running, not cached old bytecode`)
     
     // Runtime failsafe: reject XAG if it somehow appears

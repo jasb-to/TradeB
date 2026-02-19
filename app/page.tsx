@@ -1,10 +1,7 @@
 "use client"
-// v9.2.0-EMERGENCY-CACHE-CLEAR: Complete system reset - Vercel cache completely poisoned
-// Import path IS correct in source (@/lib/default-config) but build cache serving old version
-// This emergency version adds unique timestamp to force complete module graph rebuild
-export const SYSTEM_VERSION = "9.2.0-EMERGENCY-CACHE-CLEAR"
-export const EMERGENCY_REBUILD = "T1708298400000"
-export const MODULE_CACHE_BREAKER = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString()
+// v9.2.1-EMERGENCY-HOTFIX: Removed build-time crypto call causing Turbopack panic
+// Fixed import path back to @/lib/default-config and removed undefined CACHE_BUSTER_V3_3
+export const SYSTEM_VERSION = "9.2.1-EMERGENCY-HOTFIX"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
