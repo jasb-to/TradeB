@@ -27,7 +27,18 @@ const INSTRUMENT_HOURS: Record<string, { open: number; close: number }> = {
 // Global SAFE_MODE state
 let SAFE_MODE = false
 let dataFetchFailureCount = 0
+let indicatorErrorCount = 0
+let strategyExecutionErrorCount = 0
+let redisFailureCount = 0
 let lastSafeModeLog = 0
+
+// SAFE_MODE triggers: cumulative error tracking
+const SAFE_MODE_TRIGGERS = {
+  dataFetchFailures: 3,        // 3 consecutive data fetch failures
+  indicatorErrors: 3,          // 3 indicator calculation failures
+  strategyErrors: 3,           // 3 strategy execution failures
+  redisFailures: 2,            // 2 Redis subsystem failures
+}
 
 /**
  * Validates if a candle is fresh (not stale)
@@ -176,14 +187,59 @@ export function trackDataFetchSuccess(success: boolean): void {
   if (!success) {
     dataFetchFailureCount++
     console.warn(
-      `[CAPITAL_PROTECTION] Data fetch failed (${dataFetchFailureCount}/3) - SAFE_MODE will trigger at 3`
+      `[CAPITAL_PROTECTION] Data fetch failed (${dataFetchFailureCount}/${SAFE_MODE_TRIGGERS.dataFetchFailures}) - SAFE_MODE at threshold`
     )
 
-    if (dataFetchFailureCount >= 3) {
+    if (dataFetchFailureCount >= SAFE_MODE_TRIGGERS.dataFetchFailures) {
       activateSafeMode("CONSECUTIVE_DATA_FAILURES")
     }
   } else {
     dataFetchFailureCount = 0 // Reset on success
+  }
+}
+
+/**
+ * Track indicator calculation errors
+ * @param error - Error from indicator calculation
+ */
+export function trackIndicatorError(error: Error): void {
+  indicatorErrorCount++
+  console.error(
+    `[CAPITAL_PROTECTION] Indicator calculation failed (${indicatorErrorCount}/${SAFE_MODE_TRIGGERS.indicatorErrors}): ${error.message}`
+  )
+
+  if (indicatorErrorCount >= SAFE_MODE_TRIGGERS.indicatorErrors) {
+    activateSafeMode("INDICATOR_CALCULATION_FAILURES")
+  }
+}
+
+/**
+ * Track strategy execution errors
+ * @param error - Error from strategy evaluation
+ */
+export function trackStrategyError(error: Error): void {
+  strategyExecutionErrorCount++
+  console.error(
+    `[CAPITAL_PROTECTION] Strategy execution failed (${strategyExecutionErrorCount}/${SAFE_MODE_TRIGGERS.strategyErrors}): ${error.message}`
+  )
+
+  if (strategyExecutionErrorCount >= SAFE_MODE_TRIGGERS.strategyErrors) {
+    activateSafeMode("STRATEGY_EXECUTION_FAILURES")
+  }
+}
+
+/**
+ * Track Redis/subsystem failures
+ * @param component - Which component failed (redis, cache, etc)
+ */
+export function trackSubsystemError(component: string): void {
+  redisFailureCount++
+  console.error(
+    `[CAPITAL_PROTECTION] Subsystem failure - ${component} (${redisFailureCount}/${SAFE_MODE_TRIGGERS.redisFailures})`
+  )
+
+  if (redisFailureCount >= SAFE_MODE_TRIGGERS.redisFailures) {
+    activateSafeMode(`${component.toUpperCase()}_SUBSYSTEM_FAILURE`)
   }
 }
 
@@ -222,6 +278,9 @@ export function isSafeModeActive(): boolean {
  */
 export function resetSafeModeCounters(): void {
   dataFetchFailureCount = 0
+  indicatorErrorCount = 0
+  strategyExecutionErrorCount = 0
+  redisFailureCount = 0
   SAFE_MODE = false
   lastSafeModeLog = 0
 }

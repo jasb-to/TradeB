@@ -691,10 +691,10 @@ export class TradingStrategies {
     let rawScore = 0
 
     // Criterion 1: Daily bias aligned (RELAXED FOR TIER B)
-    // A+ must have daily alignment, but Tier B (score 3-4) can proceed without perfect alignment
+    // A+ must have daily alignment, but Tier B can proceed without perfect alignment
     const dailyAligned = signal.mtfBias?.daily === signal.direction
     const structuralTierValue = (signal as any).structuralTier || (signal as any).tier || "NO_TRADE"
-    const isTierB = structuralTierValue === "B" || ((signal as any).score >= 3 && (signal as any).score <= 4)
+    const isTierB = structuralTierValue === "B" // Single source of truth: structural tier only
     const dailyMandatory = !isTierB // Only mandatory for A/A+
     
     criteria.push({
