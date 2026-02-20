@@ -8,6 +8,13 @@ import { RedisTrades } from "@/lib/redis-trades"
 import { StrictStrategyV7 } from "@/lib/strict-strategy-v7"
 import { BalancedStrategyV7 } from "@/lib/balanced-strategy-v7"
 import { TelegramNotifier } from "@/lib/telegram"
+import {
+  validateCandleFreshness,
+  validateAllCandleFreshness,
+  isInstrumentOpen,
+  trackDataFetchSuccess,
+  isSafeModeActive,
+} from "@/lib/capital-protection"
 
 export const SYSTEM_VERSION = "11.0.0-ARCHITECTURAL-RESET"
 
@@ -143,10 +150,79 @@ export async function GET(request: Request) {
         `[v0] Data loaded: Daily=${dataDaily.candles.length} (${dataDaily.source}), 4H=${data4h.candles.length} (${data4h.source}), 1H=${data1h.candles.length} (${data1h.source}), 15M=${data15m.candles.length} (${data15m.source}), 5M=${data5m.candles.length} (${data5m.source})`,
       )
 
+      // PHASE 3: CAPITAL PROTECTION - Candle Freshness Validation
+      const freshness = validateAllCandleFreshness({
+        daily: dataDaily,
+        h4: data4h,
+        h1: data1h,
+        m15: data15m,
+        m5: data5m,
+      })
+
+      if (!freshness.allFresh) {
+        console.warn(`[CAPITAL_PROTECTION] STALE_DATA detected on timeframes: ${freshness.staleTimeframes.join(", ")}`)
+        console.warn(`[CAPITAL_PROTECTION] Freshness details:`, freshness.details)
+        
+        // Block entries on stale data - return NO_TRADE with freshness details
+        return NextResponse.json(
+          {
+            success: true,
+            signal: {
+              type: "NO_TRADE",
+              direction: "NONE",
+              reasons: ["STALE_DATA"],
+              entryDecision: {
+                approved: false,
+                tier: "NO_TRADE",
+                score: 0,
+                reason: `Stale data on: ${freshness.staleTimeframes.join(", ")}`,
+              },
+              capitalProtection: {
+                staleTimeframes: freshness.staleTimeframes,
+                details: freshness.details,
+              },
+            },
+            marketStatus: isInstrumentOpen(symbol) ? "OPEN" : "CLOSED",
+            timestamp: new Date().toISOString(),
+          },
+          { status: 200 },
+        )
+      }
+
+      // PHASE 3: CAPITAL PROTECTION - Instrument Trading Hours
+      const instrumentOpen = isInstrumentOpen(symbol)
+      if (!instrumentOpen) {
+        console.log(`[CAPITAL_PROTECTION] Instrument ${symbol} closed - operating hours not in range`)
+        trackDataFetchSuccess(true)
+        return NextResponse.json(
+          {
+            success: true,
+            signal: {
+              type: "NO_TRADE",
+              direction: "NONE",
+              reasons: ["INSTRUMENT_CLOSED"],
+              entryDecision: {
+                approved: false,
+                tier: "NO_TRADE",
+                score: 0,
+                reason: "Instrument trading hours closed",
+              },
+            },
+            marketStatus: "CLOSED",
+            timestamp: new Date().toISOString(),
+          },
+          { status: 200 },
+        )
+      }
+
+      // Track successful data fetch for SAFE_MODE
+      trackDataFetchSuccess(true)
+
       // REMOVED: Synthetic data block was blocking signals when credentials temporarily unavailable
       // Since credentials ARE configured in Vercel, signals should proceed with whatever data is loaded
     } catch (fetchError) {
       console.error("[FETCH_ERROR] Candle fetch failed:", fetchError)
+      trackDataFetchSuccess(false)
       return NextResponse.json(
         {
           success: false,
@@ -155,6 +231,33 @@ export async function GET(request: Request) {
           details: fetchError instanceof Error ? fetchError.message : "Unknown fetch error",
         },
         { status: 500 },
+      )
+    }
+
+    // PHASE 3: CAPITAL PROTECTION - Check SAFE_MODE before proceeding with strategy evaluation
+    if (isSafeModeActive()) {
+      console.warn(`[SAFE_MODE] ACTIVE - Blocking new entries as a capital protection measure`)
+      return NextResponse.json(
+        {
+          success: true,
+          signal: {
+            type: "NO_TRADE",
+            direction: "NONE",
+            reasons: ["SAFE_MODE"],
+            entryDecision: {
+              approved: false,
+              tier: "NO_TRADE",
+              score: 0,
+              reason: "SAFE_MODE active - capital protection engaged",
+            },
+            capitalProtection: {
+              safeModeActive: true,
+            },
+          },
+          marketStatus: "SAFE_MODE",
+          timestamp: new Date().toISOString(),
+        },
+        { status: 200 },
       )
     }
 
