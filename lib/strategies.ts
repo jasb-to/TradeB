@@ -833,13 +833,13 @@ export class TradingStrategies {
     const signalScore = (signal as any).score ?? 0
     const score = Math.min(signalScore * 1.5, 9) // Scale 0-6 to 0-9 range
     
-    // TIER ASSIGNMENT: Based on signal's ORIGINAL SCORE (not recalculated criteria)
+    // TIER ASSIGNMENT: Based on DISPLAY SCORE (9-point scale) with 5.5 threshold
     // This ensures consistency between strict evaluation and entry decision
-    // UPDATED: Tier B threshold raised from 5.0-5.99 to 5.5-5.99 for stricter quality gate
+    // Tier B: 5.5-5.99, Tier A: 6.0-6.99, Tier A+: 7.0-9.0, NO_TRADE: <5.5
     const tier: "NO_TRADE" | "B" | "A" | "A+" = 
-      signalScore >= 5 ? "A+" :
-      signalScore >= 4 ? "A" :
-      signalScore >= 3.5 ? "B" :
+      score >= 7 ? "A+" :
+      score >= 6 ? "A" :
+      score >= 5.5 ? "B" :
       "NO_TRADE"
 
     console.log(`[v0] buildEntryDecision USING_SIGNAL_SCORE: signalScore=${signalScore}/6 → displayScore=${score.toFixed(1)}/9 → tier=${tier}`)
