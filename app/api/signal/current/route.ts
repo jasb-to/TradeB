@@ -462,10 +462,11 @@ export async function GET(request: Request) {
     console.log(`[DIAG] BEFORE ENHANCE structuralTier=${(signal as any).structuralTier}`)
     
     // Enhance signal with last candle data and trade setup for client display
-    // CRITICAL: Must explicitly preserve structuralTier - the spread operator may not include optional fields
+    // CRITICAL: Must explicitly preserve structuralTier and indicators - the spread operator may not include optional fields
     const enhancedSignal = {
       ...signal,
       structuralTier: signal.structuralTier,  // Explicitly preserve tier
+      indicators: signal.indicators,  // CRITICAL: Must preserve indicators for UI display (includes stochRSI, ADX, ATR, VWAP)
       mtfBias,
       timeframeAlignment: mtfBias,  // Map mtfBias to timeframeAlignment for MTFBiasViewer component
       entryPrice: signal.direction ? entryPrice : undefined,

@@ -154,7 +154,7 @@ export function IndicatorCards({ signal }: IndicatorCardsProps) {
             ) : stochRsiData.value !== null && stochRsiData.value !== undefined ? (
               <span className="text-2xl font-bold">{stochRsiData.value.toFixed(1)}</span>
             ) : (
-              <span className="text-2xl font-bold text-slate-500">50.0</span>
+              <span className="text-2xl font-bold text-gray-500">-</span>
             )}
             <span className={`text-xs font-mono ${stochStatus.color}`}>{stochStatus.label}</span>
           </div>
