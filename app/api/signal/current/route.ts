@@ -672,6 +672,8 @@ export async function GET(request: Request) {
         approved: enhancedSignal.entryDecision?.allowed || false,
         tier: enhancedSignal.entryDecision?.tier || "NO_TRADE",
         score: enhancedSignal.entryDecision?.score || 0,
+        criteria: enhancedSignal.entryDecision?.criteria || [],
+        alertLevel: enhancedSignal.entryDecision?.alertLevel || 0,
       },
       activeTradeState: activeTradeForDisplay,  // Separate from strategy result - display only
       marketStatus: isMarketClosed ? "CLOSED" : "OPEN",

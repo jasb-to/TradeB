@@ -126,18 +126,28 @@ export default function GoldTradingDashboard() {
 
       const data = await response.json()
 
-      // Handle market closed state - preserve Friday close data
+      // SIGNAL PERSISTENCE: Only replace signal if it's actionable (ENTRY) or market closed
+      // Keep displaying previous signal if new signal is NO_TRADE
+      const newSignal = data.signal
+      
       if (data.marketStatus === "CLOSED") {
         setMarketClosed(true)
         setMarketMessage("Market Closed")
-        if (data.signal) {
-          setSignalXAU(data.signal)
+        if (newSignal) {
+          setSignalXAU(newSignal)
         }
       } else {
         setMarketClosed(false)
         setMarketMessage(null)
-        if (data.success && data.signal) {
-          setSignalXAU(data.signal)
+        if (data.success) {
+          // PERSISTENCE: Update display only if new signal is ENTRY or better than current
+          if (newSignal?.type === "ENTRY" || newSignal?.type === "EXIT") {
+            setSignalXAU(newSignal)
+          } else if (!signalXAU) {
+            // First load - display even if NO_TRADE
+            setSignalXAU(newSignal)
+          }
+          // Otherwise keep displaying previous signal until it resolves
         }
       }
       

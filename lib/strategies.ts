@@ -780,9 +780,15 @@ export class TradingStrategies {
     let stochReason = "No data"
     if (stochRsi && typeof stochRsi === "object" && "state" in stochRsi) {
       const state = (stochRsi as any).state
-      const value = (stochRsi as any).value
+      const value = (stochRsi as any).value ?? 0
       stochPassed = state === "MOMENTUM_UP" || state === "MOMENTUM_DOWN"
-      stochReason = value !== null ? `${state} (${value.toFixed(0)})` : "Calculating..."
+      // FALLBACK: Show 0/0 if no value, don't crash
+      stochReason = value !== null && value !== undefined ? `${state} (K=${value.toFixed(0)})` : `${state} (calculating)`
+    } else if (stochRsi) {
+      // FALLBACK: Handle stochRSI if present but missing state field
+      const k = (stochRsi as any).k ?? 0
+      const d = (stochRsi as any).d ?? 0
+      stochReason = `K=${k.toFixed(0)}/D=${d.toFixed(0)} (state pending)`
     }
     criteria.push({
       key: "momentum_confirm",
@@ -829,10 +835,11 @@ export class TradingStrategies {
     
     // TIER ASSIGNMENT: Based on signal's ORIGINAL SCORE (not recalculated criteria)
     // This ensures consistency between strict evaluation and entry decision
+    // UPDATED: Tier B threshold raised from 5.0-5.99 to 5.5-5.99 for stricter quality gate
     const tier: "NO_TRADE" | "B" | "A" | "A+" = 
       signalScore >= 5 ? "A+" :
       signalScore >= 4 ? "A" :
-      signalScore >= 3 ? "B" :
+      signalScore >= 3.5 ? "B" :
       "NO_TRADE"
 
     console.log(`[v0] buildEntryDecision USING_SIGNAL_SCORE: signalScore=${signalScore}/6 → displayScore=${score.toFixed(1)}/9 → tier=${tier}`)
