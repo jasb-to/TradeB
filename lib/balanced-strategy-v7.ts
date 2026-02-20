@@ -33,7 +33,14 @@ export class BalancedStrategyV7 {
     symbol: string = "XAU_USD"
   ): Signal {
     if (!daily.length || !candle4h.length || !candle1h.length) {
-      return { type: "NO_TRADE", direction: "NONE", tier: "NO_TRADE", score: 0, reason: "Insufficient data" }
+      return { 
+        type: "NO_TRADE", 
+        direction: "NONE", 
+        tier: "NO_TRADE", 
+        score: 0, 
+        reason: "Insufficient data",
+        indicators: this.getEmptyIndicators() // CRITICAL: Must include indicators for UI display
+      }
     }
 
     // Get symbol-aware configuration
@@ -59,6 +66,7 @@ export class BalancedStrategyV7 {
         tier: "NO_TRADE",
         score: 0,
         reason: `4H trend gate failed: EMA aligned=${ema20_4h === ema50_4h}, ADX=${adx4h}`,
+        indicators: this.getEmptyIndicators() // CRITICAL: Must include indicators
       }
     }
 
@@ -73,6 +81,7 @@ export class BalancedStrategyV7 {
         tier: "NO_TRADE",
         score: 0,
         reason: "1H/15M breakout gate failed: No breakout detected",
+        indicators: this.getEmptyIndicators() // CRITICAL: Must include indicators
       }
     }
 
@@ -87,6 +96,7 @@ export class BalancedStrategyV7 {
         tier: "NO_TRADE",
         score: score.total,
         reason: `Score ${score.total}/6 < threshold 3: ${score.reasons.join(", ")}`,
+        indicators: this.buildIndicators(ema20_4h, ema50_4h, adx4h, candle4h, candle1h) // CRITICAL: Include indicators
       }
     }
 
@@ -102,6 +112,7 @@ export class BalancedStrategyV7 {
       score: score.total,
       approved: true,
       reason: `Score ${score.total}/6: ${score.reasons.join(", ")}`,
+      indicators: this.buildIndicators(ema20_4h, ema50_4h, adx4h, candle4h, candle1h) // CRITICAL: Include indicators for UI
     }
   }
 
@@ -225,5 +236,76 @@ export class BalancedStrategyV7 {
     const atrs = candles.slice(-20).map(c => c.atr || 0)
     atrs.sort((a, b) => a - b)
     return atrs[Math.floor(atrs.length / 2)]
+  }
+
+  // Build indicators object for display - matches StrictStrategyV7 format
+  private buildIndicators(ema20: number, ema50: number, adx: number, h4Candles: Candle[], h1Candles: Candle[]) {
+    return {
+      ema20,
+      ema50,
+      adx,
+      atr: this.calculateATR(h4Candles),
+      rsi: this.calculateRSI(h4Candles),
+      stochRSI: this.calculateStochRSI(h4Candles),
+      vwap: this.calculateVWAP(h1Candles),
+    }
+  }
+
+  // Empty indicators fallback
+  private getEmptyIndicators() {
+    return { 
+      ema20: 0, 
+      ema50: 0, 
+      adx: 0, 
+      atr: 0, 
+      rsi: 50, 
+      stochRSI: { k: 50, d: 50 }, 
+      vwap: 0 
+    }
+  }
+
+  // Calculate RSI from candles
+  private calculateRSI(candles: Candle[], period: number = 14): number {
+    if (candles.length < period + 1) return 50
+    let gains = 0, losses = 0
+    for (let i = candles.length - period; i < candles.length; i++) {
+      const diff = candles[i].close - candles[i - 1].close
+      if (diff > 0) gains += diff
+      else losses -= diff
+    }
+    const avgGain = gains / period
+    const avgLoss = losses / period
+    const rs = avgGain / (avgLoss || 0.01)
+    return 100 - 100 / (1 + rs)
+  }
+
+  // Calculate ATR from candles
+  private calculateATR(candles: Candle[], period: number = 14): number {
+    if (candles.length < period) return 0
+    let sumTR = 0
+    for (let i = Math.max(1, candles.length - period); i < candles.length; i++) {
+      const tr = Math.max(
+        candles[i].high - candles[i].low,
+        Math.abs(candles[i].high - candles[i - 1].close),
+        Math.abs(candles[i].low - candles[i - 1].close)
+      )
+      sumTR += tr
+    }
+    return sumTR / period
+  }
+
+  // Calculate StochRSI from candles
+  private calculateStochRSI(candles: Candle[]): { k: number; d: number } {
+    if (candles.length < 17) return { k: 50, d: 50 }
+    const rsiVals = []
+    for (let i = 0; i < candles.length - 13; i++) {
+      rsiVals.push(this.calculateRSI(candles.slice(i, i + 14), 14))
+    }
+    const rsiHi = Math.max(...rsiVals.slice(-3))
+    const rsiLo = Math.min(...rsiVals.slice(-3))
+    const range = rsiHi - rsiLo || 1
+    const k = 100 * ((rsiVals[rsiVals.length - 1] - rsiLo) / range)
+    const d = (100 * ((rsiVals[rsiVals.length - 1] - rsiLo) / range) + 100 * ((rsiVals[rsiVals.length - 2] - rsiLo) / range) + 100 * ((rsiVals[rsiVals.length - 3] - rsiLo) / range)) / 3
+    return { k: isNaN(k) ? 50 : k, d: isNaN(d) ? 50 : d }
   }
 }

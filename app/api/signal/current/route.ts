@@ -25,10 +25,22 @@ function isValidTradingSymbol(symbol: string): symbol is typeof TRADING_SYMBOLS[
 }
 
 // SYMBOL-SPECIFIC STRATEGY ROUTING - v7 Score-Based
-// XAU_USD = STRICT v7 (score ≥ 4/6)
+// Symbol-aware strategy routing
+// XAU_USD = STRICT v7 (volatility, momentum-heavy, 6-point scale)
+// EUR_USD = BALANCED v7 (reliable direction, pair-stable, safer for FX)
 function getStrategyModeForSymbol(symbol: string): "STRICT" | "BALANCED" {
-  if (symbol === "XAU_USD") return "STRICT"
-  throw new Error(`Unsupported symbol for strategy routing: ${symbol}. Only XAU_USD is configured.`)
+  switch (symbol) {
+    case "XAU_USD":
+      return "STRICT"
+    case "EUR_USD":
+      return "BALANCED" // Safer mode for FX pairs
+    case "NAS100USD":
+      return "STRICT" // Indices follow gold logic
+    case "SPX500USD":
+      return "STRICT" // Indices follow gold logic
+    default:
+      throw new Error(`Unsupported symbol for strategy routing: ${symbol}. Supported: XAU_USD, EUR_USD, NAS100USD, SPX500USD`)
+  }
 }
 
 export const dynamic = "force-dynamic"
@@ -580,9 +592,11 @@ export async function GET(request: Request) {
     
     // ALERTS: Send telegram notification ONLY on entry approval (not on display state)
     // Declare isMarketClosed BEFORE try block so it's accessible in final response
+    // CRITICAL FIX: Use ONLY marketStatus.isOpen - don't override with hardcoded 22:00 UTC
+    // That override breaks EUR_USD (which trades 24/5 until Friday 22:00 UTC)
     const now = new Date()
     const ukHours = now.toLocaleString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
-    const isMarketClosed = !marketStatus.isOpen || (now.getUTCHours() === 22) // 22:00-23:00 UTC = 10 PM-11 PM UK time
+    const isMarketClosed = !marketStatus.isOpen // Symbol-aware market hours (respects both gold and FX hours)
     
     try {
       let alertCheck: any = null
