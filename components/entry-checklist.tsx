@@ -11,39 +11,50 @@ interface EntryChecklistProps {
 export function EntryChecklist({ signal }: EntryChecklistProps) {
   // CANONICAL: Use ONLY entryDecision.criteria - do NOT recalculate
   // This is the single source of truth shared with backend alert logic
-  const entryDecision = signal?.entryDecision
   
-  // Validation: Ensure all criteria are present
-  const validateCriteria = () => {
-    if (!entryDecision?.criteria) return { valid: false, missingCount: 7 };
-    const missing = entryDecision.criteria.filter(c => !c.passed).length;
-    return { valid: true, missingCount: missing };
-  };
-  
-  const { valid: criteriaValid, missingCount } = validateCriteria();
-  
-  if (!entryDecision) {
-    return (
-      <Card className="bg-slate-900/40 border-slate-700/50">
-        <CardHeader>
-          <CardTitle className="text-sm font-mono">ENTRY CHECKLIST</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-xs text-slate-400">No signal data available</p>
-        </CardContent>
-      </Card>
-    )
-  }
+  try {
+    const entryDecision = signal?.entryDecision
+    
+    // DEFENSIVE GUARD 1: Must have entryDecision object
+    if (!entryDecision) {
+      return (
+        <Card className="bg-slate-900/40 border-slate-700/50">
+          <CardHeader>
+            <CardTitle className="text-sm font-mono">ENTRY CHECKLIST</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-slate-400">No entry decision available</p>
+          </CardContent>
+        </Card>
+      )
+    }
+    
+    // DEFENSIVE GUARD 2: Safe access to criteria with default empty array
+    const criteria = entryDecision?.criteria
+    
+    if (!Array.isArray(criteria) || criteria.length === 0) {
+      return (
+        <Card className="bg-slate-900/40 border-slate-700/50">
+          <CardHeader>
+            <CardTitle className="text-sm font-mono">ENTRY CHECKLIST</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-slate-400">No criteria data ({entryDecision?.tier})</p>
+          </CardContent>
+        </Card>
+      )
+    }
 
-  const passCount = entryDecision.criteria.filter((c) => c.passed).length
-  const totalCount = entryDecision.criteria.length
+    // DEFENSIVE GUARD 3: Safe filter with null checks
+    const passCount = (criteria || []).filter((c: any) => c && typeof c === 'object' && c.passed === true).length
+    const totalCount = criteria.length
   
-  // Tier score requirements
+  // Tier score requirements - UPDATED TO 5.5 THRESHOLD
   const tierRequirements = [
     { tier: "A+", scoreRange: "7.0-9.0", requirement: "Premium: 5+ TF aligned + ADX ≥23.5", color: "text-yellow-400 bg-yellow-900/20" },
     { tier: "A", scoreRange: "6.0-6.99", requirement: "Good: 4+ TF aligned + ADX ≥21", color: "text-blue-400 bg-blue-900/20" },
-    { tier: "B", scoreRange: "5.0-5.99", requirement: "Momentum-aligned: 1H+15M aligned + ADX ≥15", color: "text-slate-400 bg-slate-800/20" },
-    { tier: "NO_TRADE", scoreRange: "<5.0", requirement: "Below threshold - entry not allowed", color: "text-red-400 bg-red-900/20" },
+    { tier: "B", scoreRange: "5.5-5.99", requirement: "Momentum-aligned: 1H+15M aligned + ADX ≥15", color: "text-slate-400 bg-slate-800/20" },
+    { tier: "NO_TRADE", scoreRange: "<5.5", requirement: "Below threshold - entry not allowed", color: "text-red-400 bg-red-900/20" },
   ]
   
   const currentTierReq = tierRequirements.find(t => t.tier === entryDecision.tier)
@@ -132,5 +143,19 @@ export function EntryChecklist({ signal }: EntryChecklistProps) {
         )}
       </CardContent>
     </Card>
-  )
+  ) // close try block
+  } catch (error) {
+    console.error("[v0] EntryChecklist crash prevented:", error)
+    return (
+      <Card className="bg-slate-900/40 border-slate-700/50">
+        <CardHeader>
+          <CardTitle className="text-sm font-mono">ENTRY CHECKLIST</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-slate-400">Component error (see logs)</p>
+        </CardContent>
+      </Card>
+    )
+  }
 }
+

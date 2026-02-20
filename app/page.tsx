@@ -1,8 +1,5 @@
 "use client"
-// v6.0.8-FORCE-DEPLOY: Forcing Vercel rebuild with unique timestamp. Previous push didn't deploy. ADX threshold is 10 in /lib/strict-strategy-v7.ts. Timestamp: 2026-02-18T18:35:00Z force-redeploy-marker
-export const SYSTEM_VERSION = "6.0.8-FORCE-DEPLOY"
-const BUILD_VERSION = "6.0.8"
-// REBUILD_TRIGGER = "timestamp-2026-02-18-1835-utc"
+export const SYSTEM_VERSION = "11.0.0-ARCHITECTURAL-RESET"
 
 import { useState, useEffect, useRef } from "react"
 import type { Signal } from "@/types/trading"
@@ -20,6 +17,7 @@ import { GoldPriceDisplay } from "@/components/gold-price-display"
 export default function GoldTradingDashboard() {
   const { toast } = useToast()
   const [signalXAU, setSignalXAU] = useState<Signal | null>(null)
+  const [signalEUR, setSignalEUR] = useState<Signal | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdate, setLastUpdate] = useState<number | null>(null)
   const [secondsAgo, setSecondsAgo] = useState(0)
@@ -129,18 +127,28 @@ export default function GoldTradingDashboard() {
 
       const data = await response.json()
 
-      // Handle market closed state - preserve Friday close data
-      if (data.marketClosed) {
+      // SIGNAL PERSISTENCE: Only replace signal if it's actionable (ENTRY) or market closed
+      // Keep displaying previous signal if new signal is NO_TRADE
+      const newSignal = data.signal
+      
+      if (data.marketStatus === "CLOSED") {
         setMarketClosed(true)
-        setMarketMessage(data.marketStatus || "Market closed for weekend")
-        if (data.signal) {
-          setSignalXAU(data.signal)
+        setMarketMessage("Market Closed")
+        if (newSignal) {
+          setSignalXAU(newSignal)
         }
       } else {
         setMarketClosed(false)
         setMarketMessage(null)
-        if (data.success && data.signal) {
-          setSignalXAU(data.signal)
+        if (data.success) {
+          // PERSISTENCE: Update display only if new signal is ENTRY or better than current
+          if (newSignal?.type === "ENTRY" || newSignal?.type === "EXIT") {
+            setSignalXAU(newSignal)
+          } else if (!signalXAU) {
+            // First load - display even if NO_TRADE
+            setSignalXAU(newSignal)
+          }
+          // Otherwise keep displaying previous signal until it resolves
         }
       }
       
@@ -151,6 +159,29 @@ export default function GoldTradingDashboard() {
     } finally {
       setRefreshing(false)
       setLoading(false)
+    }
+  }
+
+  const fetchEUR = async () => {
+    try {
+      const response = await fetch("/api/signal/current?symbol=EUR_USD")
+      
+      if (!response.ok) {
+        throw new Error(`EUR signal fetch returned ${response.status}`)
+      }
+
+      const data = await response.json()
+      const newSignal = data.signal
+      
+      if (data.success && newSignal) {
+        if (newSignal?.type === "ENTRY" || newSignal?.type === "EXIT") {
+          setSignalEUR(newSignal)
+        } else if (!signalEUR) {
+          setSignalEUR(newSignal)
+        }
+      }
+    } catch (error) {
+      console.error("[v0] EUR polling error:", error)
     }
   }
 
@@ -206,10 +237,11 @@ export default function GoldTradingDashboard() {
         const xauData = await xauResponse.json()
         console.log("[v0] Signal fetch result:", { type: xauData.signal?.type, direction: xauData.signal?.direction, indicators: !!xauData.signal?.indicators })
 
-        // Check if market status changed
-        if (xauData.marketClosed) {
+        // Check if market status changed - use new marketStatus field from API
+        const isMarketClosed = xauData.marketStatus === "CLOSED"
+        if (isMarketClosed) {
           setMarketClosed(true)
-          setMarketMessage(xauData.marketStatus || "Market closed")
+          setMarketMessage("Market Closed")
           if (xauData.signal) {
             setSignalXAU(xauData.signal)
           }
@@ -221,7 +253,7 @@ export default function GoldTradingDashboard() {
             const retryResponse = await fetch("/api/signal/current?symbol=XAU_USD")
             if (retryResponse.ok) {
               const retryData = await retryResponse.json()
-              if (!retryData.marketClosed) {
+              if (retryData.marketStatus === "OPEN") {
                 // Market reopened, restart normal polling
                 setMarketClosed(false)
                 setMarketMessage(null)
@@ -247,6 +279,13 @@ export default function GoldTradingDashboard() {
         setSecondsAgo(0)
       } catch (error) {
         console.error("[v0] Polling error:", error)
+      }
+      
+      // MULTI-SYMBOL: Fetch EUR_USD alongside XAU
+      try {
+        await fetchEUR()
+      } catch (error) {
+        console.error("[v0] EUR polling error:", error)
       }
     }, 30000) // Poll every 30 seconds during market hours
 

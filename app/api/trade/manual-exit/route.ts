@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { ActiveTradeTracker } from "@/lib/active-trade-tracker"
+import { RedisTrades, TradeStatus } from "@/lib/redis-trades"
 import { SignalCache } from "@/lib/signal-cache"
 
 export async function POST(request: Request) {
@@ -10,22 +10,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Symbol required" }, { status: 400 })
     }
 
-    const result = ActiveTradeTracker.manualExitTrade(symbol)
-
-    if (!result.success) {
+    // Get the active trade for this symbol
+    const activeTrade = await RedisTrades.getActiveTrade(symbol)
+    
+    if (!activeTrade) {
       return NextResponse.json({ error: "No active trade found", success: false }, { status: 404 })
     }
 
+    // Mark trade as manually closed and remove from active set
+    activeTrade.status = TradeStatus.MANUALLY_CLOSED
+    activeTrade.closedAt = new Date().toISOString()
+    
+    // Close via RedisTrades which handles removal from active_trade:${symbol} key
+    await RedisTrades.closeTrade(activeTrade.id, TradeStatus.MANUALLY_CLOSED, 0)
+
     // Clear the active trade from signal cache so a new trade can form
     SignalCache.clearActiveTrade(symbol)
-    console.log(`[v0] Manual exit: Cleared active trade for ${symbol}`)
+    console.log(`[v0] Manual exit: Closed trade ${activeTrade.id} for ${symbol}`)
 
     return NextResponse.json({
       success: true,
       message: `Trade manually closed for ${symbol}`,
-      trade: result.trade,
-      exitPrice: result.exitPrice,
-      timestamp: new Date().toISOString(),
+      trade: activeTrade,
+      exitTime: new Date().toISOString(),
     })
   } catch (error) {
     console.error("[v0] Manual exit error:", error)

@@ -1,6 +1,6 @@
 export class MarketHours {
-  // OANDA Market Hours: Sunday 11:00 PM GMT - Friday 11:00 PM GMT (24/5 continuous)
-  // Note: 11 PM GMT = 23:00 UTC
+  // OANDA Market Hours: Sunday 11:00 PM GMT - Friday 10:00 PM GMT (22:00 GMT close)
+  // Note: Forex/precious metals close at 22:00 GMT Friday (10 PM UK time)
   static isGoldSilverMarketOpen(): boolean {
     const now = new Date()
     
@@ -23,10 +23,17 @@ export class MarketHours {
       return isOpen
     }
     
-    // Monday-Friday: Open 24/5 (all hours 0-23)
-    if (gmtDay >= 1 && gmtDay <= 5) {
-      console.log(`[v0] Weekday: Open 24/5`)
+    // Monday-Thursday: Open 24/5 (all hours 0-23)
+    if (gmtDay >= 1 && gmtDay <= 4) {
+      console.log(`[v0] ${["Mon", "Tue", "Wed", "Thu"][gmtDay - 1]}: Open 24/5`)
       return true
+    }
+    
+    // Friday: Open until 22:00 GMT (10 PM UK time), then CLOSED
+    if (gmtDay === 5) {
+      const isOpen = gmtHours < 22
+      console.log(`[v0] Friday check: hour=${gmtHours}, isOpen=${isOpen} (closes 22:00 GMT / 10 PM UK)`)
+      return isOpen
     }
     
     return false
@@ -64,11 +71,11 @@ export class MarketHours {
       }
     }
 
-    // Friday after 11 PM GMT
-    if (gmtDay === 5 && gmtHours >= 23) {
+    // Friday after 10 PM GMT (22:00) - FINAL MARKET CLOSE
+    if (gmtDay === 5 && gmtHours >= 22) {
       return {
         isOpen: false,
-        message: "Market closed until Sunday 11:00 PM GMT",
+        message: "Market closed for weekend. Friday close at 22:00 GMT (10 PM UK). Reopens Sunday 11:00 PM GMT",
         nextOpen: "Sunday 11:00 PM GMT",
       }
     }

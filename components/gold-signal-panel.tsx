@@ -16,6 +16,12 @@ interface GoldSignalPanelProps {
 export function GoldSignalPanel({ signal, loading, onManualExit }: GoldSignalPanelProps) {
   const [exiting, setExiting] = useState(false)
 
+  // DEFENSIVE ASSERTION: Catch tier mismatch regressions
+  if (signal && signal.type === "ENTRY" && signal.entryDecision?.approved === false) {
+    console.error("[CRITICAL] REGRESSION DETECTED: signal.type=ENTRY but entryDecision.approved=false")
+    console.error("[CRITICAL] This indicates approval state mutation or improper tier display")
+  }
+
   // Show signal as soon as we have one -- even if loading hasn't flipped to false yet
   if (!signal) {
     if (loading) {
@@ -89,7 +95,9 @@ export function GoldSignalPanel({ signal, loading, onManualExit }: GoldSignalPan
             </div>
             <div>
               <p className="text-slate-400 text-xs">Market Regime</p>
-              <Badge className="bg-green-900/50 border-green-700/50">{signal.entrySetup || "TREND"}</Badge>
+              <Badge className="bg-green-900/50 border-green-700/50">
+                {signal.direction === "LONG" ? "LONG" : signal.direction === "SHORT" ? "SHORT" : "RANGE"}
+              </Badge>
             </div>
           </div>
           

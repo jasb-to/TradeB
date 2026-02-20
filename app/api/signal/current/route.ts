@@ -1,18 +1,22 @@
 import { NextResponse } from "next/server"
 import { DataFetcher } from "@/lib/data-fetcher"
 import { TradingStrategies } from "@/lib/strategies"
-import { BalancedBreakoutStrategy } from "@/lib/balanced-strategy"
-import { StrictStrategyV7 } from "@/lib/strict-strategy-v7"
-import { BalancedStrategyV7 } from "@/lib/balanced-strategy-v7"
 import { DEFAULT_TRADING_CONFIG } from "@/lib/default-config"
-import { CACHE_BUSTER_V3_3 } from "@/lib/cache-buster"
-// CACHE BUST v3.1: Force full rebuild - symbol scope fixed in catch block
 import { MarketHours } from "@/lib/market-hours"
 import { SignalCache } from "@/lib/signal-cache"
-import { createTrade } from "@/lib/trade-lifecycle"
+import { RedisTrades } from "@/lib/redis-trades"
+import { StrictStrategyV7 } from "@/lib/strict-strategy-v7"
+import { BalancedStrategyV7 } from "@/lib/balanced-strategy-v7"
+import { TelegramNotifier } from "@/lib/telegram"
+import {
+  validateCandleFreshness,
+  validateAllCandleFreshness,
+  isInstrumentOpen,
+  trackDataFetchSuccess,
+  isSafeModeActive,
+} from "@/lib/capital-protection"
 
-// SYSTEM VERSION - Visible on homepage and all API responses
-export const SYSTEM_VERSION = "6.0.2-STRICT-V7-AUDIT"
+export const SYSTEM_VERSION = "11.0.0-ARCHITECTURAL-RESET"
 
 // HARDCODED: Only XAU_USD - never import TRADING_SYMBOLS which gets cached by Vercel
 const TRADING_SYMBOLS = ["XAU_USD"] as const
@@ -21,10 +25,22 @@ function isValidTradingSymbol(symbol: string): symbol is typeof TRADING_SYMBOLS[
 }
 
 // SYMBOL-SPECIFIC STRATEGY ROUTING - v7 Score-Based
-// XAU_USD = STRICT v7 (score ≥ 4/6)
+// Symbol-aware strategy routing
+// XAU_USD = STRICT v7 (volatility, momentum-heavy, 6-point scale)
+// EUR_USD = BALANCED v7 (reliable direction, pair-stable, safer for FX)
 function getStrategyModeForSymbol(symbol: string): "STRICT" | "BALANCED" {
-  if (symbol === "XAU_USD") return "STRICT"
-  throw new Error(`Unsupported symbol for strategy routing: ${symbol}. Only XAU_USD is configured.`)
+  switch (symbol) {
+    case "XAU_USD":
+      return "STRICT"
+    case "EUR_USD":
+      return "BALANCED" // Safer mode for FX pairs
+    case "NAS100USD":
+      return "STRICT" // Indices follow gold logic
+    case "SPX500USD":
+      return "STRICT" // Indices follow gold logic
+    default:
+      throw new Error(`Unsupported symbol for strategy routing: ${symbol}. Supported: XAU_USD, EUR_USD, NAS100USD, SPX500USD`)
+  }
 }
 
 export const dynamic = "force-dynamic"
@@ -57,7 +73,7 @@ export async function GET(request: Request) {
     
     const symbol = symbolParam as typeof TRADING_SYMBOLS[number]
     console.log(`[v0] SIGNAL/CURRENT PASSED GUARD: symbol=${symbol}`)
-    console.log(`[v0] CACHE_BUSTER v3.3 ACTIVE: ${CACHE_BUSTER_V3_3}`)
+    console.log(`[v0] CACHE_BUSTER v3.3 ACTIVE: FULL_REBUILD_ACTIVE - System version ${SYSTEM_VERSION}`)
     console.log(`[v0] This proves the FIXED source code is running, not cached old bytecode`)
     
     // Runtime failsafe: reject XAG if it somehow appears
@@ -146,10 +162,83 @@ export async function GET(request: Request) {
         `[v0] Data loaded: Daily=${dataDaily.candles.length} (${dataDaily.source}), 4H=${data4h.candles.length} (${data4h.source}), 1H=${data1h.candles.length} (${data1h.source}), 15M=${data15m.candles.length} (${data15m.source}), 5M=${data5m.candles.length} (${data5m.source})`,
       )
 
+      // PHASE 3: CAPITAL PROTECTION - Candle Freshness Validation
+      // Log freshness metrics but only block on NO_CANDLES (not MISSING_TIMESTAMP which is normal on first load)
+      const freshness = validateAllCandleFreshness({
+        daily: dataDaily,
+        h4: data4h,
+        h1: data1h,
+        m15: data15m,
+        m5: data5m,
+      })
+
+      // Only block if we have NO_CANDLES on critical timeframes (daily, 1h, 4h)
+      const criticalEmpty = ["1d", "1h", "4h"].some(tf => 
+        freshness.details[tf]?.reason === "NO_CANDLES"
+      )
+      
+      if (criticalEmpty) {
+        console.warn(`[CAPITAL_PROTECTION] CRITICAL: NO_CANDLES on required timeframes: ${freshness.staleTimeframes.join(", ")}`)
+        return NextResponse.json(
+          {
+            success: true,
+            signal: {
+              type: "NO_TRADE",
+              direction: "NONE",
+              reasons: ["CRITICAL_DATA_MISSING"],
+              entryDecision: {
+                approved: false,
+                tier: "NO_TRADE",
+                score: 0,
+                reason: `Critical timeframes empty: ${freshness.staleTimeframes.join(", ")}`,
+              },
+            },
+            marketStatus: "UNAVAILABLE",
+            timestamp: new Date().toISOString(),
+          },
+          { status: 200 },
+        )
+      }
+      
+      // Log other freshness issues for diagnostics but continue trading
+      if (!freshness.allFresh) {
+        console.log(`[CAPITAL_PROTECTION] Freshness check: staleTimeframes=${freshness.staleTimeframes.join(", ")}`)
+      }
+
+      // PHASE 3: CAPITAL PROTECTION - Instrument Trading Hours
+      const instrumentOpen = isInstrumentOpen(symbol)
+      if (!instrumentOpen) {
+        console.log(`[CAPITAL_PROTECTION] Instrument ${symbol} closed - operating hours not in range`)
+        trackDataFetchSuccess(true)
+        return NextResponse.json(
+          {
+            success: true,
+            signal: {
+              type: "NO_TRADE",
+              direction: "NONE",
+              reasons: ["INSTRUMENT_CLOSED"],
+              entryDecision: {
+                approved: false,
+                tier: "NO_TRADE",
+                score: 0,
+                reason: "Instrument trading hours closed",
+              },
+            },
+            marketStatus: "CLOSED",
+            timestamp: new Date().toISOString(),
+          },
+          { status: 200 },
+        )
+      }
+
+      // Track successful data fetch for SAFE_MODE
+      trackDataFetchSuccess(true)
+
       // REMOVED: Synthetic data block was blocking signals when credentials temporarily unavailable
       // Since credentials ARE configured in Vercel, signals should proceed with whatever data is loaded
     } catch (fetchError) {
       console.error("[FETCH_ERROR] Candle fetch failed:", fetchError)
+      trackDataFetchSuccess(false)
       return NextResponse.json(
         {
           success: false,
@@ -158,6 +247,33 @@ export async function GET(request: Request) {
           details: fetchError instanceof Error ? fetchError.message : "Unknown fetch error",
         },
         { status: 500 },
+      )
+    }
+
+    // PHASE 3: CAPITAL PROTECTION - Check SAFE_MODE before proceeding with strategy evaluation
+    if (isSafeModeActive()) {
+      console.warn(`[SAFE_MODE] ACTIVE - Blocking new entries as a capital protection measure`)
+      return NextResponse.json(
+        {
+          success: true,
+          signal: {
+            type: "NO_TRADE",
+            direction: "NONE",
+            reasons: ["SAFE_MODE"],
+            entryDecision: {
+              approved: false,
+              tier: "NO_TRADE",
+              score: 0,
+              reason: "SAFE_MODE active - capital protection engaged",
+            },
+            capitalProtection: {
+              safeModeActive: true,
+            },
+          },
+          marketStatus: "SAFE_MODE",
+          timestamp: new Date().toISOString(),
+        },
+        { status: 200 },
       )
     }
 
@@ -266,11 +382,11 @@ export async function GET(request: Request) {
     console.log(`[v0] ACTIVE_MODE_FOR_${symbol}=${activeMode} (v7 Score-Based)`)
 
     let signal
-    // Strategy evaluation based on mode
+    // Strategy evaluation based on mode - pass symbol for instrument-aware thresholds
     console.log(`[v0] STRICT EVALUATION START: activeMode=${activeMode} symbol=${symbol}`)
     
     if (activeMode === "BALANCED") {
-      // BALANCED mode
+      // BALANCED mode with symbol-aware configuration
       const balancedV7 = new BalancedStrategyV7()
       signal = balancedV7.evaluate(
         dataDaily.candles,
@@ -280,9 +396,10 @@ export async function GET(request: Request) {
         data15m.candles,
         data5m.candles,
         DEFAULT_TRADING_CONFIG,
+        symbol
       )
     } else {
-      // STRICT mode - v7 Score-Based
+      // STRICT mode - v7 Score-Based with symbol-aware configuration
       const strictV7 = new StrictStrategyV7()
       signal = strictV7.evaluate(
         dataDaily.candles,
@@ -292,12 +409,13 @@ export async function GET(request: Request) {
         data15m.candles,
         data5m.candles,
         DEFAULT_TRADING_CONFIG,
+        symbol
       )
       console.log(`[v0] STRICT EVALUATION RESULT: type=${signal.type} score=${(signal as any).score} direction=${signal.direction}`)
     }
     
     // [DIAG] Route Entry
-    console.log(`[DIAG] SIGNAL ROUTE HIT - symbol=${symbol} time=${new Date().toISOString()} marketOpen=${!marketStatus.isClosed}`)
+    console.log(`[DIAG] SIGNAL ROUTE HIT - symbol=${symbol} time=${new Date().toISOString()} marketOpen=${marketStatus.isOpen}`)
     console.log(`[DIAG] SYSTEM_VERSION=${SYSTEM_VERSION}`)
     
     // [DIAG] Strategy Details for STRICT v7
@@ -356,11 +474,13 @@ export async function GET(request: Request) {
     console.log(`[DIAG] BEFORE ENHANCE structuralTier=${(signal as any).structuralTier}`)
     
     // Enhance signal with last candle data and trade setup for client display
-    // CRITICAL: Must explicitly preserve structuralTier - the spread operator may not include optional fields
+    // CRITICAL: Must explicitly preserve structuralTier and indicators - the spread operator may not include optional fields
     const enhancedSignal = {
       ...signal,
       structuralTier: signal.structuralTier,  // Explicitly preserve tier
+      indicators: signal.indicators,  // CRITICAL: Must preserve indicators for UI display (includes stochRSI, ADX, ATR, VWAP)
       mtfBias,
+      timeframeAlignment: mtfBias,  // Map mtfBias to timeframeAlignment for MTFBiasViewer component
       entryPrice: signal.direction ? entryPrice : undefined,
       stopLoss: signal.direction ? stopLoss : undefined,
       takeProfit1: signal.direction ? takeProfit1 : undefined,
@@ -382,40 +502,80 @@ export async function GET(request: Request) {
     console.log(`[DIAG] AFTER ENHANCE structuralTier=${enhancedSignal.structuralTier}`)
 
     // Build entry decision for checklist display - WRAPPED in try-catch to prevent 500s
-    let entryDecision: any = { approved: false, tier: "NO_TRADE", score: 0, checklist: [] }
+    let entryDecision: any = { allowed: false, tier: "NO_TRADE", score: 0, criteria: [] }
     try {
       entryDecision = strategies.buildEntryDecision(enhancedSignal)
       if (!entryDecision) {
         console.error("[v0] buildEntryDecision returned null/undefined - using defaults")
-        entryDecision = { approved: false, tier: "NO_TRADE", score: 0, checklist: [] }
+        entryDecision = { allowed: false, tier: "NO_TRADE", score: 0, criteria: [] }
       }
     } catch (decisionError) {
       console.error("[v0] CRITICAL: buildEntryDecision crashed:", decisionError)
-      entryDecision = { approved: false, tier: "NO_TRADE", score: 0, checklist: [], error: String(decisionError) }
+      entryDecision = { allowed: false, tier: "NO_TRADE", score: 0, criteria: [], error: String(decisionError) }
+    }
+    
+    // SINGLE SOURCE OF TRUTH: signal.type MUST derive from entryDecision.allowed
+    // If entryDecision.allowed === true, override signal.type to ENTRY
+    console.log(`[CONSISTENCY_CHECK] BEFORE: type=${enhancedSignal.type} entryDecision.allowed=${entryDecision.allowed} direction=${enhancedSignal.direction}`)
+    
+    if (entryDecision.allowed && enhancedSignal.direction && enhancedSignal.direction !== "NONE") {
+      enhancedSignal.type = "ENTRY"
+      console.log(`[CONSISTENCY_CHECK] ENFORCED: type=ENTRY (from entryDecision.allowed=true)`)
+    } else if (!entryDecision.allowed || !enhancedSignal.direction || enhancedSignal.direction === "NONE") {
+      enhancedSignal.type = "NO_TRADE"
+      console.log(`[CONSISTENCY_CHECK] ENFORCED: type=NO_TRADE (entryDecision.allowed=${entryDecision.allowed}, direction=${enhancedSignal.direction})`)
     }
     
     // [DIAG] Entry Decision
-    console.log(`[DIAG] ENTRY DECISION approved=${entryDecision.approved} tier=${entryDecision.tier} score=${entryDecision.score}`)
+    console.log(`[DIAG] ENTRY DECISION allowed=${entryDecision.allowed} tier=${entryDecision.tier} score=${entryDecision.score}`)
     
-    // Create trade file if entry is approved
-    if (entryDecision.approved && enhancedSignal.type === "ENTRY" && enhancedSignal.direction && enhancedSignal.entryPrice) {
+    // TRADE PERSISTENCE: Create trade in Redis if entry is approved
+    // Redis provides persistent storage across deployments
+    if (entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.direction && enhancedSignal.entryPrice) {
       try {
-        await createTrade(
+        const directionForRedis = enhancedSignal.direction === "LONG" ? "LONG" : "SHORT"
+        
+        // Extract breakdown from signal if available (may be undefined for simple strategies)
+        const tradeBreakdown = (signal as any).breakdown || (signal as any).component_scores || {}
+        
+        await RedisTrades.createTrade(
           symbol,
-          enhancedSignal.direction as "BUY" | "SELL",
+          directionForRedis,
           enhancedSignal.entryPrice,
           enhancedSignal.stopLoss || 0,
           enhancedSignal.takeProfit1 || 0,
           enhancedSignal.takeProfit2 || 0,
-          entryDecision.tier as "A+" | "A" | "B"
+          entryDecision.tier as "A+" | "A" | "B",
+          entryDecision.score,
+          entryDecision.tier,
+          tradeBreakdown
         )
-        console.log(`[LIFECYCLE OK] Trade persisted successfully - ${symbol} ${enhancedSignal.direction} ${entryDecision.tier}`)
-      } catch (tradeError) {
-        console.error("[LIFECYCLE] Error creating trade file:", tradeError)
+        console.log(`[REDIS_TRADE] Persisted - ${symbol} ${directionForRedis} ${entryDecision.tier} @ ${enhancedSignal.entryPrice.toFixed(2)}`)
+      } catch (redisError: any) {
+        console.error("[REDIS_TRADE] Error persisting trade:", redisError)
       }
     }
     
     enhancedSignal.entryDecision = entryDecision
+
+    // ARCHITECTURAL SEPARATION: Active trade display is SEPARATE from entry approval
+    // Fetch active trade for display purposes ONLY - do NOT merge with strategy result
+    let activeTradeForDisplay = null
+    try {
+      activeTradeForDisplay = await RedisTrades.getActiveTrade(symbol)
+      if (activeTradeForDisplay) {
+        console.log(`[TRADE_STATE] Active trade found in Redis: ${symbol} ${activeTradeForDisplay.direction} ${activeTradeForDisplay.tier} @ ${activeTradeForDisplay.entry}`)
+      }
+    } catch (tradeCheckError) {
+      console.error("[TRADE_STATE] Error checking active trade:", tradeCheckError)
+    }
+
+    // RUNTIME ASSERTION: Detect tier corruption
+    if (entryDecision.allowed === false && entryDecision.tier !== "NO_TRADE") {
+      const tierCorruptionError = `TIER STATE CORRUPTION DETECTED: approved=${entryDecision.allowed} but tier=${entryDecision.tier} (expected NO_TRADE)`
+      console.error(`[CRITICAL] ${tierCorruptionError}`)
+      throw new Error(tierCorruptionError)
+    }
 
     SignalCache.set(enhancedSignal, symbol)
 
@@ -430,15 +590,17 @@ export async function GET(request: Request) {
       enhancedSignal.timeframeAlignment || 0
     ].join("|")
     
-    // ALERTS: Send telegram notification if conditions met
+    // ALERTS: Send telegram notification ONLY on entry approval (not on display state)
+    // Declare isMarketClosed BEFORE try block so it's accessible in final response
+    // CRITICAL FIX: Use ONLY marketStatus.isOpen - don't override with hardcoded 22:00 UTC
+    // That override breaks EUR_USD (which trades 24/5 until Friday 22:00 UTC)
+    const now = new Date()
+    const ukHours = now.toLocaleString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
+    const isMarketClosed = !marketStatus.isOpen // Symbol-aware market hours (respects both gold and FX hours)
+    
     try {
       let alertCheck: any = null
       let tierUpgraded = false
-      
-      // [DIAG] Market Hours Check
-      const now = new Date()
-      const ukHours = now.toLocaleString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
-      const isMarketClosed = marketStatus.isClosed || (now.getUTCHours() === 22) // 22:00-23:00 UTC = 10 PM-11 PM UK time
       
       if (isMarketClosed) {
         console.log(`[DIAG] ALERT SKIPPED - MARKET CLOSED ukTime=${ukHours}`)
@@ -459,65 +621,77 @@ export async function GET(request: Request) {
 
         // [DIAG] Alert Check
         console.log(`[DIAG] ALERT CHECK allowed=${alertCheck?.allowed} reason=${alertCheck?.reason} tierUpgraded=${tierUpgraded}`)
+        
+        // TELEGRAM TRIGGER CHECK
+        console.log(`[TELEGRAM_TRIGGER_CHECK] marketClosed=${isMarketClosed} alertCheck=${alertCheck?.allowed} entryDecision.allowed=${entryDecision.allowed} signal.type=${enhancedSignal.type} alertLevel=${entryDecision.alertLevel}`)
 
-        if (!isMarketClosed && alertCheck && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && enhancedSignal.alertLevel >= 2) {
-          const normalizedSymbol = symbol === "XAU_USD" ? "XAU" : symbol === "GBP_JPY" ? "GBP/JPY" : symbol
-          const telegramPayload = {
-            symbol: normalizedSymbol,
-            tier: entryDecision.tier,
-            score: entryDecision.score,
-            direction: enhancedSignal.direction,
-            entryPrice: enhancedSignal.entryPrice,
-            takeProfit: enhancedSignal.takeProfit2,
-            stopLoss: enhancedSignal.stopLoss,
-            timestamp: new Date().toISOString(),
+        // DEFENSIVE GUARD: Verify no mutations occurred to approval state
+        // Runtime assertion: If strategy rejected but somehow allowed=true, crash loudly
+        if (enhancedSignal.type === "NO_TRADE" && entryDecision.allowed === true) {
+          console.error("[CRITICAL] APPROVAL STATE MUTATION DETECTED")
+          console.error(`[CRITICAL] Strategy returned NO_TRADE but entryDecision.allowed=true`)
+          console.error(`[CRITICAL] This indicates an override path exists that should not`)
+          throw new Error("CRITICAL: Approval state was mutated after strategy evaluation. Enforcement violation detected.")
+        }
+
+        // B-tier (alertLevel=1) and above send alerts (all tiers)
+        // DEFENSIVE GATE: All three conditions must be true to send alert
+        if (!isMarketClosed && alertCheck && alertCheck.allowed && entryDecision.allowed && enhancedSignal.type === "ENTRY" && (entryDecision.alertLevel || 0) >= 1) {
+          // BLOCKED ALERT CHECK: Verify approval state one more time before sending
+          if (!entryDecision.allowed) {
+            console.error(`[BLOCKED] Attempted alert on rejected trade - entryDecision.allowed=false`)
+            throw new Error("Alert blocked: entry not approved")
           }
-          
-          // [DIAG] Telegram Payload
-          console.log(`[DIAG] TELEGRAM PAYLOAD ${JSON.stringify(telegramPayload)}`)
-          
-          // Send to Telegram
-          try {
-            const telegramResponse = await fetch("https://api.telegram.org/bot" + process.env.TELEGRAM_BOT_TOKEN + "/sendMessage", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                chat_id: process.env.TELEGRAM_CHAT_ID,
-                text: `🔥 ${normalizedSymbol} ${enhancedSignal.direction} Entry\nTier: ${entryDecision.tier}\nScore: ${entryDecision.score}/9\nEntry: ${enhancedSignal.entryPrice?.toFixed(2)}\nTP: ${enhancedSignal.takeProfit2?.toFixed(2)}\nSL: ${enhancedSignal.stopLoss?.toFixed(2)}`,
-              }),
-            })
 
-            if (telegramResponse.ok) {
-              // [DIAG] Alert Sent
-              console.log(`[DIAG] ALERT SENT symbol=${normalizedSymbol} tier=${entryDecision.tier}`)
-            } else {
-              console.error("[v0] Telegram send failed:", await telegramResponse.text())
-            }
-          } catch (telegramError) {
-            console.error("[v0] Error sending Telegram alert:", telegramError)
+          const normalizedSymbol = symbol === "XAU_USD" ? "XAU" : symbol === "GBP_JPY" ? "GBP/JPY" : symbol
+        
+          const htmlMessage = `<b>🔥 ${normalizedSymbol} ${enhancedSignal.direction}</b>\n\n<b>Tier:</b> <code>${entryDecision.tier}</code>\n<b>Score:</b> ${entryDecision.score}/9\n\n<b>Prices:</b>\n├ Entry: <code>$${enhancedSignal.entryPrice?.toFixed(2)}</code>\n├ TP1: <code>$${enhancedSignal.takeProfit1?.toFixed(2)}</code>\n├ TP2: <code>$${enhancedSignal.takeProfit2?.toFixed(2)}</code>\n└ SL: <code>$${enhancedSignal.stopLoss?.toFixed(2)}</code>\n\n<i>${new Date().toISOString()}</i>`
+          
+          const telegramResponse = await fetch("https://api.telegram.org/bot" + process.env.TELEGRAM_BOT_TOKEN + "/sendMessage", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: process.env.TELEGRAM_CHAT_ID,
+              text: htmlMessage,
+              parse_mode: "HTML",
+            }),
+          })
+
+          if (telegramResponse.ok) {
+            console.log(`[TELEGRAM] Alert sent: ${normalizedSymbol} ${enhancedSignal.direction} ${entryDecision.tier}`)
+          } else {
+            console.error(`[TELEGRAM] Failed to send alert:`, await telegramResponse.text())
           }
         } else {
-          let skipReason = ""
+          let skipReason = "Unknown"
           if (isMarketClosed) skipReason = "Market closed"
           else if (!alertCheck?.allowed) skipReason = `Fingerprint check: ${alertCheck?.reason}`
           else if (!entryDecision.allowed) skipReason = "Entry decision not approved"
           else if (enhancedSignal.type !== "ENTRY") skipReason = `Not ENTRY signal (type=${enhancedSignal.type})`
-          else if (enhancedSignal.alertLevel < 2) skipReason = `Alert level too low (${enhancedSignal.alertLevel} < 2)`
+          else if ((entryDecision.alertLevel || 0) < 1) skipReason = `Alert level too low (${entryDecision.alertLevel} < 1)`
           
           console.log(`[DIAG] ALERT SKIPPED reason=${skipReason}`)
         }
       }
-      
     } catch (alertError) {
-      console.error("[v0] Error in alert flow:", alertError)
+      console.error("[v0] Error in alerts block:", alertError)
     }
 
     // [DIAG] Final Response
-    console.log(`[DIAG] RESPONSE SENT symbol=${symbol} type=${enhancedSignal.type} tier=${enhancedSignal.entryDecision?.tier}`)
+    console.log(`[DIAG] RESPONSE SENT symbol=${symbol} type=${enhancedSignal.type} tier=${enhancedSignal.entryDecision?.tier} activeTradeState=${activeTradeForDisplay ? "EXISTS" : "NONE"} marketOpen=${!isMarketClosed}`)
 
     return NextResponse.json({
       success: true,
       signal: enhancedSignal,
+      entryDecision: {
+        approved: enhancedSignal.entryDecision?.allowed || false,
+        tier: enhancedSignal.entryDecision?.tier || "NO_TRADE",
+        score: enhancedSignal.entryDecision?.score || 0,
+        criteria: enhancedSignal.entryDecision?.criteria || [],
+        alertLevel: enhancedSignal.entryDecision?.alertLevel || 0,
+      },
+      activeTradeState: activeTradeForDisplay,  // Separate from strategy result - display only
+      marketStatus: isMarketClosed ? "CLOSED" : "OPEN",
       timestamp: new Date().toISOString(),
       systemVersion: SYSTEM_VERSION,
       strategyDetails: {

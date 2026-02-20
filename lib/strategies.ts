@@ -55,6 +55,7 @@ export class TradingStrategies {
     data1h: Candle[],
     data15m: Candle[],
     data5m: Candle[],
+    symbol: string = "XAU_USD"
   ): Promise<Signal> {
     console.log("ENGINE_ACTIVE: STRICT")
     const indicatorsDaily = await this.calculateIndicators(dataDaily, "daily")
@@ -689,25 +690,33 @@ export class TradingStrategies {
     const criteria: EntryDecisionCriteria[] = []
     let rawScore = 0
 
-    // Criterion 1: Daily bias aligned (MANDATORY)
+    // Criterion 1: Daily bias aligned (RELAXED FOR TIER B)
+    // A+ must have daily alignment, but Tier B can proceed without perfect alignment
     const dailyAligned = signal.mtfBias?.daily === signal.direction
+    const structuralTierValue = (signal as any).structuralTier || (signal as any).tier || "NO_TRADE"
+    const isTierB = structuralTierValue === "B" // Single source of truth: structural tier only
+    const dailyMandatory = !isTierB // Only mandatory for A/A+
+    
     criteria.push({
       key: "daily_aligned",
       label: "Daily bias aligned",
-      passed: dailyAligned,
-      reason: dailyAligned ? `Daily ${signal.direction}` : `Daily ${signal.mtfBias?.daily || "NO_CLEAR_BIAS"} ≠ signal ${signal.direction}`,
+      passed: dailyAligned || !dailyMandatory,
+      reason: dailyAligned ? `Daily ${signal.direction}` : isTierB ? `Daily ${signal.mtfBias?.daily || "NO_CLEAR_BIAS"} (non-blocking for B)` : `Daily ${signal.mtfBias?.daily || "NO_CLEAR_BIAS"} ≠ signal ${signal.direction}`,
     })
-    if (dailyAligned) rawScore += 2 // Reduced from 3 to fit within 9-point scale
+    if (dailyAligned) rawScore += 2
 
-    // Criterion 2: 4H bias aligned (MANDATORY)
+    // Criterion 2: 4H bias aligned (RELAXED FOR TIER B)
+    // A+ must have 4H alignment, but Tier B can proceed without perfect alignment
     const h4Aligned = signal.mtfBias?.["4h"] === signal.direction
+    const h4Mandatory = !isTierB // Only mandatory for A/A+
+    
     criteria.push({
       key: "h4_aligned",
       label: "4H bias aligned",
-      passed: h4Aligned,
-      reason: h4Aligned ? `4H ${signal.direction}` : `4H ${signal.mtfBias?.["4h"] || "NO_CLEAR_BIAS"}`,
+      passed: h4Aligned || !h4Mandatory,
+      reason: h4Aligned ? `4H ${signal.direction}` : isTierB ? `4H ${signal.mtfBias?.["4h"] || "NO_CLEAR_BIAS"} (non-blocking for B)` : `4H ${signal.mtfBias?.["4h"] || "NO_CLEAR_BIAS"}`,
     })
-    if (h4Aligned) rawScore += 2 // Reduced from 3 to fit within 9-point scale
+    if (h4Aligned) rawScore += 2
     
     // Criterion 3: 1H alignment (CONFIRMATORY, NOT BLOCKING)
     // 5% LOOSENING: 1H is now +1 score (confirmatory) instead of mandatory gate
@@ -771,9 +780,15 @@ export class TradingStrategies {
     let stochReason = "No data"
     if (stochRsi && typeof stochRsi === "object" && "state" in stochRsi) {
       const state = (stochRsi as any).state
-      const value = (stochRsi as any).value
+      const value = (stochRsi as any).value ?? 0
       stochPassed = state === "MOMENTUM_UP" || state === "MOMENTUM_DOWN"
-      stochReason = value !== null ? `${state} (${value.toFixed(0)})` : "Calculating..."
+      // FALLBACK: Show 0/0 if no value, don't crash
+      stochReason = value !== null && value !== undefined ? `${state} (K=${value.toFixed(0)})` : `${state} (calculating)`
+    } else if (stochRsi) {
+      // FALLBACK: Handle stochRSI if present but missing state field
+      const k = (stochRsi as any).k ?? 0
+      const d = (stochRsi as any).d ?? 0
+      stochReason = `K=${k.toFixed(0)}/D=${d.toFixed(0)} (state pending)`
     }
     criteria.push({
       key: "momentum_confirm",
@@ -813,37 +828,29 @@ export class TradingStrategies {
     if (htfTrendMatch) rawScore += 0.5 // Reduced from 1 to fit within 9-point scale
 
     // NORMALIZE SCORE TO 9-POINT SCALE
-    // Maximum possible: 2+2+1+1+0.5+1+0.5+0.5 = 8.5
-    // Round to 1 decimal place and cap at 9
-    const score = Math.min(Math.round(rawScore * 10) / 10, 9)
-
-    // Tier comes from signal's structural determination (HTF regime-based)
-    // Score does NOT override or upgrade tier - it only gates approval
-    // A B-tier signal (HTF neutral + 1H/15M aligned) stays B tier regardless of score
-    const structuralTier = (signal as any).structuralTier as "A+" | "A" | "B" | "NO_TRADE"
-    console.log(`[v0] buildEntryDecision RECEIVED: structuralTier=${structuralTier} type=${signal.type}`)
-    let tier: "NO_TRADE" | "B" | "A" | "A+" = "NO_TRADE"
+    // CRITICAL FIX: Use signal.score from strict evaluation instead of recalculating
+    // Signal.score (0-6) represents strict evaluation; convert to 9-point scale for display
+    const signalScore = (signal as any).score ?? 0
+    const score = Math.min(signalScore * 1.5, 9) // Scale 0-6 to 0-9 range
     
-    if (structuralTier === "A+") {
-      tier = "A+"
-    } else if (structuralTier === "A") {
-      tier = "A"
-    } else if (structuralTier === "B") {
-      tier = "B"
-    } else {
-      tier = "NO_TRADE"
-    }
+    // TIER ASSIGNMENT: Based on DISPLAY SCORE (9-point scale) with 5.5 threshold
+    // This ensures consistency between strict evaluation and entry decision
+    // Tier B: 5.5-5.99, Tier A: 6.0-6.99, Tier A+: 7.0-9.0, NO_TRADE: <5.5
+    const tier: "NO_TRADE" | "B" | "A" | "A+" = 
+      score >= 7 ? "A+" :
+      score >= 6 ? "A" :
+      score >= 5.5 ? "B" :
+      "NO_TRADE"
 
-    console.log(`[v0] buildEntryDecision TIER: ${tier} SCORE: ${score} APPROVED: ${signal.type === "ENTRY" && tier !== "NO_TRADE"}`)
+    console.log(`[v0] buildEntryDecision USING_SIGNAL_SCORE: signalScore=${signalScore}/6 → displayScore=${score.toFixed(1)}/9 → tier=${tier}`)
+    
+    // Calculate pass/total for logging
+    const passCount = criteria.filter(c => c.passed).length
+    const totalCount = criteria.length
+    console.log(`[v0] buildEntryDecision CRITERIA: ${passCount}/${totalCount} passed`)
 
     // Alert level based on tier
     let alertLevel: 0 | 1 | 2 | 3 = 0
-    
-    // DEFENSIVE: Ensure tier is never undefined
-    if (!tier) {
-      console.error("[v0] CRITICAL: Missing tier in buildEntryDecision - forcing NO_TRADE")
-      tier = "NO_TRADE"
-    }
     
     if (tier === "A+") {
       alertLevel = 3

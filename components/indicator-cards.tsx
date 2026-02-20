@@ -146,7 +146,6 @@ export function IndicatorCards({ signal }: IndicatorCardsProps) {
       <Card className="bg-slate-900/40 border-slate-700/50">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-mono">Stochastic RSI</CardTitle>
-          <p className="text-xs text-slate-500 mt-1">Informational Only (Not Entry Gate)</p>
         </CardHeader>
         <CardContent className="space-y-2">
           <div className="flex justify-between items-baseline">
@@ -155,21 +154,17 @@ export function IndicatorCards({ signal }: IndicatorCardsProps) {
             ) : stochRsiData.value !== null && stochRsiData.value !== undefined ? (
               <span className="text-2xl font-bold">{stochRsiData.value.toFixed(1)}</span>
             ) : (
-              <span className="text-2xl font-bold text-red-400">ERROR</span>
+              <span className="text-2xl font-bold text-gray-500">-</span>
             )}
             <span className={`text-xs font-mono ${stochStatus.color}`}>{stochStatus.label}</span>
           </div>
           <div className="w-full bg-slate-800 rounded h-2">
             <div
               className={`${stochStatus.color.includes("green") ? "bg-green-600" : stochStatus.color.includes("red") ? "bg-red-600" : stochStatus.color.includes("yellow") ? "bg-yellow-600" : "bg-gray-600"} rounded h-2 transition-all`}
-              style={{ width: stochStatus.isCalculating ? "0%" : `${Math.min(100, stochRsiData.value ?? 0)}%` }}
+              style={{ width: stochStatus.isCalculating ? "0%" : (stochRsiData.value !== null && stochRsiData.value !== undefined ? `${Math.min(100, stochRsiData.value)}%` : "0%") }}
             />
           </div>
-          <p className="text-xs text-slate-400">
-            {stochStatus.isCalculating
-              ? "Waiting for sufficient candles..."
-              : "UP > 60 | COMPRESSION 40-60 | DOWN < 40 (Informational - No entries based on this)"}
-          </p>
+          <p className="text-xs text-slate-400">UP &gt; 60 | COMPRESSION 40-60 | DOWN &lt; 40</p>
         </CardContent>
       </Card>
 

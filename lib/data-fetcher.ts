@@ -37,12 +37,10 @@ const OANDA_MAX_RETRIES = 2 // retry transient errors up to 2 times
 // Diagnostic: Log environment on module load
 const envApiKey = process.env.OANDA_API_KEY
 const envAccountId = process.env.OANDA_ACCOUNT_ID
-console.log(`[v0-INIT] OANDA_API_KEY available: ${!!envApiKey}`)
-console.log(`[v0-INIT] OANDA_ACCOUNT_ID available: ${!!envAccountId}`)
 if (envApiKey && envAccountId) {
   console.log(`[v0-INIT] CREDENTIALS VERIFIED: API key length=${envApiKey.length}, account ID=${envAccountId}`)
 } else {
-  console.error(`[v0-INIT] MISSING CREDENTIALS: API=${!!envApiKey}, Account=${!!envAccountId}`)
+  console.log(`[v0-INIT] OANDA credentials not configured - will use synthetic data with fallback to live when available`)
 }
 
 let detectedOandaServer: "practice" | "live" = "live"
@@ -57,13 +55,7 @@ export class DataFetcher {
   private hasOandaCredentials(): boolean {
     const apiKey = process.env.OANDA_API_KEY
     const accountId = process.env.OANDA_ACCOUNT_ID
-    const result = !!(apiKey && accountId)
-    
-    if (!result) {
-      console.error(`[v0-CRED] MISSING CREDENTIALS: apiKey=${!!apiKey}, accountId=${!!accountId}`)
-      console.error(`[v0-CRED] Env vars: API=${process.env.OANDA_API_KEY ? "exists" : "missing"}, Account=${process.env.OANDA_ACCOUNT_ID ? "exists" : "missing"}`)
-    }
-    return result
+    return !!(apiKey && accountId)
   }
 
   private getOandaBaseUrl(server: "practice" | "live"): string {
@@ -280,10 +272,13 @@ export class DataFetcher {
             timestamp: Date.now(),
             source: "oanda",
           }
-        }
 
-        this._lastFetchSource = "oanda"
-        return { candles, source: "oanda" }
+          this._lastFetchSource = "oanda"
+          return { candles, source: "oanda" }
+        }
+        
+        // OANDA returned no candles - propagate error so caller can handle
+        throw new Error(`OANDA returned 0 candles for ${this.symbol}/${timeframe}`)
       } catch (error) {
         // Log with proper classification — never say "auth failed" for non-auth errors
         const errorClass = error instanceof OandaFetchError ? error.errorClass : "UNKNOWN"

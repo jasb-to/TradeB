@@ -40,13 +40,18 @@ export function MTFBiasViewer({ signal }: MTFBiasViewerProps) {
   }
 
   // CANONICAL: Use timeframeAlignment from backend - no recalculation, no defaults
+  // ISSUE 3 FIX: Ensure keys match backend exactly (4h not h4, 1h not h1, 15m not m15, 5m not m5)
   const alignment = signal?.timeframeAlignment
+  
+  // MTF_RENDER_CHECK - log alignment data
+  console.log("[MTF_RENDER_CHECK] alignment=", alignment)
+  
   const timeframes = [
-    { name: "DAILY", value: alignment?.daily },
-    { name: "4H", value: alignment?.h4 },
-    { name: "1H", value: alignment?.h1 },
-    { name: "15M", value: alignment?.m15 },
-    { name: "5M", value: alignment?.m5 },
+    { name: "DAILY", value: alignment?.daily || "NEUTRAL" },
+    { name: "4H", value: alignment?.["4h"] || alignment?.h4 || "NEUTRAL" },
+    { name: "1H", value: alignment?.["1h"] || alignment?.h1 || "NEUTRAL" },
+    { name: "15M", value: alignment?.["15m"] || alignment?.m15 || "NEUTRAL" },
+    { name: "5M", value: alignment?.["5m"] || alignment?.m5 || "NEUTRAL" },
   ]
 
   const getAlignmentColor = (state: string | undefined) => {

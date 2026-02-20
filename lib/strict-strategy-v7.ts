@@ -1,4 +1,5 @@
 import type { Candle, Signal } from "@/lib/types"
+import { SYMBOL_CONFIG } from "@/lib/symbol-config"
 
 export class StrictStrategyV7 {
   evaluate(
@@ -8,12 +9,18 @@ export class StrictStrategyV7 {
     data1hCandles: Candle[],
     data15mCandles: Candle[],
     data5mCandles: Candle[],
-    config: any
+    config: any,
+    symbol: string = "XAU_USD"
   ): Signal {
     // Input validation
     if (!dailyCandles?.length || !data4hCandles?.length || !data1hCandles?.length) {
       return { type: "NO_TRADE", direction: "NONE", tier: "NO_TRADE", score: 0, indicators: this.getEmptyIndicators() }
     }
+
+    // Get symbol-aware configuration
+    const symbolConfig = SYMBOL_CONFIG[symbol as keyof typeof SYMBOL_CONFIG]
+    const adxMinimum = symbolConfig?.adxMinimum || 10
+    const emaGapMinimum = symbolConfig?.emaGapMinimum || 1.0
 
     const dailyClose = dailyCandles[dailyCandles.length - 1]?.close || 0
     const h4Close = data4hCandles[data4hCandles.length - 1]?.close || 0
@@ -25,22 +32,20 @@ export class StrictStrategyV7 {
       return { type: "NO_TRADE", direction: "NONE", tier: "NO_TRADE", score: 0, reason: "Missing candle close prices", indicators: this.getEmptyIndicators() }
     }
 
-    // HARD GATE 1: 4H Trend Exists - Relaxed for real market conditions
-    // Require: EMA20 distinct from EMA50 (ANY separation ≥1 pip) AND ADX ≥ 10 (very permissive)
+    // HARD GATE 1: 4H Trend Exists - Instrument-Aware Thresholds
+    // Use symbol-specific ADX and EMA Gap minimums for indices vs commodities
     const ema20_4h = this.calculateEMA(data4hCandles, 20)
     const ema50_4h = this.calculateEMA(data4hCandles, 50)
     const emaGap = Math.abs(ema20_4h - ema50_4h)
     const adx4h = this.calculateADX(data4hCandles)
     
-    const emaThreshold = 1.0 // 1 pip minimum separation
-    const adxThreshold = 10  // ADX ≥ 10 (very permissive, was 12)
-    const gapOK = emaGap >= emaThreshold
-    const adxOK = adx4h >= adxThreshold
+    const gapOK = emaGap >= emaGapMinimum
+    const adxOK = adx4h >= adxMinimum
     
-    console.log(`[v0] HARD_GATE_1: emaGap=${emaGap.toFixed(4)} pips (need ${emaThreshold}) adx=${adx4h.toFixed(1)} (need ${adxThreshold}) | Result: gap=${gapOK ? "PASS" : "FAIL"} adx=${adxOK ? "PASS" : "FAIL"}`)
+    console.log(`[v0] HARD_GATE_1: emaGap=${emaGap.toFixed(4)} pips (need ${emaGapMinimum}) adx=${adx4h.toFixed(1)} (need ${adxMinimum}) | Result: gap=${gapOK ? "PASS" : "FAIL"} adx=${adxOK ? "PASS" : "FAIL"} [${symbol}]`)
 
     if (!gapOK || !adxOK) {
-      console.log(`[v0] HARD_GATE_1 FAILED: ${!gapOK ? `EMA gap only ${emaGap.toFixed(4)} pips` : ""} ${!adxOK ? `ADX only ${adx4h.toFixed(1)} (need 10)` : ""}`)
+      console.log(`[v0] HARD_GATE_1 FAILED [${symbol}]: ${!gapOK ? `EMA gap only ${emaGap.toFixed(4)} pips (need ${emaGapMinimum})` : ""} ${!adxOK ? `ADX only ${adx4h.toFixed(1)} (need ${adxMinimum})` : ""}`)
       return {
         type: "NO_TRADE",
         direction: "NONE",
@@ -80,14 +85,98 @@ export class StrictStrategyV7 {
     
     console.log(`[v0] BOTH HARD GATES PASSED - Starting selective scoring`)
 
+    // HARD GATE 3: 4H Bias must align with signal direction (mandatory)
+    const ema20_daily = this.calculateEMA(dailyCandles, 20)
+    const ema50_daily = this.calculateEMA(dailyCandles, 50)
+    const dailyBiasUp = ema20_daily > ema50_daily
+    const dailyAligned = (direction === "UP" && dailyBiasUp) || (direction === "DOWN" && !dailyBiasUp)
+    
+    if (!dailyAligned) {
+      console.log(`[v0] HARD_GATE_3 FAILED: Daily bias (${dailyBiasUp ? "UP" : "DOWN"}) opposes signal direction (${direction})`)
+      return {
+        type: "NO_TRADE",
+        direction: "NONE",
+        tier: "NO_TRADE",
+        score: 0,
+        reason: "HTF misalignment: Daily bias opposes direction",
+        indicators: this.buildIndicators(ema20_4h, ema50_4h, adx4h, data4hCandles, data1hCandles),
+      }
+    }
+
+    // HARD GATE 4: 1H alignment - must have clear directional bias
+    const ema20_1h = this.calculateEMA(data1hCandles, 20)
+    const ema50_1h = this.calculateEMA(data1hCandles, 50)
+    const h1Aligned = (direction === "UP" && ema20_1h > ema50_1h) || (direction === "DOWN" && ema20_1h < ema50_1h)
+    
+    if (!h1Aligned) {
+      console.log(`[v0] HARD_GATE_4 FAILED: 1H alignment failed`)
+      return {
+        type: "NO_TRADE",
+        direction: "NONE",
+        tier: "NO_TRADE",
+        score: 0,
+        reason: "1H alignment failed",
+        indicators: this.buildIndicators(ema20_4h, ema50_4h, adx4h, data4hCandles, data1hCandles),
+      }
+    }
+
+    // HARD GATE 5: ADX must meet symbol-config minimum + 2 buffer
+    const adxBuffer = adxMinimum + 2
+    const adxBufferOK = adx4h >= adxBuffer
+    
+    if (!adxBufferOK) {
+      console.log(`[v0] HARD_GATE_5 FAILED: ADX ${adx4h.toFixed(1)} below buffer threshold ${adxBuffer}`)
+      return {
+        type: "NO_TRADE",
+        direction: "NONE",
+        tier: "NO_TRADE",
+        score: 0,
+        reason: `Low ADX: ${adx4h.toFixed(1)} < ${adxBuffer}`,
+        indicators: this.buildIndicators(ema20_4h, ema50_4h, adx4h, data4hCandles, data1hCandles),
+      }
+    }
+
+    // HARD GATE 6: ATR volatility must be true
+    const atr = this.calculateATR(data4hCandles, 14)
+    const atr20 = this.calculateATR(data4hCandles.slice(-20), 14)
+    const atrVolatility = atr > atr20 * 1.1
+    
+    if (!atrVolatility) {
+      console.log(`[v0] HARD_GATE_6 FAILED: ATR volatility too low`)
+      return {
+        type: "NO_TRADE",
+        direction: "NONE",
+        tier: "NO_TRADE",
+        score: 0,
+        reason: "Low volatility: ATR not expanding",
+        indicators: this.buildIndicators(ema20_4h, ema50_4h, adx4h, data4hCandles, data1hCandles),
+      }
+    }
+
+    // HARD GATE 7: Entry Timing Requirement - at least one of 15M alignment OR StochRSI momentum
+    const h15Momentum = (direction === "UP" && h15Close > h1Close) || (direction === "DOWN" && h15Close < h1Close)
+    const stochRSI = this.calculateStochRSI(data5mCandles)
+    const stochRSIConfirms = (direction === "UP" && stochRSI.k > 50) || (direction === "DOWN" && stochRSI.k < 50)
+    
+    if (!h15Momentum && !stochRSIConfirms) {
+      console.log(`[v0] HARD_GATE_7 FAILED: No entry confirmation (15M: ${h15Momentum}, StochRSI: ${stochRSIConfirms})`)
+      return {
+        type: "NO_TRADE",
+        direction: "NONE",
+        tier: "NO_TRADE",
+        score: 0,
+        reason: "No entry confirmation: 15M and StochRSI both false",
+        indicators: this.buildIndicators(ema20_4h, ema50_4h, adx4h, data4hCandles, data1hCandles),
+      }
+    }
+
+    console.log(`[v0] ALL HARD GATES PASSED - Starting selective scoring`)
+
     // Both hard gates passed - now selective scoring (need 4+ of 6)
     let score = 0
     const componentDetails: Record<string, boolean> = {}
 
-    // Component 1: Daily EMA Alignment (0-1)
-    const ema20_daily = this.calculateEMA(dailyCandles, 20)
-    const ema50_daily = this.calculateEMA(dailyCandles, 50)
-    const dailyAligned = (direction === "UP" && ema20_daily > ema50_daily) || (direction === "DOWN" && ema20_daily < ema50_daily)
+    // Component 1: Daily EMA Alignment (0-1) 
     if (dailyAligned) {
       score++
       componentDetails["Daily EMA"] = true
@@ -102,16 +191,12 @@ export class StrictStrategyV7 {
     }
 
     // Component 3: ATR Expanding (must be >10% above 20-period average)
-    const atr = this.calculateATR(data4hCandles, 14)
-    const atr20 = this.calculateATR(data4hCandles.slice(-20), 14)
-    const atrExpanding = atr > atr20 * 1.1
-    if (atrExpanding) {
+    if (atrVolatility) {
       score++
       componentDetails["ATR Expanding"] = true
     }
 
     // Component 4: 15M Momentum Confirms Direction
-    const h15Momentum = (direction === "UP" && h15Close > h1Close) || (direction === "DOWN" && h15Close < h1Close)
     if (h15Momentum) {
       score++
       componentDetails["15M Confirms"] = true
@@ -136,28 +221,55 @@ export class StrictStrategyV7 {
       componentDetails["Volume Up"] = true
     }
 
-    // Entry requires 4+ of 6 components (strict selectivity)
-    if (score >= 4) {
-      const tier = score === 6 ? "A+" : score === 5 ? "A" : "B"
-      console.log(`[v0] STRICT v7.3 ENTRY: ${direction} | Score ${score}/6 | Components: ${Object.entries(componentDetails).map(([k, v]) => v ? k : null).filter(Boolean).join(", ")}`)
+    // APPLY CONFLICT PENALTY: If daily bias opposes direction, subtract 1.0 from score
+    let finalScore = score
+    let conflictPenalty = false
+    if (!dailyAligned) {
+      finalScore = Math.max(0, score - 1.0)
+      conflictPenalty = true
+      console.log(`[v0] Conflict penalty applied: Daily bias opposes direction. Score ${score} -> ${finalScore}`)
+    }
+
+    // STRICT TIER ENFORCEMENT: Score must meet minimum AND structural conditions must be satisfied
+    let entryTier: "A+" | "A" | "B" | null = null
+    let canEnter = false
+
+    // A+: score ≥ 7 AND 5+ TF aligned AND ADX ≥ 23
+    if (finalScore >= 7 && Object.values(componentDetails).filter(Boolean).length >= 5 && adx4h >= 23) {
+      entryTier = "A+"
+      canEnter = true
+    }
+    // A: score ≥ 6 AND 4+ TF aligned AND ADX ≥ 21
+    else if (finalScore >= 6 && Object.values(componentDetails).filter(Boolean).length >= 4 && adx4h >= 21) {
+      entryTier = "A"
+      canEnter = true
+    }
+    // B: score ≥ 6 AND 4H+1H aligned AND ADX ≥ 17
+    else if (finalScore >= 6 && h1Aligned && adx4h >= 17) {
+      entryTier = "B"
+      canEnter = true
+    }
+
+    if (!canEnter) {
+      console.log(`[v0] REJECTED: Score ${finalScore} does not meet tier requirements. Components: ${Object.entries(componentDetails).map(([k, v]) => v ? k : null).filter(Boolean).join(", ")}`)
       return {
-        type: "ENTRY",
-        direction,
-        tier,
-        score,
-        approved: true,
-        reason: `Score ${score}/6: ${Object.entries(componentDetails).map(([k, v]) => v ? k : null).filter(Boolean).join(", ")}`,
+        type: "NO_TRADE",
+        direction: "NONE",
+        tier: "NO_TRADE",
+        score: finalScore,
+        reason: `Score below threshold: ${finalScore}/6 does not meet tier requirements`,
         indicators: this.buildIndicators(ema20_4h, ema50_4h, adx4h, data4hCandles, data1hCandles),
       }
     }
 
-    // Below threshold
+    console.log(`[v0] STRICT v7.4 ENTRY: ${direction} | Score ${finalScore}/6 | Tier ${entryTier} | Components: ${Object.entries(componentDetails).map(([k, v]) => v ? k : null).filter(Boolean).join(", ")}`)
     return {
-      type: "NO_TRADE",
-      direction: "NONE",
-      tier: "NO_TRADE",
-      score,
-      reason: `Score ${score}/6 < 4: ${Object.entries(componentDetails).map(([k, v]) => v ? k : null).filter(Boolean).join(", ")}`,
+      type: "ENTRY",
+      direction,
+      tier: entryTier,
+      score: finalScore,
+      approved: true,
+      reason: `Tier ${entryTier}: Score ${finalScore}/6 with ${Object.values(componentDetails).filter(Boolean).length}+ components aligned`,
       indicators: this.buildIndicators(ema20_4h, ema50_4h, adx4h, data4hCandles, data1hCandles),
     }
   }
