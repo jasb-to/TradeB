@@ -13,22 +13,39 @@ export function EntryChecklist({ signal }: EntryChecklistProps) {
   // This is the single source of truth shared with backend alert logic
   const entryDecision = signal?.entryDecision
   
-  // Guard: Must have both entryDecision AND criteria array
-  if (!entryDecision || !entryDecision.criteria || !Array.isArray(entryDecision.criteria)) {
+  // DEFENSIVE: Multiple null checks to handle all edge cases
+  if (!entryDecision) {
     return (
       <Card className="bg-slate-900/40 border-slate-700/50">
         <CardHeader>
           <CardTitle className="text-sm font-mono">ENTRY CHECKLIST</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-xs text-slate-400">No entry decision data available</p>
+          <p className="text-xs text-slate-400">No entry decision available</p>
+        </CardContent>
+      </Card>
+    )
+  }
+  
+  // Safe access to criteria with default empty array
+  const criteria = entryDecision.criteria ?? []
+  
+  if (!Array.isArray(criteria) || criteria.length === 0) {
+    return (
+      <Card className="bg-slate-900/40 border-slate-700/50">
+        <CardHeader>
+          <CardTitle className="text-sm font-mono">ENTRY CHECKLIST</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-slate-400">No criteria data</p>
         </CardContent>
       </Card>
     )
   }
 
-  const passCount = entryDecision.criteria.filter((c) => c.passed).length
-  const totalCount = entryDecision.criteria.length
+  // Safe filter with null-safe criterion access
+  const passCount = criteria.filter((c) => c && c.passed).length
+  const totalCount = criteria.length
   
   // Tier score requirements
   const tierRequirements = [
