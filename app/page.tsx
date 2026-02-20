@@ -17,6 +17,7 @@ import { GoldPriceDisplay } from "@/components/gold-price-display"
 export default function GoldTradingDashboard() {
   const { toast } = useToast()
   const [signalXAU, setSignalXAU] = useState<Signal | null>(null)
+  const [signalEUR, setSignalEUR] = useState<Signal | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdate, setLastUpdate] = useState<number | null>(null)
   const [secondsAgo, setSecondsAgo] = useState(0)
@@ -161,6 +162,29 @@ export default function GoldTradingDashboard() {
     }
   }
 
+  const fetchEUR = async () => {
+    try {
+      const response = await fetch("/api/signal/current?symbol=EUR_USD")
+      
+      if (!response.ok) {
+        throw new Error(`EUR signal fetch returned ${response.status}`)
+      }
+
+      const data = await response.json()
+      const newSignal = data.signal
+      
+      if (data.success && newSignal) {
+        if (newSignal?.type === "ENTRY" || newSignal?.type === "EXIT") {
+          setSignalEUR(newSignal)
+        } else if (!signalEUR) {
+          setSignalEUR(newSignal)
+        }
+      }
+    } catch (error) {
+      console.error("[v0] EUR polling error:", error)
+    }
+  }
+
   const fetchActiveTrades = async () => {
     try {
       const response = await fetch("/api/active-trades?symbol=XAU_USD")
@@ -255,6 +279,13 @@ export default function GoldTradingDashboard() {
         setSecondsAgo(0)
       } catch (error) {
         console.error("[v0] Polling error:", error)
+      }
+      
+      // MULTI-SYMBOL: Fetch EUR_USD alongside XAU
+      try {
+        await fetchEUR()
+      } catch (error) {
+        console.error("[v0] EUR polling error:", error)
       }
     }, 30000) // Poll every 30 seconds during market hours
 
