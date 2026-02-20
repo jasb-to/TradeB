@@ -8,7 +8,7 @@ import { RedisTrades } from "@/lib/redis-trades"
 import { StrictStrategyV7 } from "@/lib/strict-strategy-v7"
 import { BalancedStrategyV7 } from "@/lib/balanced-strategy-v7"
 import { TelegramNotifier } from "@/lib/telegram"
-import { TRADING_SYMBOLS, isValidTradingSymbol } from "@/lib/trading-symbols"
+import { INSTRUMENTS, isValidInstrument, getStrategyForInstrument, getMarketTypeForInstrument, getValidInstruments } from "@/lib/instruments"
 import {
   validateCandleFreshness,
   validateAllCandleFreshness,
@@ -17,27 +17,8 @@ import {
   isSafeModeActive,
 } from "@/lib/capital-protection"
 
-export const SYSTEM_VERSION = "11.6.0-MULTI-SYMBOL-FIXED"
-export const BUILD_MARKER = "20260220-SYMBOL_GUARD_REMOVED"
-
-// SYMBOL-SPECIFIC STRATEGY ROUTING - v7 Score-Based
-// Symbol-aware strategy routing
-// XAU_USD = STRICT v7 (volatility, momentum-heavy, 6-point scale)
-// EUR_USD = BALANCED v7 (reliable direction, pair-stable, safer for FX)
-function getStrategyModeForSymbol(symbol: string): "STRICT" | "BALANCED" {
-  switch (symbol) {
-    case "XAU_USD":
-      return "STRICT"
-    case "EUR_USD":
-      return "BALANCED" // Safer mode for FX pairs
-    case "NAS100USD":
-      return "STRICT" // Indices follow gold logic
-    case "SPX500USD":
-      return "STRICT" // Indices follow gold logic
-    default:
-      throw new Error(`Unsupported symbol for strategy routing: ${symbol}. Supported: XAU_USD, EUR_USD, NAS100USD, SPX500USD`)
-  }
-}
+export const SYSTEM_VERSION = "11.7.0-INSTRUMENTS-SINGLE-TRUTH"
+export const BUILD_MARKER = "20260220-INSTITUTIONAL-ARCHITECTURE"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -45,8 +26,8 @@ export const runtime = "nodejs"
 let lastValidSignals: { [key: string]: any } = {}
 let lastValidTimestamps: { [key: string]: string | null } = {}
 
-// Initialize for all trading symbols
-TRADING_SYMBOLS.forEach((symbol) => {
+// Initialize for all instruments
+getValidInstruments().forEach((symbol) => {
   lastValidSignals[symbol] = null
   lastValidTimestamps[symbol] = null
 })
@@ -58,24 +39,19 @@ export async function GET(request: Request) {
     
     console.log(`[v0] SIGNAL/CURRENT GUARD: symbolParam=${symbolParam}`)
     
-    // Guard: reject invalid symbols
-    if (!symbolParam || !isValidTradingSymbol(symbolParam)) {
-      console.error(`[GUARD] Invalid symbol requested: ${symbolParam}. Valid symbols: ${TRADING_SYMBOLS.join(", ")}`)
+    // Guard: reject invalid symbols - single source of truth from INSTRUMENTS
+    if (!symbolParam || !isValidInstrument(symbolParam)) {
+      console.error(`[GUARD] Invalid symbol requested: ${symbolParam}. Valid instruments: ${getValidInstruments().join(", ")}`)
       return NextResponse.json(
-        { success: false, error: "Invalid trading symbol", requestedSymbol: symbolParam, validSymbols: TRADING_SYMBOLS },
+        { success: false, error: "Invalid trading symbol", requestedSymbol: symbolParam, validSymbols: getValidInstruments() },
         { status: 400 }
       )
     }
     
-    const symbol = symbolParam as typeof TRADING_SYMBOLS[number]
-    console.log(`[v0] SIGNAL/CURRENT PASSED GUARD: symbol=${symbol}`)
-    console.log(`[v0] CACHE_BUSTER v3.3 ACTIVE: FULL_REBUILD_ACTIVE - System version ${SYSTEM_VERSION}`)
-    console.log(`[v0] This proves the FIXED source code is running, not cached old bytecode`)
-    
-    // Runtime failsafe: reject XAG if it somehow appears
-    if (symbol === "XAG_USD") {
-      throw new Error("[FAILSAFE] XAG_USD should not exist in production")
-    }
+    const symbol = symbolParam
+    const instrumentConfig = INSTRUMENTS[symbol]
+    console.log(`[v0] SIGNAL/CURRENT PASSED GUARD: symbol=${symbol}, strategy=${instrumentConfig.strategy}, marketType=${instrumentConfig.marketType}`)
+    console.log(`[v0] INSTITUTIONAL ARCHITECTURE: Reading config from INSTRUMENTS module (single source of truth)`)
 
     const marketStatus = MarketHours.getMarketStatus()
 
@@ -373,13 +349,14 @@ export async function GET(request: Request) {
       )
     }
 
-    // Symbol-specific strategy routing - v7 Score-Based System
-    const activeMode = getStrategyModeForSymbol(symbol)
-    console.log(`[v0] ACTIVE_MODE_FOR_${symbol}=${activeMode} (v7 Score-Based)`)
+    // Symbol-specific strategy routing - declarative from INSTRUMENTS
+    const activeMode = getStrategyForInstrument(symbol)
+    const marketType = getMarketTypeForInstrument(symbol)
+    console.log(`[v0] ACTIVE_MODE_FOR_${symbol}=${activeMode} (marketType=${marketType}, from INSTRUMENTS module)`)
 
     let signal
     // Strategy evaluation based on mode - pass symbol for instrument-aware thresholds
-    console.log(`[v0] STRICT EVALUATION START: activeMode=${activeMode} symbol=${symbol}`)
+    console.log(`[v0] STRATEGY EVALUATION START: mode=${activeMode} symbol=${symbol}`)
     
     if (activeMode === "BALANCED") {
       // BALANCED mode with symbol-aware configuration

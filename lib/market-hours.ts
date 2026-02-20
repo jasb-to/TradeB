@@ -1,46 +1,58 @@
+import { MarketType } from "@/lib/instruments"
+
 export class MarketHours {
   // OANDA Market Hours: Sunday 11:00 PM GMT - Friday 10:00 PM GMT (22:00 GMT close)
-  // Note: Forex/precious metals close at 22:00 GMT Friday (10 PM UK time)
-  static isGoldSilverMarketOpen(): boolean {
+  // Note: METAL (gold/silver) and FX close at 22:00 GMT Friday (10 PM UK time)
+  // Indices: NASDAQ and S&P 500 also follow same schedule
+  
+  static isMarketOpen(marketType: MarketType = "METAL"): boolean {
     const now = new Date()
     
     // Get current time in GMT (UTC)
     const gmtHours = now.getUTCHours()
     const gmtDay = now.getUTCDay() // 0 = Sunday, 6 = Saturday
     
-    console.log(`[v0] Market hours check (GMT): day=${gmtDay}, hour=${gmtHours}, date=${now.toISOString()}`)
+    console.log(`[v0] Market hours check: marketType=${marketType}, day=${gmtDay}, hour=${gmtHours} GMT`)
     
-    // Saturday is completely closed
+    // Saturday is completely closed for all instruments
     if (gmtDay === 6) {
-      console.log("[v0] Market closed: Saturday")
+      console.log(`[v0] ${marketType} closed: Saturday`)
       return false
     }
     
     // Sunday opens at 11 PM GMT (hour 23)
     if (gmtDay === 0) {
       const isOpen = gmtHours >= 23
-      console.log(`[v0] Sunday check: hour=${gmtHours}, isOpen=${isOpen} (opens 23:00 GMT)`)
+      console.log(`[v0] Sunday ${marketType}: hour=${gmtHours}, isOpen=${isOpen} (opens 23:00 GMT)`)
       return isOpen
     }
     
-    // Monday-Thursday: Open 24/5 (all hours 0-23)
+    // Monday-Thursday: Open 24/5 (all hours 0-23) for all instrument types
     if (gmtDay >= 1 && gmtDay <= 4) {
-      console.log(`[v0] ${["Mon", "Tue", "Wed", "Thu"][gmtDay - 1]}: Open 24/5`)
+      console.log(`[v0] ${["Mon", "Tue", "Wed", "Thu"][gmtDay - 1]} ${marketType}: Open 24/5`)
       return true
     }
     
-    // Friday: Open until 22:00 GMT (10 PM UK time), then CLOSED
+    // Friday: All instruments close at 22:00 GMT (10 PM UK time)
     if (gmtDay === 5) {
       const isOpen = gmtHours < 22
-      console.log(`[v0] Friday check: hour=${gmtHours}, isOpen=${isOpen} (closes 22:00 GMT / 10 PM UK)`)
+      console.log(`[v0] Friday ${marketType}: hour=${gmtHours}, isOpen=${isOpen} (closes 22:00 GMT / 10 PM UK)`)
       return isOpen
     }
     
     return false
   }
 
-  static getMarketStatus(): { isOpen: boolean; message: string; nextOpen?: string } {
-    const isOpen = this.isGoldSilverMarketOpen()
+  /**
+   * Backward compatible wrapper for existing code using isGoldSilverMarketOpen
+   * Now dispatches through isMarketOpen with METAL market type
+   */
+  static isGoldSilverMarketOpen(): boolean {
+    return this.isMarketOpen("METAL")
+  }
+
+  static getMarketStatus(marketType: MarketType = "METAL"): { isOpen: boolean; message: string; nextOpen?: string } {
+    const isOpen = this.isMarketOpen(marketType)
 
     if (isOpen) {
       return {
