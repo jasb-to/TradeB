@@ -151,6 +151,7 @@ export async function GET(request: Request) {
       )
 
       // PHASE 3: CAPITAL PROTECTION - Candle Freshness Validation
+      // Log freshness metrics but only block on NO_CANDLES (not MISSING_TIMESTAMP which is normal on first load)
       const freshness = validateAllCandleFreshness({
         daily: dataDaily,
         h4: data4h,
@@ -159,34 +160,37 @@ export async function GET(request: Request) {
         m5: data5m,
       })
 
-      if (!freshness.allFresh) {
-        console.warn(`[CAPITAL_PROTECTION] STALE_DATA detected on timeframes: ${freshness.staleTimeframes.join(", ")}`)
-        console.warn(`[CAPITAL_PROTECTION] Freshness details:`, freshness.details)
-        
-        // Block entries on stale data - return NO_TRADE with freshness details
+      // Only block if we have NO_CANDLES on critical timeframes (daily, 1h, 4h)
+      const criticalEmpty = ["1d", "1h", "4h"].some(tf => 
+        freshness.details[tf]?.reason === "NO_CANDLES"
+      )
+      
+      if (criticalEmpty) {
+        console.warn(`[CAPITAL_PROTECTION] CRITICAL: NO_CANDLES on required timeframes: ${freshness.staleTimeframes.join(", ")}`)
         return NextResponse.json(
           {
             success: true,
             signal: {
               type: "NO_TRADE",
               direction: "NONE",
-              reasons: ["STALE_DATA"],
+              reasons: ["CRITICAL_DATA_MISSING"],
               entryDecision: {
                 approved: false,
                 tier: "NO_TRADE",
                 score: 0,
-                reason: `Stale data on: ${freshness.staleTimeframes.join(", ")}`,
-              },
-              capitalProtection: {
-                staleTimeframes: freshness.staleTimeframes,
-                details: freshness.details,
+                reason: `Critical timeframes empty: ${freshness.staleTimeframes.join(", ")}`,
               },
             },
-            marketStatus: isInstrumentOpen(symbol) ? "OPEN" : "CLOSED",
+            marketStatus: "UNAVAILABLE",
             timestamp: new Date().toISOString(),
           },
           { status: 200 },
         )
+      }
+      
+      // Log other freshness issues for diagnostics but continue trading
+      if (!freshness.allFresh) {
+        console.log(`[CAPITAL_PROTECTION] Freshness check: staleTimeframes=${freshness.staleTimeframes.join(", ")}`)
       }
 
       // PHASE 3: CAPITAL PROTECTION - Instrument Trading Hours

@@ -13,23 +13,15 @@ export function EntryChecklist({ signal }: EntryChecklistProps) {
   // This is the single source of truth shared with backend alert logic
   const entryDecision = signal?.entryDecision
   
-  // Validation: Ensure all criteria are present
-  const validateCriteria = () => {
-    if (!entryDecision?.criteria) return { valid: false, missingCount: 7 };
-    const missing = entryDecision.criteria.filter(c => !c.passed).length;
-    return { valid: true, missingCount: missing };
-  };
-  
-  const { valid: criteriaValid, missingCount } = validateCriteria();
-  
-  if (!entryDecision) {
+  // Guard: Must have both entryDecision AND criteria array
+  if (!entryDecision || !entryDecision.criteria || !Array.isArray(entryDecision.criteria)) {
     return (
       <Card className="bg-slate-900/40 border-slate-700/50">
         <CardHeader>
           <CardTitle className="text-sm font-mono">ENTRY CHECKLIST</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-xs text-slate-400">No signal data available</p>
+          <p className="text-xs text-slate-400">No entry decision data available</p>
         </CardContent>
       </Card>
     )

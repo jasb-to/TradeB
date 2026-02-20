@@ -42,7 +42,7 @@ export const SYMBOL_CONFIG: Record<TradingSymbol, SymbolConfig> = {
   NAS100USD: {
     symbol: "NAS100USD",
     display: "US100",
-    oandaName: "NAS100USD",
+    oandaName: "US NAS 100",
     description: "NASDAQ 100 Index",
     volatility: "HIGH",
     typicalPips: 100,
@@ -58,7 +58,7 @@ export const SYMBOL_CONFIG: Record<TradingSymbol, SymbolConfig> = {
   SPX500USD: {
     symbol: "SPX500USD",
     display: "US500",
-    oandaName: "SPX500USD",
+    oandaName: "US SPX 500",
     description: "S&P 500 Index",
     volatility: "MEDIUM_HIGH",
     typicalPips: 80,
