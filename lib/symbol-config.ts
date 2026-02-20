@@ -3,7 +3,7 @@
  * Centralized instrument definitions with OANDA API names and metadata
  */
 
-export const TRADING_SYMBOLS = ["XAU_USD", "NAS100USD", "SPX500USD"] as const
+export const TRADING_SYMBOLS = ["XAU_USD", "EUR_USD", "NAS100USD", "SPX500USD"] as const
 export type TradingSymbol = (typeof TRADING_SYMBOLS)[number]
 
 export interface SymbolConfig {
@@ -36,6 +36,21 @@ export const SYMBOL_CONFIG: Record<TradingSymbol, SymbolConfig> = {
     adxMinimum: 10,
     emaGapMinimum: 1.0,
     signalThreshold: 3.5,
+    tp1RiskReward: 1.0,
+    tp2RiskReward: 1.5,
+  },
+  EUR_USD: {
+    symbol: "EUR_USD",
+    display: "EUR/USD",
+    oandaName: "EUR_USD",
+    description: "Euro / US Dollar",
+    volatility: "LOW",
+    typicalPips: 20,
+    sessionHours: "24/5 (Forex)",
+    recommendedMaxTrades: 2,
+    adxMinimum: 12,
+    emaGapMinimum: 0.8,
+    signalThreshold: 3.8,
     tp1RiskReward: 1.0,
     tp2RiskReward: 1.5,
   },

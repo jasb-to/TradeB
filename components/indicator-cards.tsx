@@ -161,7 +161,7 @@ export function IndicatorCards({ signal }: IndicatorCardsProps) {
           <div className="w-full bg-slate-800 rounded h-2">
             <div
               className={`${stochStatus.color.includes("green") ? "bg-green-600" : stochStatus.color.includes("red") ? "bg-red-600" : stochStatus.color.includes("yellow") ? "bg-yellow-600" : "bg-gray-600"} rounded h-2 transition-all`}
-              style={{ width: stochStatus.isCalculating ? "0%" : `${Math.min(100, stochRsiData.value ?? 50)}%` }}
+              style={{ width: stochStatus.isCalculating ? "0%" : (stochRsiData.value !== null && stochRsiData.value !== undefined ? `${Math.min(100, stochRsiData.value)}%` : "0%") }}
             />
           </div>
           <p className="text-xs text-slate-400">UP &gt; 60 | COMPRESSION 40-60 | DOWN &lt; 40</p>
