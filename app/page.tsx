@@ -127,9 +127,9 @@ export default function GoldTradingDashboard() {
       const data = await response.json()
 
       // Handle market closed state - preserve Friday close data
-      if (data.marketClosed) {
+      if (data.marketStatus === "CLOSED") {
         setMarketClosed(true)
-        setMarketMessage(data.marketStatus || "Market closed for weekend")
+        setMarketMessage("Market Closed")
         if (data.signal) {
           setSignalXAU(data.signal)
         }
