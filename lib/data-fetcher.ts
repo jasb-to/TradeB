@@ -272,10 +272,13 @@ export class DataFetcher {
             timestamp: Date.now(),
             source: "oanda",
           }
-        }
 
-        this._lastFetchSource = "oanda"
-        return { candles, source: "oanda" }
+          this._lastFetchSource = "oanda"
+          return { candles, source: "oanda" }
+        }
+        
+        // OANDA returned no candles - propagate error so caller can handle
+        throw new Error(`OANDA returned 0 candles for ${this.symbol}/${timeframe}`)
       } catch (error) {
         // Log with proper classification — never say "auth failed" for non-auth errors
         const errorClass = error instanceof OandaFetchError ? error.errorClass : "UNKNOWN"

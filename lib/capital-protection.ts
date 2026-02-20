@@ -31,12 +31,12 @@ let lastSafeModeLog = 0
 
 /**
  * Validates if a candle is fresh (not stale)
- * @param candleTime - ISO timestamp of candle close time
+ * @param candleTime - Epoch timestamp (ms) or ISO string of candle close time
  * @param timeframe - '5m', '15m', '1h', '4h', '1d'
  * @returns { isFresh: boolean, lagMinutes: number, reason?: string }
  */
 export function validateCandleFreshness(
-  candleTime: string | undefined,
+  candleTime: number | string | undefined,
   timeframe: string
 ): { isFresh: boolean; lagMinutes: number; reason?: string } {
   if (!candleTime) {
@@ -48,7 +48,17 @@ export function validateCandleFreshness(
   }
 
   const now = Date.now()
-  const candleMs = new Date(candleTime).getTime()
+  // Handle both epoch (number) and ISO string formats
+  const candleMs = typeof candleTime === "number" ? candleTime : new Date(candleTime).getTime()
+  
+  if (isNaN(candleMs)) {
+    return {
+      isFresh: false,
+      lagMinutes: Infinity,
+      reason: "INVALID_TIMESTAMP",
+    }
+  }
+  
   const lagMs = now - candleMs
   const lagMinutes = Math.floor(lagMs / 60000)
 
@@ -127,8 +137,22 @@ export function validateAllCandleFreshness(candleData: {
   ]
 
   for (const check of checks) {
-    const lastCandle = check.data?.candles?.[check.data.candles.length - 1]
-    const validation = validateCandleFreshness(lastCandle?.time, check.tf)
+    const candles = check.data?.candles
+    
+    // No candles at all - this is an error state, not just stale
+    if (!candles || candles.length === 0) {
+      details[check.tf] = { 
+        isFresh: false, 
+        lagMinutes: Infinity, 
+        reason: "NO_CANDLES" 
+      }
+      staleTimeframes.push(check.tf)
+      continue
+    }
+    
+    // Candle type uses 'timestamp' field (epoch ms), not 'time'
+    const lastCandle = candles[candles.length - 1]
+    const validation = validateCandleFreshness(lastCandle?.timestamp, check.tf)
 
     details[check.tf] = validation
 
