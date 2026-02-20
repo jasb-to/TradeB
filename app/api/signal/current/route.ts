@@ -8,6 +8,7 @@ import { RedisTrades } from "@/lib/redis-trades"
 import { StrictStrategyV7 } from "@/lib/strict-strategy-v7"
 import { BalancedStrategyV7 } from "@/lib/balanced-strategy-v7"
 import { TelegramNotifier } from "@/lib/telegram"
+import { TRADING_SYMBOLS, isValidTradingSymbol } from "@/lib/trading-symbols"
 import {
   validateCandleFreshness,
   validateAllCandleFreshness,
@@ -16,13 +17,8 @@ import {
   isSafeModeActive,
 } from "@/lib/capital-protection"
 
-export const SYSTEM_VERSION = "11.0.0-ARCHITECTURAL-RESET"
-
-// HARDCODED: Only XAU_USD - never import TRADING_SYMBOLS which gets cached by Vercel
-const TRADING_SYMBOLS = ["XAU_USD"] as const
-function isValidTradingSymbol(symbol: string): symbol is typeof TRADING_SYMBOLS[number] {
-  return symbol === "XAU_USD"
-}
+export const SYSTEM_VERSION = "11.6.0-MULTI-SYMBOL-FIXED"
+export const BUILD_MARKER = "20260220-SYMBOL_GUARD_REMOVED"
 
 // SYMBOL-SPECIFIC STRATEGY ROUTING - v7 Score-Based
 // Symbol-aware strategy routing

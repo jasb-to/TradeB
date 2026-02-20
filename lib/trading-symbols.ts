@@ -1,5 +1,9 @@
-// v5.5.2: XAU_USD FOCUS - Removed JP225, US100, US500 - System now focused on gold trading only
-export const TRADING_SYMBOLS = ["XAU_USD"] as const
+// v11.6.0: Multi-symbol support with symbol-specific strategy routing
+// XAU_USD = STRICT strategy (volatility-driven)
+// EUR_USD = BALANCED strategy (pair stability)
+// NAS100USD = STRICT strategy (high-vol index)
+// SPX500USD = STRICT strategy (medium-vol index)
+export const TRADING_SYMBOLS = ["XAU_USD", "EUR_USD", "NAS100USD", "SPX500USD"] as const
 
 export type TradingSymbol = typeof TRADING_SYMBOLS[number]
 
